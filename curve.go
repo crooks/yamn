@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"crypto/rand"
 )
 
 const (
@@ -14,41 +13,7 @@ const (
 	key_validity_days int = 60
 )
 
-// randbytes returns n Bytes of random data
-func randbytes(n int) (b []byte) {
-  b = make([]byte, n)
-  _, err := rand.Read(b)
-  if err != nil {
-    panic(err)
-  }
-  return
-}
-
-// lencheck verifies that slice b is of a given length
-func lencheck(b []byte, length int) error {
-	if len(b) != length {
-		return fmt.Errorf("Incorrect slice length.  Wanted=%d, Got=%d", length, len(b))
-	} else {
-		return nil
-	}
-}
-
-// buflencheck verifies that a given buffer length is of a specified length
-func buflencheck(buflen, length int) error {
-	if buflen != length {
-		return fmt.Errorf("Incorrect buffer length.  Wanted=%d, Got=%d", length, buflen)
-	} else {
-		return nil
-	}
-}
-
-
-func main() {
-	// Import keyrings
-	pub, _ := import_pubring()
-	sec := import_secring()
-
-	// Encode a header
+func client(pub map[string]keyinfo) []byte {
 	var final slotfinal
 	var data slotdata
 	var head slothead
@@ -66,9 +31,10 @@ func main() {
 	head.slotdata = encode_data(data)
 	head.recipient_keyid = pub[recipient_remailer].keyid
 	head.recipient_pk = pub[recipient_remailer].pk
-	header := encode_head(head)  // This is the encoded header
+	return encode_head(head)  // This is the encoded header
+}
 
-	// Now try to decrypt it
+func server(header []byte, sec map[string][]byte) (final slotfinal) {
 	slotdata, auth, err := decode_head(header, sec)
 	if err != nil {
 		panic(err)
@@ -76,16 +42,29 @@ func main() {
 	if ! auth {
 		fmt.Fprintln(os.Stderr, "Auth failed ECC decoding slot data")
 	}
-	newdata, err := decode_data(slotdata)
+	data, err := decode_data(slotdata)
 	if err != nil {
 		panic(err)
 	}
-	var newfinal slotfinal
-	if newdata.packettype == 1 {
-		newfinal, err = decode_final(newdata.packetinfo)
+	if data.packettype == 1 {
+		final, err = decode_final(data.packetinfo)
 		if err != nil {
 			panic(err)
 		}
 	}
-	fmt.Println(newfinal.chunknum)
+	return
+}
+
+
+func main() {
+	// Import keyrings
+	pub, _ := import_pubring()
+	sec := import_secring()
+
+	// Encode a header
+	header := client(pub)
+
+	// Now try to decrypt it
+	out := server(header, sec)
+	fmt.Println(out.messageid)
 }
