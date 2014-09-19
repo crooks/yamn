@@ -39,6 +39,9 @@ type Config struct {
 
 func init() {
 	var err error
+	// Function as a client
+	flag.BoolVar(&flag_client, "mail", false, "Function as a client")
+	flag.BoolVar(&flag_client, "m", false, "Function as a client")
 	// Remailer chain
 	flag.StringVar(&flag_chain, "chain", "*,*,*", "Remailer chain")
 	flag.StringVar(&flag_chain, "l", "*,*,*", "Remailer chain")
@@ -95,6 +98,7 @@ func flags() {
 	flag_args = flag.Args()
 }
 
+var flag_client bool
 var flag_chain string
 var flag_to string
 var flag_subject string

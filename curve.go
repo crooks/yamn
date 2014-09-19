@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 )
 
 const (
@@ -19,29 +18,17 @@ const (
 	bodyBytes = 10240
 )
 
-func server(header []byte, sec map[string][]byte) (final slotFinal) {
-	slotData, auth, err := decode_head(header, sec)
-	if err != nil {
-		panic(err)
-	}
-	if ! auth {
-		fmt.Fprintln(os.Stderr, "Auth failed ECC decoding slot data")
-	}
-	data, err := decode_data(slotData)
-	if err != nil {
-		panic(err)
-	}
-	if data.packetType == 1 {
-		final, err = decodeFinal(data.packetInfo)
+func main() {
+	var b []byte
+	var err error
+	flags()
+	if flag_client {
+		mixprep()
+	} else {
+		b, err = uncut("test.txt")
 		if err != nil {
 			panic(err)
 		}
 	}
-	return
-}
-
-
-func main() {
-	flags()
-	mixprep()
+	fmt.Println(len(b))
 }

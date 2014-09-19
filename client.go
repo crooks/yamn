@@ -84,7 +84,7 @@ func mixprep() {
 				in_chain[len(in_chain) - 1] = exitnode
 			}
 			chain := chain_build(in_chain, pubring, xref)
-			fmt.Println(chain)
+			//fmt.Println(chain)
 			if ! got_exit {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
@@ -100,7 +100,7 @@ func mixprep() {
 			}
 			*/
 			fmt.Println(string(encmsg))
-			fmt.Println(sendto)
+			fmt.Fprintln(os.Stderr, sendto)
 		} // End of copies loop
 	} // End of fragments loop
 }

@@ -3,12 +3,15 @@
 package main
 
 import (
+	"os"
+	"bufio"
 	"fmt"
 	"strings"
 	"crypto/rand"
 	"encoding/base64"
 	"strconv"
 	"bytes"
+	"errors"
 	"github.com/codahale/blake2"
 )
 
@@ -79,4 +82,81 @@ func cutmarks(mixmsg []byte) []byte {
 	buf.WriteString(b64enc(mixmsg) + "\n")
 	buf.WriteString("-----END REMAILER MESSAGE-----")
 	return buf.Bytes()
+}
+
+// uncut does the opposite of cutmarks and returns plain bytes
+func uncut(filename string) (payload []byte, err error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return
+	}
+	scanner := bufio.NewScanner(f)
+	scanPhase := 0
+	var b64 string
+	var payloadLen int
+	var payloadDigest []byte
+	/* Scan phases are:
+	0	Expecting ::
+	1 Expecting Begin cutmarks
+	2 Expecting size
+	3	Expecting hash
+	4 In payload and checking for End cutmark
+	5 Got End cutmark
+	*/
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch scanPhase {
+		case 0:
+			// Expecting ::\n
+			if line == "::" {
+				scanPhase = 1
+			}
+		case 1:
+			// Expecting Begin cutmarks
+			if line == "-----BEGIN REMAILER MESSAGE-----" {
+				scanPhase = 2
+			}
+		case 2:
+			// Expecting size
+			payloadLen, err = strconv.Atoi(line)
+			if err != nil {
+				return nil, errors.New("Unable to extract payload size")
+			}
+			scanPhase = 3
+		case 3:
+			if len(line) != 24 {
+				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes", len(line))
+				return nil, err
+			} else {
+				payloadDigest, err = base64.StdEncoding.DecodeString(line)
+				if err != nil {
+					return nil, errors.New("Unable to decode Base64 hash on payload")
+				}
+			}
+			scanPhase = 4
+		case 4:
+			if line == "-----END REMAILER MESSAGE-----" {
+				scanPhase = 5
+				break
+			}
+			b64 += line
+		} // End of switch
+	} // End of file scan
+	if scanPhase != 5 {
+		err = fmt.Errorf("Payload scanning failed at phase %d", scanPhase)
+		return nil, err
+	}
+	payload, err = base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, errors.New("Unable to decode Base64 payload")
+	}
+	if len(payload) != payloadLen {
+		err = fmt.Errorf("Unexpected payload size. Wanted=%d, Got=%d", payloadLen, len(payload))
+	}
+	digest := blake2.New(&blake2.Config{Size: 16})
+	digest.Write(payload)
+	if ! bytes.Equal(digest.Sum(nil), payloadDigest) {
+		return nil, errors.New("Incorrect payload digest")
+	}
+	return
 }
