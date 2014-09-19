@@ -7,6 +7,9 @@ import (
 	"strings"
 	"crypto/rand"
 	"encoding/base64"
+	"strconv"
+	"bytes"
+	"github.com/codahale/blake2"
 )
 
 // randbytes returns n Bytes of random data
@@ -60,4 +63,20 @@ func wrap(str string) (newstr string) {
 	// Strip the inevitable trailing LF
 	newstr = strings.TrimRight(newstr, "\n")
 	return
+}
+
+// cutmarks encodes a mixmsg into a Mixmaster formatted email payload
+func cutmarks(mixmsg []byte) []byte {
+	buf := new(bytes.Buffer)
+	buf.WriteString("::\n")
+	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
+	buf.WriteString(header)
+	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
+	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
+	digest := blake2.New(&blake2.Config{Size: 16})
+	digest.Write(mixmsg)
+	buf.WriteString(b64enc(digest.Sum(nil)) + "\n")
+	buf.WriteString(b64enc(mixmsg) + "\n")
+	buf.WriteString("-----END REMAILER MESSAGE-----")
+	return buf.Bytes()
 }
