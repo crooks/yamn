@@ -1,0 +1,12 @@
+Yet Another Mix Net - A Mixmaster derivative
+
+YAMN tries to look like Mixmaster in order to maintain compatibility with the
+various GUI's and peripheral applications that serve to make it a complete
+solution.  Under the covers there will be some significant differences:-
+
+* Revised crypto functions.  Instead of Mixmaster's Triple-DES, RSAES-PKCS1-v1_5
+and MD5, YAMN will use AES, NaCl Box and Blake2.
+
+* Deterministic header padding to protect against tagging attacks
+
+* Others TBA
