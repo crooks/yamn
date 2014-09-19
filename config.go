@@ -90,6 +90,11 @@ func init() {
 	}
 }
 
+func flags() {
+	flag.Parse()
+	flag_args = flag.Args()
+}
+
 var flag_chain string
 var flag_to string
 var flag_subject string
