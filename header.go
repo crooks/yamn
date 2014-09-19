@@ -32,15 +32,15 @@ Slot Header Format
 [ Random padding		 32 Bytes ]
 */
 
-type slothead struct {
-	recipient_keyid []byte
-	recipient_pk []byte
+type slotHead struct {
+	recipientKeyid []byte
+	recipientPK []byte
 	//sender_pubkey []byte
 	//nonce []byte
-	slotdata []byte
+	slotData []byte
 }
 
-func encode_head(h slothead) []byte {
+func encode_head(h slotHead) []byte {
 	// Generate an ECC key pair
 	sendpub, sendpriv, err := box.GenerateKey(rand.Reader)
 	if err != nil {
@@ -49,21 +49,21 @@ func encode_head(h slothead) []byte {
 	var nonce [24]byte
 	copy(nonce[:], randbytes(24))
 	buf := new(bytes.Buffer)
-	buf.Write(h.recipient_keyid)
+	buf.Write(h.recipientKeyid)
 	buf.Write(sendpub[:])
 	buf.Write(nonce[:])
 	var pk [32]byte
-	copy(pk[:], h.recipient_pk)
-	buf.Write(box.Seal(nil, h.slotdata, &nonce, &pk, sendpriv))
+	copy(pk[:], h.recipientPK)
+	buf.Write(box.Seal(nil, h.slotData, &nonce, &pk, sendpriv))
 	err = buflencheck(buf.Len(), 480)
 	if err != nil {
 		panic(err)
 	}
-	buf.Write(randbytes(512 - buf.Len()))
+	buf.Write(randbytes(headerBytes - buf.Len()))
 	return buf.Bytes()
 }
 
-func decode_head(b []byte, sec map[string][]byte) (slotdata []byte, auth bool, err error) {
+func decode_head(b []byte, sec map[string][]byte) (slotData []byte, auth bool, err error) {
 	var keyid string
 	keyid = hex.EncodeToString(b[0:16])
 	sk, present := sec[keyid]
@@ -81,8 +81,8 @@ func decode_head(b []byte, sec map[string][]byte) (slotdata []byte, auth bool, e
 	copy(recipient_sk[:], sk)
 	var nonce [24]byte
 	copy(nonce[:], b[48:72])
-	slotdata, auth = box.Open(nil, b[72:72+408], &nonce, &sender_pk, &recipient_sk)
-	err = lencheck(slotdata, 392)
+	slotData, auth = box.Open(nil, b[72:72+408], &nonce, &sender_pk, &recipient_sk)
+	err = lencheck(slotData, 392)
 	return
 }
 
@@ -98,23 +98,23 @@ Encrypted Data
 Total	392 Bytes
 */
 
-type slotdata struct {
-	packetid []byte
-	aeskey []byte
-	packettype uint8
-	packetinfo []byte
+type slotData struct {
+	packetID []byte
+	aesKey []byte
+	packetType uint8
+	packetInfo []byte
 	timestamp []byte
-	taghash []byte
+	tagHash []byte
 }
 
-func encode_data(d slotdata) []byte {
+func encode_data(d slotData) []byte {
 	buf := new(bytes.Buffer)
-	buf.Write(d.packetid)
-	buf.Write(d.aeskey)
-	buf.WriteByte(d.packettype)
-	buf.Write(d.packetinfo)
+	buf.Write(d.packetID)
+	buf.Write(d.aesKey)
+	buf.WriteByte(d.packetType)
+	buf.Write(d.packetInfo)
 	buf.Write(d.timestamp)
-	buf.Write(d.taghash)
+	buf.Write(d.tagHash)
 	err := buflencheck(buf.Len(), 328)
 	if err != nil {
 		panic(err)
@@ -123,17 +123,17 @@ func encode_data(d slotdata) []byte {
 	return buf.Bytes()
 }
 
-func decode_data(b []byte) (data slotdata, err error) {
+func decode_data(b []byte) (data slotData, err error) {
 	err = lencheck(b, 392)
 	if err != nil {
 		return
 	}
-	data.packetid = b[0:16]
-	data.aeskey = b[16:48]
-	data.packettype = uint8(b[48])
-	data.packetinfo = b[49:289]
+	data.packetID = b[0:16]
+	data.aesKey = b[16:48]
+	data.packetType = uint8(b[48])
+	data.packetInfo = b[49:289]
 	//TODO Test timestamp
-	data.taghash = b[296:328]
+	data.tagHash = b[296:328]
 	//Padding[328:392]
 	return
 }
@@ -144,22 +144,25 @@ Final Hop
 [ Num chunks			  1 Byte ]
 [ Message ID			 16 Bytes ]
 [ AES-CTR IV			 16 Bytes ]
+[ Body length			  4 Bytes ]
 */
 
-type slotfinal struct {
-	chunknum uint8
-	numchunks uint8
-	messageid []byte
-	aesiv []byte
+type slotFinal struct {
+	chunkNum uint8
+	numChunks uint8
+	messageID []byte
+	aesIV []byte
+	bodyBytes []byte
 }
 
-func encode_final(f slotfinal) []byte {
+func encodeFinal(f slotFinal) []byte {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(f.chunknum)
-	buf.WriteByte(f.numchunks)
-	buf.Write(f.messageid)
-	buf.Write(f.aesiv)
-	err := buflencheck(buf.Len(), 34)
+	buf.WriteByte(f.chunkNum)
+	buf.WriteByte(f.numChunks)
+	buf.Write(f.messageID)
+	buf.Write(f.aesIV)
+	buf.Write(f.bodyBytes)
+	err := buflencheck(buf.Len(), 38)
 	if err != nil {
 		panic(err)
 	}
@@ -167,15 +170,15 @@ func encode_final(f slotfinal) []byte {
 	return buf.Bytes()
 }
 
-func decode_final(b []byte) (final slotfinal, err error) {
+func decodeFinal(b []byte) (final slotFinal, err error) {
 	err = lencheck(b, 240)
 	if err != nil {
 		return
 	}
-	final.chunknum = b[0]
-	final.numchunks = b[1]
-	final.messageid = b[2:18]
-	final.aesiv = b[18:34]
+	final.chunkNum = b[0]
+	final.numChunks = b[1]
+	final.messageID = b[2:18]
+	final.aesIV = b[18:34]
 	return
 }
 
@@ -185,15 +188,15 @@ Intermediate Hop
 [ Next hop address		 80 Bytes ]
 */
 
-type slotintermediate struct {
-	aesivs []byte
-	nexthop string
+type slotIntermediate struct {
+	aesIVs []byte
+	nextHop string
 }
 
-func encode_intermediate(inter slotintermediate) []byte {
+func encodeIntermediate(inter slotIntermediate) []byte {
 	buf := new(bytes.Buffer)
-	buf.Write(inter.aesivs)
-	buf.WriteString(inter.nexthop)
+	buf.Write(inter.aesIVs)
+	buf.WriteString(inter.nextHop)
 	err := buflencheck(buf.Len(), 240)
 	if err != nil {
 		panic(err)
@@ -201,12 +204,12 @@ func encode_intermediate(inter slotintermediate) []byte {
 	return buf.Bytes()
 }
 
-func decode_intermediate(b []byte) (inter slotintermediate, err error) {
+func decodeIntermediate(b []byte) (inter slotIntermediate, err error) {
 	err = lencheck(b, 240)
 	if err != nil {
 		return
 	}
-	inter.aesivs = b[0:160]
-	inter.nexthop = string(b[160:240])
+	inter.aesIVs = b[0:160]
+	inter.nextHop = string(b[160:240])
 	return
 }

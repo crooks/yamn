@@ -17,7 +17,7 @@ import (
 	"code.google.com/p/go.crypto/nacl/box"
 )
 
-type keyinfo struct {
+type pubinfo struct {
 	name string // Remailer Shortname
 	//address is the next field in pubring but we'll use this as the key
 	keyid []byte // 16 Byte Mixmaster KeyID
@@ -28,7 +28,7 @@ type keyinfo struct {
 	uptime int // Uptime (10ths of a %)
 }
 
-func import_mlist2(filename string, pub map[string]keyinfo, xref map[string]string) (count int) {
+func import_mlist2(filename string, pub map[string]pubinfo, xref map[string]string) (count int) {
 	var err error
 	f, err := os.Open(filename)
 	if err != nil {
@@ -239,13 +239,12 @@ func import_secring() (sec map[string][]byte) {
 }
 
 // import_pubring reads a YAML pubring.mix file
-// pub is a map of keyinfo keyed by remailer address
+// pub is a map of pubinfo keyed by remailer address
 // xref is a cross-reference of short names to addresses
-func import_pubring() (pub map[string]keyinfo,
-																		  xref map[string]string) {
+func import_pubring() (pub map[string]pubinfo, xref map[string]string) {
 	var err error
 	// pub = map of pubring structs
-	pub = make(map[string]keyinfo)
+	pub = make(map[string]pubinfo)
 	// xref = map of shortnames to addresses
 	xref = make(map[string]string)
 	f, err := os.Open(cfg.Files.Pubring)
@@ -258,7 +257,7 @@ func import_pubring() (pub map[string]keyinfo,
 	var num_elements int
 	var line string //Each line within pubring.mix
 	var addy string //Remailer's address (The map key)
-	var rem *keyinfo //A specific remailer's pubring struct
+	var rem *pubinfo //A specific remailer's pubring struct
 	var pkdata []byte // Decoded Public key
 	key_phase := 0
 	/* Key phases are:
@@ -279,7 +278,7 @@ func import_pubring() (pub map[string]keyinfo,
 			// 7 elements indicates a remailer header line in pubring.mix
 			if num_elements == 7 {
 				//TODO Decide if validity dates should be authenticated here
-				rem = new(keyinfo)
+				rem = new(pubinfo)
 				rem.name = elements[0]
 				rem.keyid, err = hex.DecodeString(elements[2])
 				if err != nil {

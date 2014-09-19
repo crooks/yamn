@@ -4,7 +4,9 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"crypto/rand"
+	"encoding/base64"
 )
 
 // randbytes returns n Bytes of random data
@@ -33,4 +35,29 @@ func buflencheck(buflen, length int) error {
 	} else {
 		return nil
 	}
+}
+
+// b64enc takes a byte array as input and returns it as a base64 encoded
+// string.  The output string is wrapped to a predefined line length.
+func b64enc(data []byte) string {
+	return wrap(base64.StdEncoding.EncodeToString(data))
+}
+
+// wrap takes a long string and wraps it to lines of a predefined length.
+// The intention is to feed it a base64 encoded string.
+func wrap(str string) (newstr string) {
+	var substr string
+	var end int
+	strlen := len(str)
+	for i := 0; i <= strlen; i += base64_line_wrap {
+		end = i + base64_line_wrap
+		if end > strlen {
+			end = strlen
+		}
+		substr = str[i:end] + "\n"
+		newstr += substr
+	}
+	// Strip the inevitable trailing LF
+	newstr = strings.TrimRight(newstr, "\n")
+	return
 }
