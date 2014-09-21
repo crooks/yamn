@@ -1,4 +1,4 @@
-// vim: tabstop=2 shiftwidth=2
+// vm: tabstop=2 shiftwidth=2
 
 package main
 
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"bytes"
 	"strings"
+	"errors"
 	"encoding/binary"
 	"encoding/hex"
 	"time"
@@ -37,10 +38,10 @@ type slotHead struct {
 	recipientPK []byte
 	//sender_pubkey []byte
 	//nonce []byte
-	slotData []byte
+	data []byte
 }
 
-func encode_head(h slotHead) []byte {
+func encodeHead(h slotHead) []byte {
 	// Generate an ECC key pair
 	sendpub, sendpriv, err := box.GenerateKey(rand.Reader)
 	if err != nil {
@@ -54,8 +55,8 @@ func encode_head(h slotHead) []byte {
 	buf.Write(nonce[:])
 	var pk [32]byte
 	copy(pk[:], h.recipientPK)
-	buf.Write(box.Seal(nil, h.slotData, &nonce, &pk, sendpriv))
-	err = buflencheck(buf.Len(), 480)
+	buf.Write(box.Seal(nil, h.data, &nonce, &pk, sendpriv))
+	err = bufLenCheck(buf.Len(), 480)
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +64,16 @@ func encode_head(h slotHead) []byte {
 	return buf.Bytes()
 }
 
-func decode_head(b []byte, sec map[string][]byte) (slotData []byte, auth bool, err error) {
+// decodeHead decodes a slot header
+func decodeHead(b []byte, sec map[string][]byte) (data []byte, err error) {
+	/*
+	Decode functions should return their associated structs but, in this
+	instance, the only field of value is the decrypted data.
+	*/
+	err = lenCheck(len(b), headerBytes)
+	if err != nil {
+		return
+	}
 	var keyid string
 	keyid = hex.EncodeToString(b[0:16])
 	sk, present := sec[keyid]
@@ -71,7 +81,7 @@ func decode_head(b []byte, sec map[string][]byte) (slotData []byte, auth bool, e
 		err = fmt.Errorf("%s: Keyid not found in secring", keyid)
 		return
 	}
-	err = lencheck(sk, 32)
+	err = lenCheck(len(sk), 32)
 	if err != nil {
 		return
 	}
@@ -81,20 +91,25 @@ func decode_head(b []byte, sec map[string][]byte) (slotData []byte, auth bool, e
 	copy(recipient_sk[:], sk)
 	var nonce [24]byte
 	copy(nonce[:], b[48:72])
-	slotData, auth = box.Open(nil, b[72:72+408], &nonce, &sender_pk, &recipient_sk)
-	err = lencheck(slotData, 392)
+	var auth bool
+	data, auth = box.Open(nil, b[72:72+408], &nonce, &sender_pk, &recipient_sk)
+	if ! auth {
+		err = errors.New("Authentication failed decrypting slot data")
+		return
+	}
+	err = lenCheck(len(data), 392)
 	return
 }
 
 /*
 Encrypted Data
-[ Packet ID			 16 Bytes ]
-[ AES-CTR key			 32 Bytes ]
-[ Packet type ID		  1 Byte  ]
-[ Padded packet info		240 Bytes ]
-[ Timestamp			  7 Bytes ]
-[ Anti-tag digest		 32 Bytes ]
-[ Padding			 64 Bytes ]
+[ Packet ID		 16 Bytes ]
+[ AES-CTR key		 32 Bytes ]
+[ Packet type ID	  1 Byte  ]
+[ Padded packet info	256 Bytes ]
+[ Timestamp		  7 Bytes ]
+[ Anti-tag digest	 32 Bytes ]
+[ Padding		 48 Bytes ]
 Total	392 Bytes
 */
 
@@ -107,7 +122,7 @@ type slotData struct {
 	tagHash []byte
 }
 
-func encode_data(d slotData) []byte {
+func encodeData(d slotData) []byte {
 	buf := new(bytes.Buffer)
 	buf.Write(d.packetID)
 	buf.Write(d.aesKey)
@@ -115,7 +130,7 @@ func encode_data(d slotData) []byte {
 	buf.Write(d.packetInfo)
 	buf.Write(d.timestamp)
 	buf.Write(d.tagHash)
-	err := buflencheck(buf.Len(), 328)
+	err := bufLenCheck(buf.Len(), 344)
 	if err != nil {
 		panic(err)
 	}
@@ -123,28 +138,28 @@ func encode_data(d slotData) []byte {
 	return buf.Bytes()
 }
 
-func decode_data(b []byte) (data slotData, err error) {
-	err = lencheck(b, 392)
+func decodeData(b []byte) (data slotData, err error) {
+	err = lenCheck(len(b), 392)
 	if err != nil {
 		return
 	}
 	data.packetID = b[0:16]
 	data.aesKey = b[16:48]
 	data.packetType = uint8(b[48])
-	data.packetInfo = b[49:289]
+	data.packetInfo = b[49:305]
 	//TODO Test timestamp
-	data.tagHash = b[296:328]
-	//Padding[328:392]
+	data.tagHash = b[305:369]
+	//Padding[369:392]
 	return
 }
 
 /*
 Final Hop
-[ Chunk num			  1 Byte  ]
-[ Num chunks			  1 Byte ]
-[ Message ID			 16 Bytes ]
-[ AES-CTR IV			 16 Bytes ]
-[ Body length			  4 Bytes ]
+[ Chunk num		  1 Byte  ]
+[ Num chunks		  1 Byte  ]
+[ Message ID		 16 Bytes ]
+[ AES-CTR IV		 16 Bytes ]
+[ Body length		  4 Bytes ]
 */
 
 type slotFinal struct {
@@ -152,7 +167,7 @@ type slotFinal struct {
 	numChunks uint8
 	messageID []byte
 	aesIV []byte
-	bodyBytes []byte
+	bodyBytes int
 }
 
 func encodeFinal(f slotFinal) []byte {
@@ -161,17 +176,19 @@ func encodeFinal(f slotFinal) []byte {
 	buf.WriteByte(f.numChunks)
 	buf.Write(f.messageID)
 	buf.Write(f.aesIV)
-	buf.Write(f.bodyBytes)
-	err := buflencheck(buf.Len(), 38)
+	bodyBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bodyBytes, uint32(f.bodyBytes))
+	buf.Write(bodyBytes)
+	err := bufLenCheck(buf.Len(), 38)
 	if err != nil {
 		panic(err)
 	}
-	buf.WriteString(strings.Repeat("\x00", 240 - buf.Len()))
+	buf.WriteString(strings.Repeat("\x00", 256 - buf.Len()))
 	return buf.Bytes()
 }
 
 func decodeFinal(b []byte) (final slotFinal, err error) {
-	err = lencheck(b, 240)
+	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
 	}
@@ -179,13 +196,16 @@ func decodeFinal(b []byte) (final slotFinal, err error) {
 	final.numChunks = b[1]
 	final.messageID = b[2:18]
 	final.aesIV = b[18:34]
+	final.bodyBytes = int(binary.LittleEndian.Uint32(b[34:]))
 	return
 }
 
 /*
 Intermediate Hop
-[ 10 * AES-CTR IVs		160 Bytes ]
+[ 11 * AES-CTR IVs		176 Bytes ]
 [ Next hop address		 80 Bytes ]
+
+IVs are 9 * header slots, payload and deterministic
 */
 
 type slotIntermediate struct {
@@ -194,10 +214,15 @@ type slotIntermediate struct {
 }
 
 func encodeIntermediate(inter slotIntermediate) []byte {
+	var err error
+	err = lenCheck(len(inter.aesIVs), (maxChainLength + 1) * 16)
+	if err != nil {
+		panic(err)
+	}
 	buf := new(bytes.Buffer)
 	buf.Write(inter.aesIVs)
 	buf.WriteString(inter.nextHop)
-	err := buflencheck(buf.Len(), 240)
+	err = bufLenCheck(buf.Len(), 256)
 	if err != nil {
 		panic(err)
 	}
@@ -205,11 +230,11 @@ func encodeIntermediate(inter slotIntermediate) []byte {
 }
 
 func decodeIntermediate(b []byte) (inter slotIntermediate, err error) {
-	err = lencheck(b, 240)
+	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
 	}
-	inter.aesIVs = b[0:160]
-	inter.nextHop = string(b[160:240])
+	inter.aesIVs = b[:176]
+	inter.nextHop = strings.TrimRight(string(b[176:]), "\x00")
 	return
 }

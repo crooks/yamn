@@ -25,22 +25,46 @@ func randbytes(n int) (b []byte) {
   return
 }
 
-// lencheck verifies that a slice is of a specified length
-func lencheck(b []byte, length int) error {
-	if len(b) != length {
-		return fmt.Errorf("Incorrect slice length.  Wanted=%d, Got=%d", length, len(b))
-	} else {
-		return nil
+// lenCheck verifies that a slice is of a specified length
+func lenCheck(got, expected int) (err error) {
+	if got != expected {
+		err = fmt.Errorf("Incorrect length.  Expected=%d, Got=%d", expected, got)
 	}
+	return
 }
 
-// buflencheck verifies that a given buffer length is of a specified length
-func buflencheck(buflen, length int) error {
+// bufLenCheck verifies that a given buffer length is of a specified length
+func bufLenCheck(buflen, length int) (err error) {
 	if buflen != length {
-		return fmt.Errorf("Incorrect buffer length.  Wanted=%d, Got=%d", length, buflen)
-	} else {
-		return nil
+		err = fmt.Errorf("Incorrect buffer length.  Wanted=%d, Got=%d", length, buflen)
 	}
+	return
+}
+
+// sPopBytes returns n bytes from the start of a slice
+func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
+	s := *sp
+	if len(s) < n {
+		fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
+		return
+	}
+	pop = s[:n]
+	s = s[n:]
+	*sp = s
+	return
+}
+
+// ePopBytes returns n bytes from the end of a slice
+func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
+	s := *sp
+	if len(s) < n {
+		fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
+		return
+	}
+	pop = s[len(s) - n:]
+	s = s[:len(s) - n]
+	*sp = s
+	return
 }
 
 // b64enc takes a byte array as input and returns it as a base64 encoded
@@ -69,7 +93,7 @@ func wrap(str string) (newstr string) {
 }
 
 // cutmarks encodes a mixmsg into a Mixmaster formatted email payload
-func cutmarks(mixmsg []byte) []byte {
+func old_cutmarks(mixmsg []byte) []byte {
 	buf := new(bytes.Buffer)
 	buf.WriteString("::\n")
 	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
@@ -82,6 +106,29 @@ func cutmarks(mixmsg []byte) []byte {
 	buf.WriteString(b64enc(mixmsg) + "\n")
 	buf.WriteString("-----END REMAILER MESSAGE-----")
 	return buf.Bytes()
+}
+
+// cutmarks encodes a mixmsg into a Mixmaster formatted email payload
+func cutmarks(filename, sendto string, mixmsg []byte) (err error) {
+	f, err := os.Create(filename)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	f.WriteString("To: " + sendto + "\n")
+	f.WriteString("From: steve@mixmin.net\n\n")
+	f.WriteString("::\n")
+	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
+	f.WriteString(header)
+	f.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
+	f.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
+	digest := blake2.New(&blake2.Config{Size: 16})
+	digest.Write(mixmsg)
+	f.WriteString(b64enc(digest.Sum(nil)) + "\n")
+	f.WriteString(b64enc(mixmsg) + "\n")
+	f.WriteString("-----END REMAILER MESSAGE-----\n")
+	f.Sync()
+	return
 }
 
 // uncut does the opposite of cutmarks and returns plain bytes
@@ -160,3 +207,20 @@ func uncut(filename string) (payload []byte, err error) {
 	}
 	return
 }
+
+func ivExtract(ivs []byte, n int) (iv []byte, err error) {
+	if len(ivs) % 16 != 0 {
+		err = fmt.Errorf("IV bytes array must be multiples of 16.  Got=%d", len(ivs))
+		return
+	}
+	ivPos := 16 * n
+	numIVs := len(ivs) / 16
+	if n > numIVs {
+		err = fmt.Errorf("Insufficient IVs.  Wanted=%d, Available=%d.", n, numIVs)
+		return
+	}
+	iv = ivs[ivPos:ivPos+16]
+	lenCheck(len(iv), 16)
+	return
+}
+

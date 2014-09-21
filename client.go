@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"strings"
 	"math"
-	"encoding/binary"
 )
 
 // mixprep fetches the plaintext and prepares it for mix encoding
@@ -59,6 +58,7 @@ func mixprep() {
 	var packetid []byte // Final hop Packet ID
 	var first_byte int // First byte of message slice
 	var last_byte int // Last byte of message slice
+	// Fragments loop begins here
 	for cnum = 1; cnum <= numc; cnum++ {
 		final.chunkNum = uint8(cnum)
 		// First byte of message fragment
@@ -74,10 +74,11 @@ func mixprep() {
 		if flag_copies == 0 {
 			flag_copies = cfg.Stats.Numcopies
 		}
-		if flag_copies > 10 {
+		if flag_copies > maxCopies {
 			// Limit copies to a maximum of 10
-			flag_copies = 10
+			flag_copies = maxCopies
 		}
+		// Copies loop begins here
 		for n := 0; n < flag_copies; n++ {
 			if got_exit {
 				// Set the last node in the chain to the previously select exitnode
@@ -89,87 +90,94 @@ func mixprep() {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
 			}
-			final.aesIV = randbytes(16)
 			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, final, pubring, xref)
-			encmsg = cutmarks(encmsg)
-			/* Temporarily stop emailing
-			if cfg.Mail.Sendmail {
-				sendmail(encmsg, sendto)
-			} else {
-				smtprelay(encmsg, sendto)
+			err = cutmarks("test.txt", sendto, encmsg)
+			if err != nil {
+				panic(err)
 			}
-			*/
-			fmt.Println(string(encmsg))
-			fmt.Fprintln(os.Stderr, sendto)
 		} // End of copies loop
 	} // End of fragments loop
 }
 
 // mixmsg encodes a plaintext fragment into mixmaster format.
-func mixmsg(msg, packetid []byte, chain []string, final slotFinal,
-						pubring map[string]pubinfo, xref map[string]string) (payload []byte, sendto string) {
+func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[string]pubinfo, xref map[string]string) (payload []byte, sendto string) {
+	var err error
+	chainLength := len(chain)
 	// Retain the address of the entry remailer, the message must be sent to it.
 	sendto = chain[0]
-	msgLen := len(msg)
-	final.bodyBytes = make([]byte, 4)
-	binary.LittleEndian.PutUint32(final.bodyBytes, uint32(msgLen))
+	final.bodyBytes = len(msg)
 	body := make([]byte, bodyBytes)
-	copy(body, msg)
+	headers := make([]byte, headersBytes)
+	// One key required per hop
+	allAESKeys := randbytes(chainLength * 32)
+	// One IV for Final and Eleven for every Inter
+	numIVs := ((chainLength - 1) * (maxChainLength + 1)) + 1
+	// Eleven IVs required per Inter
+	allAESIVs := randbytes(numIVs * 16)
 	// body doesn't require padding as it was initialised at length bodyBytes
-	// Identify the last hop in the chain (The exit remailer)
-	hop := popstr(&chain)
-	// Here we begin assembly of the slot data
-	var data slotData
-	data.packetInfo = encodeFinal(final)
-	data.packetID = packetid
-	data.aesKey = randbytes(32)
-	data.packetType = 1
-	data.timestamp = timestamp()
-	data.tagHash = make([]byte, 32)
-	var head slotHead
-	head.slotData = encode_data(data)
-  head.recipientKeyid = pubring[hop].keyid
-  head.recipientPK = pubring[hop].pk
-	headers := make([]byte, headerBytes, headersBytes)
-	// Populate the top header slot and the body
-	copy(headers, encode_head(head))
-	copy(body, AES_CTR(body, data.aesKey, final.aesIV))
-	// That's it for final hop preparation.
-	// What follows is intermediate hop interation.
+	copy(body, msg)
+	var hop string
 	for {
+		// Here we begin assembly of the slot data
+		var data slotData
+		data.aesKey, err = sPopBytes(&allAESKeys, 32)
+		if err != nil {
+			panic(err)
+		}
+		data.timestamp = timestamp()
+		data.tagHash = make([]byte, 32)
+		if hop == "" {
+			data.packetType = 1
+			final.aesIV, err = sPopBytes(&allAESIVs, 16)
+			if err != nil {
+				panic(err)
+			}
+			data.packetInfo = encodeFinal(final)
+			data.packetID = packetid
+			// Encrypt the message body
+			copy(body, AES_CTR(body, data.aesKey, final.aesIV))
+		} else {
+			var inter slotIntermediate
+			data.packetType = 0
+			// Grab enough IVs from the pool for this header
+			inter.aesIVs, err = sPopBytes(&allAESIVs, (maxChainLength + 1) * 16)
+			if err != nil {
+				panic(err)
+			}
+			// The chain hasn't been popped yet so hop still contains the last node name.
+			inter.nextHop = hop + strings.Repeat("\x00", 80 - len(hop))
+			data.packetInfo = encodeIntermediate(inter)
+			data.packetID = randbytes(16)
+			// Encrypt the current header slots
+			for slot := 0; slot < maxChainLength; slot++ {
+				sbyte := slot * headerBytes
+				hbyte := (slot + 1) * headerBytes
+				iv, err := sPopBytes(&inter.aesIVs, 16)
+				if err != nil {
+					panic(err)
+				}
+				copy(headers[sbyte:hbyte], AES_CTR(headers[sbyte:hbyte], data.aesKey, iv))
+			}
+			// Encrypt the message body
+			iv, err := sPopBytes(&inter.aesIVs, 16)
+			if err != nil {
+				panic(err)
+			}
+			copy(body, AES_CTR(body, data.aesKey, iv))
+		}
+		var head slotHead
+		hop = popstr(&chain)
+		head.data = encodeData(data)
+	  head.recipientKeyid = pubring[hop].keyid
+	  head.recipientPK = pubring[hop].pk
+		// Move all the headers down one slot
+		copy(headers[headerBytes:], headers[:headerBytes])
+		copy(headers[:headerBytes], encodeHead(head))
 		if len(chain) == 0 {
 			// Abort iterating when the chain is fully processed.
 			break
 		}
-		var inter slotIntermediate
-		// The chain hasn't been popped yet so hop still contains the last node name.
-		inter.nextHop = hop + strings.Repeat("\x00", 80 - len(hop))
-		// TODO These IVs can't be generated here if we want deterministic headers
-		inter.aesIVs = randbytes(16 * maxChainLength)
-		hop = popstr(&chain)
-		var data slotData
-		data.packetInfo = encodeIntermediate(inter)
-		data.packetID = randbytes(16)
-		// TODO The AES key can't be generated here if we want deterministic headers
-		data.aesKey = randbytes(32)
-		data.packetType = 0
-		data.timestamp = timestamp()
-		data.tagHash = make([]byte, 32)
-		var head slotHead
-		head.slotData = encode_data(data)
-	  head.recipientKeyid = pubring[hop].keyid
-	  head.recipientPK = pubring[hop].pk
-		// Extend headers by one slot
-		headLen := len(headers)
-		headers = headers[0:headLen + headerBytes]
-		// Move all the existing headers down a slot
-		copy(headers[headLen:], headers)
-		// Now populate the vacated top slot and re-encrypt the body
-		copy(headers, encode_head(head))
-		copy(body, AES_CTR(body, data.aesKey, final.aesIV))
 	}
-
-	headers = headers[0:headersBytes]
 	payload = make([]byte, headersBytes + bodyBytes)
 	copy(payload, headers)
 	copy(payload[headersBytes:], body)
