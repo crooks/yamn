@@ -45,7 +45,7 @@ func bufLenCheck(buflen, length int) (err error) {
 func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
 	if len(s) < n {
-		fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
+		err = fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
 		return
 	}
 	pop = s[:n]
@@ -58,7 +58,7 @@ func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
 	if len(s) < n {
-		fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
+		err = fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
 		return
 	}
 	pop = s[len(s) - n:]

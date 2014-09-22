@@ -108,8 +108,8 @@ Encrypted Data
 [ Packet type ID	  1 Byte  ]
 [ Padded packet info	256 Bytes ]
 [ Timestamp		  7 Bytes ]
-[ Anti-tag digest	 32 Bytes ]
-[ Padding		 48 Bytes ]
+[ Anti-tag digest	 64 Bytes ]
+[ Padding		 16 Bytes ]
 Total	392 Bytes
 */
 
@@ -122,7 +122,23 @@ type slotData struct {
 	tagHash []byte
 }
 
-func encodeData(d slotData) []byte {
+func encodeData(d slotData) (b []byte, err error) {
+	err = lenCheck(len(d.packetID), 16)
+	if err != nil {
+		return
+	}
+	err = lenCheck(len(d.aesKey), 32)
+	if err != nil {
+		return
+	}
+	err = lenCheck(len(d.packetInfo), 256)
+	if err != nil {
+		return
+	}
+	err = lenCheck(len(d.tagHash), 64)
+	if err != nil {
+		return
+	}
 	buf := new(bytes.Buffer)
 	buf.Write(d.packetID)
 	buf.Write(d.aesKey)
@@ -130,12 +146,13 @@ func encodeData(d slotData) []byte {
 	buf.Write(d.packetInfo)
 	buf.Write(d.timestamp)
 	buf.Write(d.tagHash)
-	err := bufLenCheck(buf.Len(), 344)
+	err = bufLenCheck(buf.Len(), 376)
 	if err != nil {
-		panic(err)
+		return
 	}
 	buf.WriteString(strings.Repeat("\x00", 392 - buf.Len()))
-	return buf.Bytes()
+	b = buf.Bytes()
+	return
 }
 
 func decodeData(b []byte) (data slotData, err error) {
@@ -176,9 +193,9 @@ func encodeFinal(f slotFinal) []byte {
 	buf.WriteByte(f.numChunks)
 	buf.Write(f.messageID)
 	buf.Write(f.aesIV)
-	bodyBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bodyBytes, uint32(f.bodyBytes))
-	buf.Write(bodyBytes)
+	tmp := make([]byte, 4)
+	binary.LittleEndian.PutUint32(tmp, uint32(f.bodyBytes))
+	buf.Write(tmp)
 	err := bufLenCheck(buf.Len(), 38)
 	if err != nil {
 		panic(err)

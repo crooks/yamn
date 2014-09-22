@@ -64,7 +64,7 @@ func server() {
 	}
 	secring := import_secring()
 	/*
-	decodeHead only returns the decrypted slotData bytes.  The other headers are
+	decodeHead only returns the decrypted slotData bytes.  The other fields are
 	only concerned with performing the decryption.
 	*/
 	decodedHeader, err := decodeHead(header, secring)
@@ -84,25 +84,28 @@ func server() {
 			panic(err)
 		}
 		// Number of headers to decrypt is one less than max chain length
-		for headNum := 0; headNum <= maxChainLength - 1; headNum++ {
-			iv, err = ivExtract(inter.aesIVs, headNum)
+		for headNum := 0; headNum < maxChainLength - 1; headNum++ {
+			iv, err = sPopBytes(&inter.aesIVs, 16)
 			if err != nil {
 				panic(err)
 			}
-			headersPos := headerBytes * headNum
-			header := make([]byte, headerBytes)
-			copy(header, headers[headersPos:headersPos+headerBytes])
-			copy(headers[headersPos:], AES_CTR(header, data.aesKey, iv))
+			sbyte := headNum * headerBytes
+			ebyte := (headNum + 1) * headerBytes
+			copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
 		}
 		// Body is decrypted with the next IV
-		iv, err = ivExtract(inter.aesIVs, maxChainLength)
+		iv, err = sPopBytes(&inter.aesIVs, 16)
 		if err != nil {
 			panic(err)
 		}
 		copy(body, AES_CTR(body, data.aesKey, iv))
 		// The final IV is used to encrypt the deterministic header
-		iv, err = ivExtract(inter.aesIVs, maxChainLength + 1)
+		iv, err = sPopBytes(&inter.aesIVs, 16)
 		if err != nil {
+			panic(err)
+		}
+		if len(inter.aesIVs) != 0 {
+			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
 			panic(err)
 		}
 		fakeHeader := make([]byte, headerBytes)
