@@ -164,9 +164,10 @@ func decodeData(b []byte) (data slotData, err error) {
 	data.aesKey = b[16:48]
 	data.packetType = uint8(b[48])
 	data.packetInfo = b[49:305]
+	data.timestamp = b[305:312]
 	//TODO Test timestamp
-	data.tagHash = b[305:369]
-	//Padding[369:392]
+	data.tagHash = b[312:376]
+	//Padding[376:392]
 	return
 }
 
