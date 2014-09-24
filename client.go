@@ -11,6 +11,45 @@ import (
 	"github.com/codahale/blake2"
 )
 
+func headDiag(headers []byte) {
+	fmt.Printf("Length: %d\n", len(headers))
+	for h := 0; h < maxChainLength; h++ {
+		sbyte := h * headerBytes
+		ebyte := sbyte + 20
+		fmt.Printf("sbyte=%d, Header: %d, Starts: %x\n", sbyte, h, headers[sbyte:ebyte])
+	}
+}
+
+// deterministic precalculates the header content for fake headers inserted at
+// each remailer hop.
+func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int) (pos int, content []byte) {
+	bottomSlotNum := maxChainLength - 1  // (9 for 10 hops)
+	numDslots := chainLength - 1 - hopNum // (2 for exit of 10 hops)
+	topDslotNum := bottomSlotNum - numDslots + 1 // (8 for exit of 10 hops)
+	content = make([]byte, 0, numDslots * headerBytes)
+	fmt.Printf("Chain=%d, Hop=%d\n", chainLength, hopNum)
+	for slot := topDslotNum; slot <= bottomSlotNum; slot++ {
+		fakehead := make([]byte, headerBytes)
+		fmt.Printf("Location: H%dS%d\n", hopNum, slot)
+		startHop := maxChainLength + hopNum - slot
+		startSlot := bottomSlotNum
+		for iterLeft := startHop; iterLeft > hopNum; iterLeft-- {
+			// Minus one because we don't use these keys/iv on the exit hop
+			hopkey := keys[iterLeft - 1]
+			hopivs := ivs[iterLeft - 1]
+			hopiv := hopivs[startSlot * 16:(startSlot + 1) * 16]
+			fmt.Printf("Fake: Hop=%d, Slot=%d, Key=%x, IV=%x\n", iterLeft, startSlot, hopkey[:10], hopiv[:10])
+			fakehead = AES_CTR(fakehead, hopkey, hopiv)
+			startSlot--
+		}
+		clen := len(content)
+		content = content[0:clen + headerBytes]
+		copy(content[clen:], fakehead)
+	}
+	pos = topDslotNum * headerBytes
+	return
+}
+
 // mixprep fetches the plaintext and prepares it for mix encoding
 func mixprep() {
 	var err error
@@ -109,19 +148,25 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 	final.bodyBytes = len(msg)
 	body := make([]byte, bodyBytes)
 	headers := make([]byte, headersBytes)
-	// One key required per hop
-	allAESKeys := randbytes(chainLength * 32)
-	// One IV for Final and Eleven for every Inter
-	numIVs := ((chainLength - 1) * (maxChainLength + 1)) + 1
-	// Eleven IVs required per Inter
-	allAESIVs := randbytes(numIVs * 16)
+	numRandHeads := maxChainLength - chainLength
+	copy(headers, randbytes(numRandHeads * headerBytes))
+	// Generate all the intermediate hop Keys and IVs
+	var keys [maxChainLength - 1][]byte
+  var ivs [maxChainLength - 1][]byte
+	// One key required per intermediate hop
+	for n := 0; n < chainLength - 1; n++ {
+		keys[n] = randbytes(32)
+		fmt.Printf("Key=%d, %x\n", n, keys[n][:10])
+		ivs[n] = randbytes((maxChainLength + 1) * 16)
+	}
 	// body doesn't require padding as it was initialised at length bodyBytes
 	copy(body, msg)
 	var hop string
-	for {
+	for hopNum := 0; hopNum < chainLength; hopNum++ {
+		//detPos := (numRandHeads + hopNum) * headerBytes
+		//copy(headers[:detPos], deterministic(interAESKeys, interAESIVs, chainLength, hopNum))
 		// Here we begin assembly of the slot data
 		var data slotData
-		data.aesKey, err = sPopBytes(&allAESKeys, 32)
 		if err != nil {
 			panic(err)
 		}
@@ -129,7 +174,9 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 		if hop == "" {
 			// Exit hop
 			data.packetType = 1
-			final.aesIV, err = sPopBytes(&allAESIVs, 16)
+			// This key and IV are not used in deterministic headers
+			data.aesKey = randbytes(32)
+			final.aesIV = randbytes(16)
 			if err != nil {
 				panic(err)
 			}
@@ -137,18 +184,12 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 			data.packetID = packetid
 			// Encrypt the message body
 			copy(body, AES_CTR(body, data.aesKey, final.aesIV))
-			digest := blake2.New(nil)
-			digest.Write(headers)
-			digest.Write(body)
-			data.tagHash = digest.Sum(nil)
 		} else {
 			var inter slotIntermediate
 			data.packetType = 0
-			// Grab enough IVs from the pool for this header
-			inter.aesIVs, err = sPopBytes(&allAESIVs, (maxChainLength + 1) * 16)
-			if err != nil {
-				panic(err)
-			}
+			// Grab a Key and block of IVs from the pool for this header
+			data.aesKey = keys[hopNum - 1]
+			inter.aesIVs = ivs[hopNum - 1]
 			// The chain hasn't been popped yet so hop still contains the last node name.
 			inter.nextHop = hop + strings.Repeat("\x00", 80 - len(hop))
 			data.packetInfo = encodeIntermediate(inter)
@@ -157,35 +198,29 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 			for slot := 0; slot < maxChainLength - 1; slot++ {
 				sbyte := slot * headerBytes
 				ebyte := (slot + 1) * headerBytes
-				iv, err := sPopBytes(&inter.aesIVs, 16)
-				if err != nil {
-					panic(err)
-				}
+				iv := inter.aesIVs[slot * 16:(slot + 1) * 16]
+				fmt.Printf("Real: Hop=%d, Slot=%d, Key=%x, IV=%x\n", hopNum, slot, data.aesKey[:10], iv[:10])
 				copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
-				//fmt.Printf("sbyte=%d, ebyte=%d, iv=%x\n", sbyte, ebyte, iv)
 			}
-			// Encrypt the message body
-			iv, err := sPopBytes(&inter.aesIVs, 16)
-			if err != nil {
-				panic(err)
-			}
+			// The final IV is used to Encrypt the message body
+			iv := inter.aesIVs[maxChainLength * 16:]
 			copy(body, AES_CTR(body, data.aesKey, iv))
-			// Pop the eleventh IV, used for the deterministic header
-			iv, err = sPopBytes(&inter.aesIVs, 16)
+		} // End of Intermediate processing
+		// Move all the headers down one slot and chop the last header
+		copy(headers[headerBytes:], headers[:headersBytes - headerBytes])
+		if hopNum < chainLength - 1 {
+			pos, fakes := deterministic(keys, ivs, chainLength, hopNum)
 			if err != nil {
 				panic(err)
 			}
-			if len(inter.aesIVs) != 0 {
-				err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
-				panic(err)
-			}
-			digest := blake2.New(nil)
-			digest.Write(headers)
-			digest.Write(body)
-			data.tagHash = digest.Sum(nil)
-			// Move all the headers down one slot
-			copy(headers[headerBytes:], headers[:headersBytes - headerBytes])
-		} // End of Intermediate processing
+			copy(headers[pos:], fakes)
+		} else {
+			fmt.Println("Skipping fakes")
+		}
+		digest := blake2.New(nil)
+		digest.Write(headers[headerBytes:])
+		digest.Write(body)
+		data.tagHash = digest.Sum(nil)
 		var head slotHead
 		hop = popstr(&chain)
 		head.data, err = encodeData(data)
@@ -195,10 +230,9 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 	  head.recipientKeyid = pubring[hop].keyid
 	  head.recipientPK = pubring[hop].pk
 		copy(headers[:headerBytes], encodeHead(head))
-		if len(chain) == 0 {
-			// Abort iterating when the chain is fully processed.
-			break
-		}
+	}
+	if len(chain) != 0 {
+		panic("After encoding, chain was not empty.")
 	}
 	payload = make([]byte, headersBytes + bodyBytes)
 	copy(payload, headers)

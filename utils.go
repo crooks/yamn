@@ -208,19 +208,3 @@ func uncut(filename string) (payload []byte, err error) {
 	return
 }
 
-func ivExtract(ivs []byte, n int) (iv []byte, err error) {
-	if len(ivs) % 16 != 0 {
-		err = fmt.Errorf("IV bytes array must be multiples of 16.  Got=%d", len(ivs))
-		return
-	}
-	ivPos := 16 * n
-	numIVs := len(ivs) / 16
-	if n > numIVs {
-		err = fmt.Errorf("Insufficient IVs.  Wanted=%d, Available=%d.", n, numIVs)
-		return
-	}
-	iv = ivs[ivPos:ivPos+16]
-	lenCheck(len(iv), 16)
-	return
-}
-

@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"bytes"
+	"github.com/codahale/blake2"
 )
 
 func importMessage(filename string) (header, headers, body []byte, err error) {
@@ -62,7 +63,11 @@ func server() {
 	if err != nil {
 		panic(err)
 	}
-	//TODO Deterministic Hashtag check needs to happen here
+	digest := blake2.New(nil)
+	digest.Write(headers)
+	digest.Write(body)
+	fmt.Printf("Calc Digest=%x\n", digest.Sum(nil)[:20])
+	fmt.Printf("Sent Digest=%x\n", data.tagHash[:20])
 	if data.packetType == 0 {
 		// inter contains the slotIntermediate struct
 		inter, err := decodeIntermediate(data.packetInfo)
@@ -79,23 +84,25 @@ func server() {
 			ebyte := (headNum + 1) * headerBytes
 			copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
 		}
-		// Body is decrypted with the next IV
+		// The tenth IV is used to encrypt the deterministic header
+		iv, err = sPopBytes(&inter.aesIVs, 16)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
+		fakeHeader := make([]byte, headerBytes)
+		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
+		// Body is decrypted with the final IV
 		iv, err = sPopBytes(&inter.aesIVs, 16)
 		if err != nil {
 			panic(err)
 		}
 		copy(body, AES_CTR(body, data.aesKey, iv))
-		// The final IV is used to encrypt the deterministic header
-		iv, err = sPopBytes(&inter.aesIVs, 16)
-		if err != nil {
-			panic(err)
-		}
+		// At this point there should be zero bytes left in the inter IV pool
 		if len(inter.aesIVs) != 0 {
 			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
 			panic(err)
 		}
-		fakeHeader := make([]byte, headerBytes)
-		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
 		err = exportMessage(headers, fakeHeader, body, inter.nextHop)
 		if err != nil {
 			panic(err)
