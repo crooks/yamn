@@ -93,22 +93,6 @@ func wrap(str string) (newstr string) {
 }
 
 // cutmarks encodes a mixmsg into a Mixmaster formatted email payload
-func old_cutmarks(mixmsg []byte) []byte {
-	buf := new(bytes.Buffer)
-	buf.WriteString("::\n")
-	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
-	buf.WriteString(header)
-	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
-	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
-	digest := blake2.New(&blake2.Config{Size: 16})
-	digest.Write(mixmsg)
-	buf.WriteString(b64enc(digest.Sum(nil)) + "\n")
-	buf.WriteString(b64enc(mixmsg) + "\n")
-	buf.WriteString("-----END REMAILER MESSAGE-----")
-	return buf.Bytes()
-}
-
-// cutmarks encodes a mixmsg into a Mixmaster formatted email payload
 func cutmarks(filename, sendto string, mixmsg []byte) (err error) {
 	f, err := os.Create(filename)
 	if err != nil {
