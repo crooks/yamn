@@ -27,10 +27,10 @@ func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int
 	numDslots := chainLength - 1 - hopNum // (2 for exit of 10 hops)
 	topDslotNum := bottomSlotNum - numDslots + 1 // (8 for exit of 10 hops)
 	content = make([]byte, 0, numDslots * headerBytes)
-	fmt.Printf("Chain=%d, Hop=%d\n", chainLength, hopNum)
+	//fmt.Printf("Chain=%d, Hop=%d\n", chainLength, hopNum)
 	for slot := topDslotNum; slot <= bottomSlotNum; slot++ {
 		fakehead := make([]byte, headerBytes)
-		fmt.Printf("Location: H%dS%d\n", hopNum, slot)
+		//fmt.Printf("Location: H%dS%d\n", hopNum, slot)
 		startHop := maxChainLength + hopNum - slot
 		startSlot := bottomSlotNum
 		for iterLeft := startHop; iterLeft > hopNum; iterLeft-- {
@@ -38,7 +38,7 @@ func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int
 			hopkey := keys[iterLeft - 1]
 			hopivs := ivs[iterLeft - 1]
 			hopiv := hopivs[startSlot * 16:(startSlot + 1) * 16]
-			fmt.Printf("Fake: Hop=%d, Slot=%d, Key=%x, IV=%x\n", iterLeft, startSlot, hopkey[:10], hopiv[:10])
+			//fmt.Printf("Fake: Hop=%d, Slot=%d, Key=%x, IV=%x\n", iterLeft, startSlot, hopkey[:10], hopiv[:10])
 			fakehead = AES_CTR(fakehead, hopkey, hopiv)
 			startSlot--
 		}
@@ -156,7 +156,6 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 	// One key required per intermediate hop
 	for n := 0; n < chainLength - 1; n++ {
 		keys[n] = randbytes(32)
-		fmt.Printf("Key=%d, %x\n", n, keys[n][:10])
 		ivs[n] = randbytes((maxChainLength + 1) * 16)
 	}
 	// body doesn't require padding as it was initialised at length bodyBytes
@@ -199,7 +198,7 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 				sbyte := slot * headerBytes
 				ebyte := (slot + 1) * headerBytes
 				iv := inter.aesIVs[slot * 16:(slot + 1) * 16]
-				fmt.Printf("Real: Hop=%d, Slot=%d, Key=%x, IV=%x\n", hopNum, slot, data.aesKey[:10], iv[:10])
+				//fmt.Printf("Real: Hop=%d, Slot=%d, Key=%x, IV=%x\n", hopNum, slot, data.aesKey[:10], iv[:10])
 				copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
 			}
 			// The final IV is used to Encrypt the message body
@@ -214,8 +213,6 @@ func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[s
 				panic(err)
 			}
 			copy(headers[pos:], fakes)
-		} else {
-			fmt.Println("Skipping fakes")
 		}
 		digest := blake2.New(nil)
 		digest.Write(headers[headerBytes:])

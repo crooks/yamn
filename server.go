@@ -66,8 +66,9 @@ func server() {
 	digest := blake2.New(nil)
 	digest.Write(headers)
 	digest.Write(body)
-	fmt.Printf("Calc Digest=%x\n", digest.Sum(nil)[:20])
-	fmt.Printf("Sent Digest=%x\n", data.tagHash[:20])
+	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {
+		panic("Hash tag mismatch")
+	}
 	if data.packetType == 0 {
 		// inter contains the slotIntermediate struct
 		inter, err := decodeIntermediate(data.packetInfo)
@@ -89,7 +90,7 @@ func server() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
+		//fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
 		fakeHeader := make([]byte, headerBytes)
 		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
 		// Body is decrypted with the final IV
