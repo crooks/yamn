@@ -46,11 +46,11 @@ func import_msg(filename string) []byte {
 
 func smtprelay(payload []byte, sendto string) {
 	var err error
-	c, err := smtp.Dial(fmt.Sprintf("%s:%d", cfg.Mail.Smtprelay, cfg.Mail.Smtpport))
+	c, err := smtp.Dial(fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort))
 	if err != nil {
 		panic(err)
 	}
-	err = c.Mail(cfg.Mail.Envsender)
+	err = c.Mail(cfg.Mail.EnvelopeSender)
 	if err != nil {
 		panic(err)
 	}
@@ -79,9 +79,9 @@ func smtprelay(payload []byte, sendto string) {
 // sendmail invokes go's sendmail method
 func sendmail(payload []byte, sendto string) {
 	var err error
-	auth := smtp.PlainAuth("", cfg.Mail.Smtpusername, cfg.Mail.Smtppassword, cfg.Mail.Smtprelay)
-	relay := fmt.Sprintf("%s:%d", cfg.Mail.Smtprelay, cfg.Mail.Smtpport)
-	err = smtp.SendMail(relay, auth, cfg.Mail.Envsender, []string{sendto}, payload)
+	auth := smtp.PlainAuth("", cfg.Mail.SMTPUsername, cfg.Mail.SMTPPassword, cfg.Mail.SMTPRelay)
+	relay := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
+	err = smtp.SendMail(relay, auth, cfg.Mail.EnvelopeSender, []string{sendto}, payload)
 	if err != nil {
 		panic(err)
 	}

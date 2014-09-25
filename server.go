@@ -45,7 +45,13 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 func server() {
 	var err error
 	var iv []byte
-	header, headers, body, err := importMessage("test.txt")
+	var filename string
+	if flag_stdin {
+		filename = ""
+	} else {
+		filename = "test.txt"
+	}
+	header, headers, body, err := importMessage(filename)
 	if err != nil {
 		panic(err)
 	}

@@ -13,14 +13,16 @@ type Config struct {
 		Mlist2 string
 		Pubkey string
 		Secring string
+		Pooldir string
+		Maildir string
 	}
 	Mail struct {
 		Sendmail bool
-		Smtprelay string
-		Smtpport int
-		Envsender string
-		Smtpusername string
-		Smtppassword string
+		SMTPRelay string
+		SMTPPort int
+		EnvelopeSender string
+		SMTPUsername string
+		SMTPPassword string
 	}
 	Stats struct {
 		Minlat int
@@ -70,12 +72,14 @@ func init() {
 	cfg.Files.Pubring = "pubring.mix"
 	cfg.Files.Secring = "secring.mix"
 	cfg.Files.Mlist2 = "mlist2.txt"
-	cfg.Mail.Smtprelay = "127.0.0.1"
-	cfg.Mail.Smtpport = 25
-	cfg.Mail.Envsender = "nobody@nowhere.invalid"
+	cfg.Files.Pooldir = "pool"
+	cfg.Files.Maildir = "Maildir"
+	cfg.Mail.SMTPRelay = "127.0.0.1"
+	cfg.Mail.SMTPPort = 25
+	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
 	cfg.Mail.Sendmail = true
-	cfg.Mail.Smtpusername = ""
-	cfg.Mail.Smtppassword = ""
+	cfg.Mail.SMTPUsername = ""
+	cfg.Mail.SMTPPassword = ""
 	cfg.Stats.Minrel = 98.0
 	cfg.Stats.Relfinal = 99.0
 	cfg.Stats.Minlat = 2

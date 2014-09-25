@@ -24,6 +24,8 @@ func main() {
 	if flag_client {
 		mixprep()
 	} else {
-		server()
+		//server()
+		mailRead()
+		poolRead()
 	}
 }

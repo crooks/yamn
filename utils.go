@@ -117,11 +117,17 @@ func cutmarks(filename, sendto string, mixmsg []byte) (err error) {
 
 // uncut does the opposite of cutmarks and returns plain bytes
 func uncut(filename string) (payload []byte, err error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return
+	var scanner *bufio.Scanner
+	if filename == "" {
+		scanner = bufio.NewScanner(os.Stdin)
+	} else {
+		var f *os.File
+		f, err = os.Open(filename)
+		if err != nil {
+			return
+		}
+	scanner = bufio.NewScanner(f)
 	}
-	scanner := bufio.NewScanner(f)
 	scanPhase := 0
 	var b64 string
 	var payloadLen int

@@ -150,7 +150,7 @@ func import_secring() (sec map[string][]byte) {
 		switch key_phase {
 		case 0:
 			// Expecting begin cutmark
-			if line == "-----Begin YAMN Secret Key-----" {
+			if line == "-----Begin Mixmaster Secret Key-----" {
 				key_phase = 1
 			}
 		case 1:
@@ -227,7 +227,7 @@ func import_secring() (sec map[string][]byte) {
 			key_phase = 5
 		case 5:
 			// Expecting end cutmark
-			if line == "-----End YAMN Secret Key-----" {
+			if line == "-----End Mixmaster Secret Key-----" {
 				sec[keyid] = skdata
 				keyid = ""
 				skdata = make([]byte, 32)
@@ -294,7 +294,7 @@ func import_pubring() (pub map[string]pubinfo, xref map[string]string) {
 			}
 		case 1:
 			// Expecting Begin cutmark
-			if line == "-----Begin YAMN Public Key-----" {
+			if line == "-----Begin Mixmaster Public Key-----" {
 				key_phase = 2
 			}
 		case 2:
@@ -331,7 +331,7 @@ func import_pubring() (pub map[string]pubinfo, xref map[string]string) {
 			key_phase = 4
 		case 4:
 			// Expecting end cutmark
-			if line == "-----End YAMN Public Key-----" {
+			if line == "-----End Mixmaster Public Key-----" {
 				pub[addy] = *rem
 				xref[rem.name] = addy
 			}
@@ -427,10 +427,10 @@ func write_key(public, private []byte) {
 
 	fmt.Fprintln(w, header)
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "-----Begin YAMN Public Key-----")
+	fmt.Fprintln(w, "-----Begin Mixmaster Public Key-----")
 	fmt.Fprintln(w, keyid)
 	fmt.Fprintln(w, hex.EncodeToString(public))
-	fmt.Fprintln(w, "-----End YAMN Public Key-----")
+	fmt.Fprintln(w, "-----End Mixmaster Public Key-----")
 	err = w.Flush()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -443,12 +443,12 @@ func write_key(public, private []byte) {
 		panic(err)
 	}
 	defer f.Close()
-	keydata := "\n-----Begin YAMN Secret Key-----\n"
+	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
 	keydata += fmt.Sprintf("Created: %s\n", ctime.UTC().Format(date_format))
 	keydata += fmt.Sprintf("Expires: %s\n", etime.UTC().Format(date_format))
 	keydata += keyid  + "\n"
 	keydata += hex.EncodeToString(private) + "\n"
-	keydata += "-----End YAMN Secret Key-----\n"
+	keydata += "-----End Mixmaster Secret Key-----\n"
 	_, err = f.WriteString(keydata)
 	if err != nil {
 		panic(err)
