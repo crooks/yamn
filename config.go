@@ -18,6 +18,7 @@ type Config struct {
 	}
 	Mail struct {
 		Sendmail bool
+		Outfile bool
 		SMTPRelay string
 		SMTPPort int
 		EnvelopeSender string
@@ -65,6 +66,8 @@ func init() {
 	// Read STDIN
 	flag.BoolVar(&flag_stdin, "read-mail", false, "Read a message from stdin")
 	flag.BoolVar(&flag_stdin, "R", false, "Read a message from stdin")
+	// Write to STDOUT
+	flag.BoolVar(&flag_stdout, "stdout", false, "Write message to stdout")
 	// Print Version
 	flag.BoolVar(&flag_version, "version", false, "Print version string")
 	flag.BoolVar(&flag_version, "V", false, "Print version string")
@@ -78,10 +81,11 @@ func init() {
 	cfg.Files.Mlist2 = "mlist2.txt"
 	cfg.Files.Pooldir = "pool"
 	cfg.Files.Maildir = "Maildir"
+	cfg.Mail.Sendmail = true
+	cfg.Mail.Outfile = false
 	cfg.Mail.SMTPRelay = "127.0.0.1"
 	cfg.Mail.SMTPPort = 25
 	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
-	cfg.Mail.Sendmail = true
 	cfg.Mail.SMTPUsername = ""
 	cfg.Mail.SMTPPassword = ""
 	cfg.Stats.Minrel = 98.0
@@ -116,6 +120,7 @@ var flag_args []string
 var flag_config string
 var flag_copies int
 var flag_stdin bool
+var flag_stdout bool
 var flag_version bool
 var flag_meminfo bool
 var cfg Config

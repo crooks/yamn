@@ -30,7 +30,7 @@ func poolRead() (numToSend int, err error) {
 	Trace.Printf("Pool contains %d messages.\n", poolSize)
 	if poolSize < cfg.Pool.Size {
 		// Pool isn't sufficiently populated
-		Trace.Println("Pool insufficiently populated to trigger sending.", poolSize)
+		Trace.Println("Pool insufficiently populated to trigger sending.")
 		return
 	}
 	keys := randInts(len(poolFiles))
@@ -180,7 +180,11 @@ func mailRead() (err error) {
 	if err != nil {
 		return
 	}
-	Trace.Printf("Reading %d messages from %s\n", len(keys), cfg.Files.Maildir)
+	if len(keys) > 0 {
+		Trace.Printf("Reading %d messages from %s\n", len(keys), cfg.Files.Maildir)
+	} else {
+		Trace.Printf("No messages in %s\n", cfg.Files.Maildir)
+	}
 	// Fetch headers for each Maildir key
 	var head mail.Header
 	for _, key := range keys {

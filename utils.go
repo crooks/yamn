@@ -3,17 +3,17 @@
 package main
 
 import (
+	"bytes"
 	"os"
-	"bufio"
 	"fmt"
 	"strings"
+	"path"
 	"encoding/binary"
+	"encoding/hex"
 	"crypto/rand"
 	"math/big"
 	"encoding/base64"
 	"strconv"
-	"bytes"
-	"errors"
 	"github.com/codahale/blake2"
 )
 
@@ -99,12 +99,6 @@ func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	return
 }
 
-// b64enc takes a byte array as input and returns it as a base64 encoded
-// string.  The output string is wrapped to a predefined line length.
-func b64enc(data []byte) string {
-	return wrap(base64.StdEncoding.EncodeToString(data))
-}
-
 // wrap takes a long string and wraps it to lines of a predefined length.
 // The intention is to feed it a base64 encoded string.
 func wrap(str string) (newstr string) {
@@ -125,25 +119,54 @@ func wrap(str string) (newstr string) {
 }
 
 // cutmarks encodes a mixmsg into a Mixmaster formatted email payload
-func cutmarks(filename, sendto string, mixmsg []byte) (err error) {
-	f, err := os.Create(filename)
-	if err != nil {
-		return
+func cutmarks(mixmsg []byte, sendto string) (err error) {
+	/*
+	With the exception of email delivery to recipients, every outbound message
+	should be wrapped by this function.
+	*/
+	buf := new(bytes.Buffer)
+	if ! cfg.Mail.Outfile {
+		// Add email headers as we're not writing output to a file
+		buf.WriteString(fmt.Sprintf("To: %s\n", sendto))
+		buf.WriteString(fmt.Sprintf("From: %s\n", cfg.Mail.EnvelopeSender))
+		buf.WriteString("\n")
 	}
-	defer f.Close()
-	f.WriteString("To: " + sendto + "\n")
-	f.WriteString("From: steve@mixmin.net\n\n")
-	f.WriteString("::\n")
+	buf.WriteString("::\n")
 	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
-	f.WriteString(header)
-	f.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
-	f.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
+	buf.WriteString(header)
+	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
+	// Write message length
+	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
 	digest := blake2.New(&blake2.Config{Size: 16})
 	digest.Write(mixmsg)
-	f.WriteString(b64enc(digest.Sum(nil)) + "\n")
-	f.WriteString(b64enc(mixmsg) + "\n")
-	f.WriteString("-----END REMAILER MESSAGE-----\n")
-	f.Sync()
+	// Write message digest
+	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)) + "\n")
+	// Write the payload
+	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(mixmsg)) + "\n")
+	buf.WriteString("-----END REMAILER MESSAGE-----\n")
+	if cfg.Mail.Outfile {
+		var f *os.File
+		filename := "outfile-" + hex.EncodeToString(digest.Sum(nil))
+		f, err = os.Create(path.Join(cfg.Files.Pooldir, filename[:16]))
+		defer f.Close()
+		_, err = f.WriteString(string(buf.Bytes()))
+		if err != nil {
+			Warn.Printf("Outfile write failed: %s\n", err)
+			return
+		}
+	} else if cfg.Mail.Sendmail {
+		err = sendmail(buf.Bytes(), sendto)
+		if err != nil {
+			Warn.Println("Sendmail failed")
+			return
+		}
+	} else {
+		err = SMTPRelay(buf.Bytes(), sendto)
+		if err != nil {
+			Warn.Println("SMTP relay failed")
+			return
+		}
+	}
 	return
 }
 

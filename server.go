@@ -7,6 +7,8 @@ import (
 	"os"
 	"path"
 	"bytes"
+	"io/ioutil"
+	"encoding/hex"
 	"github.com/codahale/blake2"
 )
 
@@ -29,7 +31,21 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 		Error.Println("Incorrect outbound message size. Not sending.")
 		return
 	}
-	err = cutmarks("test.txt", sendto, buf.Bytes())
+	if sendto == cfg.Remailer.Address {
+		Info.Println("Message loops back to us. Storing in pool.")
+		digest := blake2.New(&blake2.Config{Size: 16})
+		digest.Write(buf.Bytes())
+		filename := "m" + hex.EncodeToString(digest.Sum(nil))
+		filename = path.Join(cfg.Files.Pooldir, filename[:14])
+		err = ioutil.WriteFile(filename, buf.Bytes(), 0600)
+		if err != nil {
+			Warn.Println(err)
+			return
+		}
+	} else {
+		Trace.Printf("Forwarding message to: %s", sendto)
+		err = cutmarks(buf.Bytes(), sendto)
+	}
 	return
 }
 

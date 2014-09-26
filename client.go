@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"io/ioutil"
+	"net/mail"
 	"strings"
 	"math"
 	"github.com/codahale/blake2"
@@ -18,6 +19,30 @@ func headDiag(headers []byte) {
 		ebyte := sbyte + 20
 		fmt.Printf("sbyte=%d, Header: %d, Starts: %x\n", sbyte, h, headers[sbyte:ebyte])
 	}
+}
+
+// readMessage tries to read a file containing the plaintext to be sent
+func readMessage(filename string) []byte {
+	var err error
+	f, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: Unable to open file\n", filename)
+		os.Exit(1)
+	}
+	msg, err := mail.ReadMessage(f)
+	if err != nil {
+		panic(err)
+	}
+	if flag_to != "" {
+		msg.Header["To"] = []string{flag_to}
+		if ! strings.Contains(flag_to, "@") {
+			fmt.Fprintf(os.Stderr, "%s: Recipient doesn't appear to be an email address\n", flag_to)
+		}
+	}
+	if flag_subject != "" {
+		msg.Header["Subject"] = []string{flag_subject}
+	}
+	return assemble(*msg)
 }
 
 // deterministic precalculates the header content for fake headers inserted at
@@ -71,11 +96,11 @@ func mixprep() {
 		}
 	} else if len(flag_args) == 1 {
 		// A single arg should be the filename
-		message = import_msg(flag_args[0])
+		message = readMessage(flag_args[0])
 	} else if len(flag_args) >= 2 {
 		// Two args should be recipient and filename
 		flag_to = flag_args[0]
-		message = import_msg(flag_args[1])
+		message = readMessage(flag_args[1])
 	}
 	msglen := len(message)
 	if msglen == 0 {
@@ -131,16 +156,22 @@ func mixprep() {
 				got_exit = true
 			}
 			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, final, pubring, xref)
-			err = cutmarks("test.txt", sendto, encmsg)
+			err = cutmarks(encmsg, sendto)
 			if err != nil {
-				panic(err)
+				Warn.Println(err)
 			}
 		} // End of copies loop
 	} // End of fragments loop
 }
 
 // mixmsg encodes a plaintext fragment into mixmaster format.
-func mixmsg(msg, packetid []byte, chain []string, final slotFinal, pubring map[string]pubinfo, xref map[string]string) (payload []byte, sendto string) {
+func mixmsg(
+	msg, packetid []byte,
+	chain []string,
+	final slotFinal,
+	pubring map[string]pubinfo,
+	xref map[string]string) (payload []byte, sendto string) {
+
 	var err error
 	chainLength := len(chain)
 	// Retain the address of the entry remailer, the message must be sent to it.
