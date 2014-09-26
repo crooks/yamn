@@ -4,11 +4,11 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"io"
 	"bytes"
 	"bufio"
 	"strconv"
-	"errors"
 	"strings"
 	"path"
 	"io/ioutil"
@@ -20,12 +20,36 @@ import (
 	"github.com/luksen/maildir"
 )
 
-func poolRead() {
+func poolRead() (numToSend int, err error) {
 	poolFiles, err := readDir(cfg.Files.Pooldir)
 	if err != nil {
-		panic(err)
+		Warn.Println("Unable to access pool: %s", err)
+		return
 	}
-	fmt.Println(poolFiles)
+	poolSize := len(poolFiles)
+	Trace.Printf("Pool contains %d messages.\n", poolSize)
+	if poolSize < cfg.Pool.Size {
+		// Pool isn't sufficiently populated
+		Trace.Println("Pool insufficiently populated to trigger sending.", poolSize)
+		return
+	}
+	keys := randInts(len(poolFiles))
+	numToSend = int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
+	Trace.Printf("Processing %d pool messages.\n", poolSize)
+	for n := 0; n < numToSend; n++ {
+		mykey := keys[n]
+		err = server(poolFiles[mykey])
+		if err != nil {
+			Info.Println(err)
+		}
+		// Delete the pool file, regardless of processing success/failure
+		err = os.Remove(path.Join(cfg.Files.Pooldir, poolFiles[mykey]))
+		if err != nil {
+			Error.Printf("Failed to remove %s from %s\n",
+				poolFiles[mykey], cfg.Files.Pooldir)
+		}
+	}
+	return
 }
 
 // poolWrite takes a Mixmaster formatted message from an io reader and
@@ -62,17 +86,18 @@ func poolWrite(reader io.Reader) (err error) {
 			// Expecting size
 			payloadLen, err = strconv.Atoi(line)
 			if err != nil {
-				return errors.New("Unable to extract payload size")
+				Info.Println("Unable to extract payload size")
+				return
 			}
 			scanPhase = 3
 		case 3:
 			if len(line) != 24 {
-				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes", len(line))
+				Info.Printf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
 				return
 			} else {
 				payloadDigest, err = base64.StdEncoding.DecodeString(line)
 				if err != nil {
-					return errors.New("Unable to decode Base64 hash on payload")
+					Info.Println("Unable to decode Base64 hash on payload")
 				}
 				poolFileName = "m" + hex.EncodeToString(payloadDigest)
 			}
@@ -86,24 +111,29 @@ func poolWrite(reader io.Reader) (err error) {
 		} // End of switch
 	} // End of file scan
 	if scanPhase != 5 {
-		err = fmt.Errorf("Payload scanning failed at phase %d", scanPhase)
+		Info.Printf("Payload scanning failed at phase %d\n", scanPhase)
 		return
 	}
 	var payload []byte
 	payload, err = base64.StdEncoding.DecodeString(b64)
 	if err != nil {
-		return errors.New("Unable to decode Base64 payload")
+		Info.Printf("Unable to decode Base64 payload")
+		return
 	}
 	if len(payload) != payloadLen {
-		err = fmt.Errorf("Unexpected payload size. Wanted=%d, Got=%d", payloadLen, len(payload))
+		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
 	}
 	digest := blake2.New(&blake2.Config{Size: 16})
 	digest.Write(payload)
 	if ! bytes.Equal(digest.Sum(nil), payloadDigest) {
-		return errors.New("Incorrect payload digest")
+		Info.Println("Incorrect payload digest")
 	}
 	outFileName := path.Join(cfg.Files.Pooldir, poolFileName[:14])
 	err = ioutil.WriteFile(outFileName, payload, 0600)
+	if err != nil {
+		Error.Printf("Failed to write %s to %s\n", outFileName, cfg.Files.Pooldir)
+		return
+	}
 	return
 }
 
@@ -146,10 +176,11 @@ func remailerFoo(subject, sender string) (err error) {
 func mailRead() (err error) {
 	dir := maildir.Dir(cfg.Files.Maildir)
 	// Get a list of Maildir keys from the directory
-	keys, err := dir.Keys()
+	keys, err := dir.Unseen()
 	if err != nil {
 		return
 	}
+	Trace.Printf("Reading %d messages from %s\n", len(keys), cfg.Files.Maildir)
 	// Fetch headers for each Maildir key
 	var head mail.Header
 	for _, key := range keys {
@@ -172,7 +203,8 @@ func mailRead() (err error) {
 			if err != nil {
 				panic(err)
 			}
-			poolWrite(msg.Body)
+			err = poolWrite(msg.Body)
+			Trace.Println("Writing to pool failed")
 		}
 	}
 	return

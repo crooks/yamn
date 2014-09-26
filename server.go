@@ -4,21 +4,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"bytes"
 	"github.com/codahale/blake2"
 )
-
-func importMessage(filename string) (header, headers, body []byte, err error) {
-	msg, err := uncut(filename)
-	if err != nil {
-		return
-	}
-	header = msg[:headerBytes]
-	headers = msg[headerBytes:headersBytes]
-	body = msg[headersBytes:]
-	err = lenCheck(len(body), bodyBytes)
-	return
-}
 
 func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	hlen := len(headers) + len(fake)
@@ -36,25 +26,52 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	buf.Write(body)
 	err = bufLenCheck(buf.Len(), messageBytes)
 	if err != nil {
+		Error.Println("Incorrect outbound message size. Not sending.")
 		return
 	}
 	err = cutmarks("test.txt", sendto, buf.Bytes())
 	return
 }
 
-func server() {
-	var err error
-	var iv []byte
-	var filename string
-	if flag_stdin {
-		filename = ""
-	} else {
-		filename = "test.txt"
-	}
-	header, headers, body, err := importMessage(filename)
+func server(filename string) (err error) {
+	f, err := os.Open(path.Join(cfg.Files.Pooldir, filename))
+	defer f.Close()
 	if err != nil {
-		panic(err)
+		return
 	}
+	Trace.Printf("Processing pool file: %s\n", filename)
+	// Initialize some slices for the message components
+	header := make([]byte, headerBytes)
+	headers := make([]byte, encHeadBytes)
+	body := make([]byte, bodyBytes)
+	var bytesRead int
+	// Read each message component and validate its size
+	bytesRead, err = f.Read(header)
+	if err != nil {
+		return
+	}
+	if bytesRead != headerBytes {
+		Warn.Printf("Incorrect header bytes. Wanted=%d, Got=%d", headerBytes, bytesRead)
+		return
+	}
+	bytesRead, err = f.Read(headers)
+	if err != nil {
+		return
+	}
+	if bytesRead != encHeadBytes {
+		Warn.Printf("Incorrect headers bytes. Wanted=%d, Got=%d", encHeadBytes, bytesRead)
+		return
+	}
+	bytesRead, err = f.Read(body)
+	if err != nil {
+		return
+	}
+	if bytesRead != bodyBytes {
+		Warn.Printf("Incorrect body bytes. Wanted=%d, Got=%d", bodyBytes, bytesRead)
+		return
+	}
+
+	var iv []byte
 	secring := import_secring()
 	/*
 	decodeHead only returns the decrypted slotData bytes.  The other fields are
@@ -76,6 +93,7 @@ func server() {
 		panic("Hash tag mismatch")
 	}
 	if data.packetType == 0 {
+		Trace.Println("This is an Intermediate type message")
 		// inter contains the slotIntermediate struct
 		inter, err := decodeIntermediate(data.packetInfo)
 		if err != nil {
@@ -115,6 +133,7 @@ func server() {
 			panic(err)
 		}
 	} else if data.packetType == 1 {
+		Trace.Println("This is an Exit type message")
 		final, err := decodeFinal(data.packetInfo)
 		if err != nil {
 			panic(err)
@@ -122,4 +141,5 @@ func server() {
 		body = AES_CTR(body, data.aesKey, final.aesIV)
 		fmt.Println(string(body[:final.bodyBytes]))
 	}
+	return
 }

@@ -3,6 +3,10 @@
 package main
 
 import (
+	"io"
+	//"io/ioutil"
+	"log"
+	"os"
 )
 
 const (
@@ -15,11 +19,44 @@ const (
 	base64_line_wrap = 40
 	headerBytes = 512
 	headersBytes = headerBytes * maxChainLength
+	encHeadBytes = headersBytes - headerBytes
 	bodyBytes = 10240
 	messageBytes = headersBytes + bodyBytes
 )
 
+var (
+	Trace	*log.Logger
+	Info	*log.Logger
+	Warn	*log.Logger
+	Error	*log.Logger
+)
+
+func logInit(
+	traceHandle io.Writer,
+	infoHandle io.Writer,
+	warnHandle io.Writer,
+	errorHandle io.Writer) {
+
+	Trace = log.New(traceHandle,
+		"Trace: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Info = log.New(infoHandle,
+		"Info: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Warn = log.New(warnHandle,
+		"Warn: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Error = log.New(errorHandle,
+		"Error: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+}
+
+
 func main() {
+	logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
 	flags()
 	if flag_client {
 		mixprep()

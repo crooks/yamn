@@ -238,7 +238,7 @@ func import_secring() (sec map[string][]byte) {
 	return
 }
 
-// import_pubring reads a YAML pubring.mix file
+// import_pubring reads a YAMN pubring.mix file
 // pub is a map of pubinfo keyed by remailer address
 // xref is a cross-reference of short names to addresses
 func import_pubring() (pub map[string]pubinfo, xref map[string]string) {

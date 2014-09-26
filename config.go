@@ -32,6 +32,10 @@ type Config struct {
 		Numcopies int
 		Distance int
 	}
+	Pool struct {
+		Size int
+		Rate int
+	}
 	Remailer struct {
 		Name string
 		Address string
@@ -86,6 +90,8 @@ func init() {
 	cfg.Stats.Maxlat = 60
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
+	cfg.Pool.Size = 45
+	cfg.Pool.Rate = 65
 	cfg.Remailer.Name = "anon"
 	cfg.Remailer.Address = "mix@nowhere.invalid"
 	cfg.Remailer.Exit = false

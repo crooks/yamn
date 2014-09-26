@@ -7,7 +7,9 @@ import (
 	"bufio"
 	"fmt"
 	"strings"
+	"encoding/binary"
 	"crypto/rand"
+	"math/big"
 	"encoding/base64"
 	"strconv"
 	"bytes"
@@ -25,10 +27,39 @@ func randbytes(n int) (b []byte) {
   return
 }
 
+//xrandomint is a pointlessly complicated random int generator
+func xrandomInt(m int) (n int) {
+	var err error
+	bigInt, err := rand.Int(rand.Reader, big.NewInt(int64(m)))
+	if err != nil {
+		panic(err)
+	}
+	return int(bigInt.Int64())
+}
+
+// randomInt returns an integer between 0 and max
+func randomInt(max int) int {
+	var n uint16
+	binary.Read(rand.Reader, binary.LittleEndian, &n)
+	return int(n) % max
+}
+
+// randints returns a randomly ordered slice of ints
+func randInts(n int) (m []int) {
+	m = make([]int, n)
+	for i := 0; i < n; i++ {
+		j := randomInt(i + 1)
+		m[i] = m[j]
+		m[j] = i
+	}
+	return
+}
+
 // lenCheck verifies that a slice is of a specified length
 func lenCheck(got, expected int) (err error) {
 	if got != expected {
 		err = fmt.Errorf("Incorrect length.  Expected=%d, Got=%d", expected, got)
+		Info.Println(err)
 	}
 	return
 }
@@ -37,6 +68,7 @@ func lenCheck(got, expected int) (err error) {
 func bufLenCheck(buflen, length int) (err error) {
 	if buflen != length {
 		err = fmt.Errorf("Incorrect buffer length.  Wanted=%d, Got=%d", length, buflen)
+		Info.Println(err)
 	}
 	return
 }
@@ -112,89 +144,6 @@ func cutmarks(filename, sendto string, mixmsg []byte) (err error) {
 	f.WriteString(b64enc(mixmsg) + "\n")
 	f.WriteString("-----END REMAILER MESSAGE-----\n")
 	f.Sync()
-	return
-}
-
-// uncut does the opposite of cutmarks and returns plain bytes
-func uncut(filename string) (payload []byte, err error) {
-	var scanner *bufio.Scanner
-	if filename == "" {
-		scanner = bufio.NewScanner(os.Stdin)
-	} else {
-		var f *os.File
-		f, err = os.Open(filename)
-		if err != nil {
-			return
-		}
-	scanner = bufio.NewScanner(f)
-	}
-	scanPhase := 0
-	var b64 string
-	var payloadLen int
-	var payloadDigest []byte
-	/* Scan phases are:
-	0	Expecting ::
-	1 Expecting Begin cutmarks
-	2 Expecting size
-	3	Expecting hash
-	4 In payload and checking for End cutmark
-	5 Got End cutmark
-	*/
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch scanPhase {
-		case 0:
-			// Expecting ::\n
-			if line == "::" {
-				scanPhase = 1
-			}
-		case 1:
-			// Expecting Begin cutmarks
-			if line == "-----BEGIN REMAILER MESSAGE-----" {
-				scanPhase = 2
-			}
-		case 2:
-			// Expecting size
-			payloadLen, err = strconv.Atoi(line)
-			if err != nil {
-				return nil, errors.New("Unable to extract payload size")
-			}
-			scanPhase = 3
-		case 3:
-			if len(line) != 24 {
-				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes", len(line))
-				return nil, err
-			} else {
-				payloadDigest, err = base64.StdEncoding.DecodeString(line)
-				if err != nil {
-					return nil, errors.New("Unable to decode Base64 hash on payload")
-				}
-			}
-			scanPhase = 4
-		case 4:
-			if line == "-----END REMAILER MESSAGE-----" {
-				scanPhase = 5
-				break
-			}
-			b64 += line
-		} // End of switch
-	} // End of file scan
-	if scanPhase != 5 {
-		err = fmt.Errorf("Payload scanning failed at phase %d", scanPhase)
-		return nil, err
-	}
-	payload, err = base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, errors.New("Unable to decode Base64 payload")
-	}
-	if len(payload) != payloadLen {
-		err = fmt.Errorf("Unexpected payload size. Wanted=%d, Got=%d", payloadLen, len(payload))
-	}
-	digest := blake2.New(&blake2.Config{Size: 16})
-	digest.Write(payload)
-	if ! bytes.Equal(digest.Sum(nil), payloadDigest) {
-		return nil, errors.New("Incorrect payload digest")
-	}
 	return
 }
 
