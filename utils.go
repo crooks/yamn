@@ -73,6 +73,19 @@ func bufLenCheck(buflen, length int) (err error) {
 	return
 }
 
+func exists(path string) (bool, error) {
+	var err error
+	_, err = os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+
 // sPopBytes returns n bytes from the start of a slice
 func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
