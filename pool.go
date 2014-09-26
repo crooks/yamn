@@ -165,11 +165,32 @@ func remailerFoo(subject, sender string) (err error) {
 		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Pubkey
 		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
+	} else {
+		if len(subject) > 20 {
+			// Truncate long subject headers before logging them
+			subject = subject[:20]
+		}
+		err = fmt.Errorf("Ignoring request for %s", subject)
+		return
 	}
-	err = m.Send()
+	var msg []byte
+	msg, err = m.Compile()
 	if err != nil {
 		return
 	}
+	if cfg.Mail.Sendmail {
+    err = sendmail(msg, sender)
+    if err != nil {
+      Warn.Println("Sendmail failed during remailer-* request")
+      return
+    }
+  } else {
+    err = SMTPRelay(msg, sender)
+    if err != nil {
+      Warn.Println("SMTP relay failed during remailer-* request")
+      return
+    }
+  }
 	return
 }
 

@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"os"
 	"errors"
-	"net/smtp"
 )
 
 type message struct {
@@ -39,7 +38,7 @@ func (m message) Del(head string) {
 	delete(m.headers, head)
 }
 
-func (m message) Send() (err error) {
+func (m message) Compile() (b []byte, err error) {
 	var ok bool
 	_, ok = m.headers["From"]
 	if ! ok {
@@ -74,8 +73,6 @@ func (m message) Send() (err error) {
 		buf.WriteString(m.Suffix)
 		buf.WriteString("\n")
 	}
-	auth := smtp.PlainAuth("", m.SMTP.User, m.SMTP.Password, m.SMTP.Relay)
-  relay := fmt.Sprintf("%s:%d", m.SMTP.Relay, m.SMTP.Port)
-  err = smtp.SendMail(relay, auth, m.headers["From"], []string{m.headers["To"]}, buf.Bytes())
+	b = buf.Bytes()
 	return
 }
