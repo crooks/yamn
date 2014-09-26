@@ -7,6 +7,7 @@ import (
 	//"io/ioutil"
 	"log"
 	"os"
+	"time"
 )
 
 const (
@@ -61,8 +62,11 @@ func main() {
 	if flag_client {
 		mixprep()
 	} else {
-		//server()
-		mailRead()
-		poolRead()
+		Info.Println("Starting YAMN server")
+		for {
+			mailRead()
+			poolRead()
+			time.Sleep(60 * time.Second)
+		}
 	}
 }
