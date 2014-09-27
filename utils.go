@@ -41,7 +41,7 @@ func xrandomInt(m int) (n int) {
 func randomInt(max int) int {
 	var n uint16
 	binary.Read(rand.Reader, binary.LittleEndian, &n)
-	return int(n) % max
+	return int(n) % (max + 1)
 }
 
 // randints returns a randomly ordered slice of ints

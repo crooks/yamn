@@ -46,6 +46,7 @@ func NewPubring() *Pubring {
 	}
 }
 
+// Candidates provides a list of remailer addresses that match the specified criteria
 func (p Pubring) Candidates(minlat, maxlat int, minrel float32, exit bool) (c []string) {
 	for addy := range(p.pub) {
 		stats := p.pub[addy]

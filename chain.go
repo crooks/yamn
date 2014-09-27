@@ -3,8 +3,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"math/big"
 	"os"
 	"fmt"
 	"github.com/crooks/yamn/keymgr"
@@ -29,16 +27,6 @@ func insstr(s *[]string, text string, pos int) (length int) {
 	return
 }
 
-// randint returns a cryptographically random number in range 0-max
-func randint(max int) (rint int) {
-	r, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
-	if err != nil {
-		panic(err)
-	}
-	rint = int(r.Uint64())
-	return
-}
-
 // str_contains tests for the membership of a string in a slice
 func str_contains(s string, slice []string) bool {
 	for _, n := range slice {
@@ -52,7 +40,6 @@ func str_contains(s string, slice []string) bool {
 // candidates returns a slice of remailer addresses suitable for a given hop
 func candidates(addresses, dist []string) (c []string) {
 	c = make([]string, 0, len(addresses))
-  // Create a slice of addresses (for random node selection)
   for _, addy := range addresses {
 		if str_contains(addy, dist) {
 			// Excluded due to distance
@@ -96,13 +83,12 @@ func chain_build(in_chain []string, pubring *keymgr.Pubring) (out_chain []string
 			if len(out_chain) == 0 {
 				// Construct a list of suitable exit remailers
 				addresses = pubring.Candidates(cfg.Stats.Minlat, cfg.Stats.Maxlat, cfg.Stats.Relfinal, true)
-				addresses = candidates(addresses, distance)
 			} else {
 				// Construct a list of all suitable remailers
 				addresses = pubring.Candidates(cfg.Stats.Minlat, cfg.Stats.Maxlat, cfg.Stats.Minrel, false)
-				addresses = candidates(addresses, distance)
 			}
-			hop = addresses[randint(len(addresses) - 1)]
+			addresses = candidates(addresses, distance)
+			hop = addresses[randomInt(len(addresses) - 1)]
 		} else {
 			remailer, err := pubring.Get(hop)
 			if err != nil {

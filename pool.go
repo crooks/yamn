@@ -86,18 +86,19 @@ func poolWrite(reader io.Reader) (err error) {
 			// Expecting size
 			payloadLen, err = strconv.Atoi(line)
 			if err != nil {
-				Info.Println("Unable to extract payload size")
+				err = fmt.Errorf("Unable to extract payload size from %s", line)
 				return
 			}
 			scanPhase = 3
 		case 3:
 			if len(line) != 24 {
-				Info.Printf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
+				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
 				return
 			} else {
 				payloadDigest, err = base64.StdEncoding.DecodeString(line)
 				if err != nil {
-					Info.Println("Unable to decode Base64 hash on payload")
+					err = fmt.Errorf("Unable to decode Base64 hash on payload")
+					return
 				}
 				poolFileName = "m" + hex.EncodeToString(payloadDigest)
 			}
@@ -111,7 +112,7 @@ func poolWrite(reader io.Reader) (err error) {
 		} // End of switch
 	} // End of file scan
 	if scanPhase != 5 {
-		Info.Printf("Payload scanning failed at phase %d\n", scanPhase)
+		err = fmt.Errorf("Payload scanning failed at phase %d\n", scanPhase)
 		return
 	}
 	var payload []byte
@@ -122,11 +123,13 @@ func poolWrite(reader io.Reader) (err error) {
 	}
 	if len(payload) != payloadLen {
 		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
+		return
 	}
 	digest := blake2.New(&blake2.Config{Size: 16})
 	digest.Write(payload)
 	if ! bytes.Equal(digest.Sum(nil), payloadDigest) {
 		Info.Println("Incorrect payload digest")
+		return
 	}
 	outFileName := path.Join(cfg.Files.Pooldir, poolFileName[:14])
 	err = ioutil.WriteFile(outFileName, payload, 0600)
@@ -242,7 +245,9 @@ func mailRead() (err error) {
 				panic(err)
 			}
 			err = poolWrite(msg.Body)
-			Trace.Println("Writing to pool failed")
+			if err != nil {
+				Info.Println(err)
+			}
 		}
 	}
 	return
