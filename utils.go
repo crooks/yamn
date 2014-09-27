@@ -44,11 +44,11 @@ func randomInt(max int) int {
 	return int(n) % (max + 1)
 }
 
-// randints returns a randomly ordered slice of ints
+// randInts returns a randomly ordered slice of ints
 func randInts(n int) (m []int) {
 	m = make([]int, n)
 	for i := 0; i < n; i++ {
-		j := randomInt(i + 1)
+		j := randomInt(i)
 		m[i] = m[j]
 		m[j] = i
 	}
