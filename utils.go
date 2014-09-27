@@ -112,6 +112,14 @@ func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	return
 }
 
+// popstr takes a pointer to a string slice and pops the last element
+func popstr(s *[]string) (element string) {
+	slice := *s
+	element, slice = slice[len(slice) - 1], slice[:len(slice) - 1]
+	*s = slice
+	return
+}
+
 // wrap takes a long string and wraps it to lines of a predefined length.
 // The intention is to feed it a base64 encoded string.
 func wrap(str string) (newstr string) {

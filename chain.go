@@ -8,25 +8,6 @@ import (
 	"github.com/crooks/yamn/keymgr"
 )
 
-// popstr takes a pointer to a string slice and pops the last element
-func popstr(s *[]string) (element string) {
-	slice := *s
-	element, slice = slice[len(slice) - 1], slice[:len(slice) - 1]
-	*s = slice
-	return
-}
-
-// insstr inserts a string (text) into a slice at position pos
-func insstr(s *[]string, text string, pos int) (length int) {
-	slice := *s
-	slice = append(slice, "foo")
-	copy(slice[pos + 1:], slice[pos:])
-	slice[pos] = text
-	*s = slice
-	length = len(slice)
-	return
-}
-
 // str_contains tests for the membership of a string in a slice
 func str_contains(s string, slice []string) bool {
 	for _, n := range slice {
@@ -55,32 +36,32 @@ func candidates(addresses, dist []string) (c []string) {
 }
 
 // chain_build takes a chain string and constructs a valid remailer chain
-func chain_build(in_chain []string, pubring *keymgr.Pubring) (out_chain []string) {
+func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string) {
 	dist := cfg.Stats.Distance
 	if dist > maxChainLength {
 		dist = maxChainLength
 	}
 	var addresses []string // Candidate remailers for each hop
-	if len(in_chain) > maxChainLength {
-		fmt.Fprintf(os.Stderr, "%d hops exceeds maximum of %d\n", len(in_chain), maxChainLength)
+	if len(inChain) > maxChainLength {
+		fmt.Fprintf(os.Stderr, "%d hops exceeds maximum of %d\n", len(inChain), maxChainLength)
 		os.Exit(1)
 	}
 	// If dist is greater than the actual chain length, all hops will be unique.
-	if dist > len(in_chain) {
-		dist = len(in_chain)
+	if dist > len(inChain) {
+		dist = len(inChain)
 	}
 	var distance []string
 	in_dist := make([]string,0, dist) // n distance elements of input chain
 	out_dist := make([]string,0, dist) // n distance elements of output chain
-	out_chain = make([]string, 0, len(in_chain))
-	// Loop until in_chain contains no more remailers
-	num_hops := len(in_chain)
+	outChain = make([]string, 0, len(inChain))
+	// Loop until inChain contains no more remailers
+	num_hops := len(inChain)
 	var hop string
 	for {
-		hop = popstr(&in_chain)
+		hop = popstr(&inChain)
 		if hop == "*" {
 			// Random remailer selection
-			if len(out_chain) == 0 {
+			if len(outChain) == 0 {
 				// Construct a list of suitable exit remailers
 				addresses = pubring.Candidates(cfg.Stats.Minlat, cfg.Stats.Maxlat, cfg.Stats.Relfinal, true)
 			} else {
@@ -96,25 +77,31 @@ func chain_build(in_chain []string, pubring *keymgr.Pubring) (out_chain []string
 			}
 			hop = remailer.Address
 		}
+		// Extend outChain by 1 element
+		outChain = outChain[0:len(outChain) + 1]
+		// Shuffle existing entries to the right
+		copy(outChain[1:], outChain[:len(outChain) - 1])
 		// Insert new hop at the start of the output chain
-		_ = insstr(&out_chain, hop, 0)
-		if len(in_chain) == 0 {
+		outChain[0] = hop
+
+		// Break out when the input chain is empty
+		if len(inChain) == 0 {
 			break
 		}
 		// The following section is concerned with distance parameter compliance
-		if len(out_chain) > dist {
-			out_dist = out_chain[:dist]
+		if len(outChain) > dist {
+			out_dist = outChain[:dist]
 		} else {
-			out_dist = out_chain
+			out_dist = outChain
 		}
-		if len(in_chain) > dist {
-			in_dist = in_chain[len(in_chain) - dist:]
+		if len(inChain) > dist {
+			in_dist = inChain[len(inChain) - dist:]
 		} else {
-			in_dist = in_chain
+			in_dist = inChain
 		}
 		distance = append(in_dist, out_dist...)
 	}
-	if len(out_chain) != num_hops {
+	if len(outChain) != num_hops {
 		panic("Constructed chain length doesn't match input chain length")
 	}
 	return
