@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"strings"
 	"math"
+	"github.com/crooks/yamn/keymgr"
 	"github.com/codahale/blake2"
 )
 
@@ -108,9 +109,19 @@ func mixprep() {
 		os.Exit(1)
 	}
 	// Create the Public Keyring
-	pubring, xref := import_pubring()
+	pubring := keymgr.NewPubring()
+	err = pubring.ImportPubring(cfg.Files.Pubring)
+	if err != nil {
+		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
+		return
+	}
+	// TODO This is only required for random node selection in chains
 	// Populate keyring's uptime and latency fields
-	_ = import_mlist2(cfg.Files.Mlist2, pubring, xref)
+	err = pubring.ImportStats(cfg.Files.Mlist2)
+	if err != nil {
+		// This isn't terminal, clients can function without stats
+		Warn.Printf("No stats available: %s", cfg.Files.Mlist2)
+	}
 	in_chain := strings.Split(flag_chain, ",")
 	final.messageID = randbytes(16)
 	var cnum int // Chunk number
@@ -149,13 +160,13 @@ func mixprep() {
 				// Set the last node in the chain to the previously select exitnode
 				in_chain[len(in_chain) - 1] = exitnode
 			}
-			chain := chain_build(in_chain, pubring, xref)
+			chain := chain_build(in_chain, pubring)
 			//fmt.Println(chain)
 			if ! got_exit {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
 			}
-			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, final, pubring, xref)
+			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, final, pubring)
 			err = cutmarks(encmsg, sendto)
 			if err != nil {
 				Warn.Println(err)
@@ -169,8 +180,7 @@ func mixmsg(
 	msg, packetid []byte,
 	chain []string,
 	final slotFinal,
-	pubring map[string]pubinfo,
-	xref map[string]string) (payload []byte, sendto string) {
+	pubring *keymgr.Pubring) (payload []byte, sendto string) {
 
 	var err error
 	chainLength := len(chain)
@@ -255,8 +265,12 @@ func mixmsg(
 		if err != nil {
 			panic(err)
 		}
-	  head.recipientKeyid = pubring[hop].keyid
-	  head.recipientPK = pubring[hop].pk
+		rem, err := pubring.Get(hop)
+		if err != nil {
+			Error.Printf("%s: Remailer unknown in public keyring\n")
+		}
+	  head.recipientKeyid = rem.Keyid
+	  head.recipientPK = rem.PK
 		copy(headers[:headerBytes], encodeHead(head))
 	}
 	if len(chain) != 0 {
