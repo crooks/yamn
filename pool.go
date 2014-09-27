@@ -165,6 +165,19 @@ func remailerFoo(subject, sender string) (err error) {
 		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Pubkey
 		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
+	} else if strings.HasPrefix(subject, "remailer-conf") {
+		m.Set("Subject", fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
+		m.Text(fmt.Sprintf("Remailer-Type: Mixmaster %s\n", version))
+		m.Text("Supported Formats:\n   Mixmaster\n")
+		m.Text(fmt.Sprintf("Pool size: %d\n", cfg.Pool.Size))
+		m.Text(fmt.Sprintf("Maximum message size: %d kB\n", cfg.Remailer.MaxSize))
+		m.Text("The following header lines will be filtered:\n")
+		m.Text(fmt.Sprintf("\n$remailer{\"%s\"} = \"<%s>", cfg.Remailer.Name, cfg.Remailer.Address))
+		if ! cfg.Remailer.Exit {
+			m.Text(" middle")
+		}
+		m.Text("\";\n")
+		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS\n")
 	} else {
 		if len(subject) > 20 {
 			// Truncate long subject headers before logging them

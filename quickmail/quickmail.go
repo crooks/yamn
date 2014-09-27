@@ -38,6 +38,10 @@ func (m message) Del(head string) {
 	delete(m.headers, head)
 }
 
+func (m *message) Text(t string) {
+	m.Prefix += t
+}
+
 func (m message) Compile() (b []byte, err error) {
 	var ok bool
 	_, ok = m.headers["From"]

@@ -41,6 +41,7 @@ type Config struct {
 		Name string
 		Address string
 		Exit bool
+		MaxSize int
 	}
 }
 
@@ -99,6 +100,7 @@ func init() {
 	cfg.Remailer.Name = "anon"
 	cfg.Remailer.Address = "mix@nowhere.invalid"
 	cfg.Remailer.Exit = false
+	cfg.Remailer.MaxSize = 12
 
 	err = gcfg.ReadFileInto(&cfg, "mix.cfg")
 	if err != nil {
