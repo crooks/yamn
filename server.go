@@ -19,6 +19,7 @@ func loopServer() {
 	var filenames []string
 	secret := keymgr.NewSecring()
 	secret.ImportSecring(cfg.Files.Secring)
+	secret.Purge("test.txt")
 	Info.Println("Starting YAMN server")
 	for {
 		mailRead()

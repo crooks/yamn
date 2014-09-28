@@ -49,6 +49,35 @@ func (s Secring) GetSK(keyid string) (sk []byte, err error) {
 	return
 }
 
+func (s Secring) Purge(filename string) (err error) {
+	f, err := os.Create(filename)
+  if err != nil {
+		err = fmt.Errorf("%s: Cannot create file")
+		return
+	}
+	defer f.Close()
+	days28 := time.Hour * 24 * 28
+	plus28Days := time.Now().Add(days28)
+	for _, k := range s.sec {
+		if k.until.Before(plus28Days) {
+			continue
+		}
+		keydata := "-----Begin Mixmaster Secret Key-----\n"
+		keydata += fmt.Sprintf("Created: %s\n", k.from.Format(date_format))
+		keydata += fmt.Sprintf("Expires: %s\n", k.until.Format(date_format))
+		keydata += hex.EncodeToString(k.keyid)  + "\n"
+		keydata += hex.EncodeToString(k.sk) + "\n"
+		keydata += "-----End Mixmaster Secret Key-----\n\n"
+		_, err = f.WriteString(keydata)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+
+
 // ImportSecring reads a YAML secring.mix file
 func (s Secring) ImportSecring(filename string) (err error) {
 	var f *os.File
