@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"bytes"
 	"strings"
 	"errors"
@@ -11,6 +10,7 @@ import (
 	"encoding/hex"
 	"time"
 	"crypto/rand"
+	"github.com/crooks/yamn/keymgr"
 	"code.google.com/p/go.crypto/nacl/box"
 )
 
@@ -65,7 +65,7 @@ func encodeHead(h slotHead) []byte {
 }
 
 // decodeHead decodes a slot header
-func decodeHead(b []byte, sec map[string][]byte) (data []byte, err error) {
+func decodeHead(b []byte, secret *keymgr.Secring) (data []byte, err error) {
 	/*
 	Decode functions should return their associated structs but, in this
 	instance, the only field of value is the decrypted data.
@@ -76,12 +76,8 @@ func decodeHead(b []byte, sec map[string][]byte) (data []byte, err error) {
 	}
 	var keyid string
 	keyid = hex.EncodeToString(b[0:16])
-	sk, present := sec[keyid]
-	if ! present {
-		err = fmt.Errorf("%s: Keyid not found in secring", keyid)
-		return
-	}
-	err = lenCheck(len(sk), 32)
+	var sk []byte
+	sk, err = secret.GetSK(keyid)
 	if err != nil {
 		return
 	}

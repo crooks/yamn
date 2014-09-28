@@ -7,10 +7,32 @@ import (
 	"os"
 	"path"
 	"bytes"
+	"time"
 	"io/ioutil"
 	"encoding/hex"
+	"github.com/crooks/yamn/keymgr"
 	"github.com/codahale/blake2"
 )
+
+func loopServer() {
+	var err error
+	var filenames []string
+	secret := keymgr.NewSecring()
+	secret.ImportSecring(cfg.Files.Secring)
+	Info.Println("Starting YAMN server")
+	for {
+		mailRead()
+		filenames, err = poolRead()
+		for _, file := range filenames {
+			err = processPoolFile(file, secret)
+			if err != nil {
+				Info.Println(err)
+			}
+			poolDelete(file)
+		}
+		time.Sleep(60 * time.Second)
+	}
+}
 
 func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	hlen := len(headers) + len(fake)
@@ -49,7 +71,7 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	return
 }
 
-func server(filename string) (err error) {
+func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 	f, err := os.Open(path.Join(cfg.Files.Pooldir, filename))
 	defer f.Close()
 	if err != nil {
@@ -88,12 +110,11 @@ func server(filename string) (err error) {
 	}
 
 	var iv []byte
-	secring := import_secring()
 	/*
 	decodeHead only returns the decrypted slotData bytes.  The other fields are
 	only concerned with performing the decryption.
 	*/
-	decodedHeader, err := decodeHead(header, secring)
+	decodedHeader, err := decodeHead(header, secret)
 	if err != nil {
 		panic(err)
 	}

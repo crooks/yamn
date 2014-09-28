@@ -20,7 +20,7 @@ import (
 	"github.com/luksen/maildir"
 )
 
-func poolRead() (numToSend int, err error) {
+func poolRead() (selectedPoolFiles []string, err error) {
 	poolFiles, err := readDir(cfg.Files.Pooldir)
 	if err != nil {
 		Warn.Println("Unable to access pool: %s", err)
@@ -34,20 +34,20 @@ func poolRead() (numToSend int, err error) {
 		return
 	}
 	keys := randInts(len(poolFiles))
-	numToSend = int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
+	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
 	Trace.Printf("Processing %d pool messages.\n", poolSize)
 	for n := 0; n < numToSend; n++ {
 		mykey := keys[n]
-		err = server(poolFiles[mykey])
-		if err != nil {
-			Info.Println(err)
-		}
-		// Delete the pool file, regardless of processing success/failure
-		err = os.Remove(path.Join(cfg.Files.Pooldir, poolFiles[mykey]))
-		if err != nil {
-			Error.Printf("Failed to remove %s from %s\n",
-				poolFiles[mykey], cfg.Files.Pooldir)
-		}
+		selectedPoolFiles = append(selectedPoolFiles, poolFiles[mykey])
+	}
+	return
+}
+
+func poolDelete(filename string) (err error) {
+	// Delete a pool file
+	err = os.Remove(path.Join(cfg.Files.Pooldir, filename))
+	if err != nil {
+		Error.Printf("Failed to remove %s from %s\n", filename, cfg.Files.Pooldir)
 	}
 	return
 }
