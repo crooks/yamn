@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"encoding/hex"
 	//"crypto/rand"
-	//"github.com/codahale/blake2"
+	"github.com/codahale/blake2"
 	//"code.google.com/p/go.crypto/nacl/box"
 )
 
@@ -27,6 +27,85 @@ type Secring struct {
 
 func NewSecring() *Secring {
 	return &Secring{sec: make(map[string]secret)}
+}
+
+func (s Secring) Publish(
+	pubfile, secfile string,
+	pub, sec []byte,
+	valid int, exit bool,
+	name, address, version string) (err error) {
+	/*
+	Each time this function is called, the passed public key is written to
+	key.txt.  This implies that the most recently created key is always
+	advertised, without consideration of validity dates.  The private key
+	is appended to the secring.mix file.
+	*/
+
+	if len(pub) != 32 {
+		err = fmt.Errorf("Invalid pubkey length. Wanted=32, Got=%d", len(pub))
+		return
+	}
+	if len(sec) != 32 {
+		err = fmt.Errorf("Invalid seckey length. Wanted=32, Got=%d", len(pub))
+		return
+	}
+	// Keyid
+	digest := blake2.New(&blake2.Config{Size: 16})
+	digest.Write(pub)
+	keyid := hex.EncodeToString(digest.Sum(nil))
+	// Validity dates
+	ctime := time.Now()
+	etime := time.Now().Add(time.Duration(24 * valid) * time.Hour)
+
+	// Public Key first
+	f, err := os.Create(pubfile)
+	if err != nil {
+		return
+	}
+	w := bufio.NewWriter(f)
+	var capstring string
+	// M = Middle, E = Exit
+	if exit {
+		capstring += "E"
+	} else {
+		capstring += "M"
+	}
+	header := name + " "
+	header += address + " "
+	header += keyid + " "
+	header += "4:" + version + " "
+	header += capstring + " "
+	header += ctime.UTC().Format(date_format) + " "
+	header += etime.UTC().Format(date_format)
+
+	fmt.Fprintln(w, header)
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "-----Begin Mixmaster Public Key-----")
+	fmt.Fprintln(w, keyid)
+	fmt.Fprintln(w, hex.EncodeToString(pub))
+	fmt.Fprintln(w, "-----End Mixmaster Public Key-----")
+	err = w.Flush()
+	if err != nil {
+		return
+	}
+
+	// Secret Keyring next
+	f, err = os.OpenFile(secfile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
+	keydata += fmt.Sprintf("Created: %s\n", ctime.UTC().Format(date_format))
+	keydata += fmt.Sprintf("Expires: %s\n", etime.UTC().Format(date_format))
+	keydata += keyid  + "\n"
+	keydata += hex.EncodeToString(sec) + "\n"
+	keydata += "-----End Mixmaster Secret Key-----\n"
+	_, err = f.WriteString(keydata)
+	if err != nil {
+		return
+	}
+	return
 }
 
 func (s Secring) Get(keyid string) (sec secret, err error) {
@@ -49,6 +128,23 @@ func (s Secring) GetSK(keyid string) (sk []byte, err error) {
 	return
 }
 
+// Validate tests if the input keyid has minimum 7 days of validity remaining
+func (s Secring) Validate(keyid string) (valid bool, err error) {
+	sec, exists := s.sec[keyid]
+	if ! exists {
+		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
+		return
+	}
+	days7 := time.Now().Add(time.Hour * 24 * 7)
+	if sec.until.Before(days7) {
+		valid = false
+	} else {
+		valid = true
+	}
+	return
+}
+
+
 func (s Secring) Purge(filename string) (err error) {
 	f, err := os.Create(filename)
   if err != nil {
@@ -58,15 +154,17 @@ func (s Secring) Purge(filename string) (err error) {
 	defer f.Close()
 	days28 := time.Hour * 24 * 28
 	plus28Days := time.Now().Add(days28)
-	for _, k := range s.sec {
-		if k.until.Before(plus28Days) {
+	// Iterate key and value of Secring
+	for k, m := range s.sec {
+		if m.until.Before(plus28Days) {
+			delete(s.sec, k)
 			continue
 		}
 		keydata := "-----Begin Mixmaster Secret Key-----\n"
-		keydata += fmt.Sprintf("Created: %s\n", k.from.Format(date_format))
-		keydata += fmt.Sprintf("Expires: %s\n", k.until.Format(date_format))
-		keydata += hex.EncodeToString(k.keyid)  + "\n"
-		keydata += hex.EncodeToString(k.sk) + "\n"
+		keydata += fmt.Sprintf("Created: %s\n", m.from.Format(date_format))
+		keydata += fmt.Sprintf("Expires: %s\n", m.until.Format(date_format))
+		keydata += hex.EncodeToString(m.keyid)  + "\n"
+		keydata += hex.EncodeToString(m.sk) + "\n"
 		keydata += "-----End Mixmaster Secret Key-----\n\n"
 		_, err = f.WriteString(keydata)
 		if err != nil {

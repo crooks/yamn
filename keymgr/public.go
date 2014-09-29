@@ -5,7 +5,6 @@ package keymgr
 import (
 	"bufio"
 	"bytes"
-	//"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -36,7 +35,8 @@ type remailer struct {
 
 type Pubring struct {
 	pub map[string]remailer
-	xref map[string]string
+	xref map[string]string // A cross-reference of shortnames to addresses
+	advertised string // The keyid we're currently advertising
 }
 
 func NewPubring() *Pubring {
@@ -90,6 +90,41 @@ func (p Pubring) Get(ref string) (r remailer, err error) {
 			return
 		}
 		r = p.pub[addy]
+	}
+	return
+}
+
+// Advertising returns keyid defined in key.txt
+func (p Pubring) Advertising(filename string) (keyid string, err error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	found := false
+	var elements []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		elements = strings.Split(line, " ")
+		if len(elements) == 7 {
+			found = true
+			break
+		}
+	}
+	if ! found {
+		err = fmt.Errorf("%s: No key header found", filename)
+		return
+	}
+	keyid = elements[2]
+	if len(keyid) != 32 {
+		err = fmt.Errorf("%s: Corrupted keyid. Not 32 chars.", filename)
+		return
+	}
+	_, err = hex.DecodeString(keyid)
+	if err != nil {
+		err = fmt.Errorf("%s: Corrupted keyid. Not valid hexadecimal", filename)
+		return
 	}
 	return
 }

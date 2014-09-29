@@ -24,6 +24,25 @@ func timestamp() (stamp []byte) {
 	return
 }
 
+// Generate a public/private ECC key pair
+func eccGenerate() (public, private []byte) {
+	puba, priva, err := box.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	public = make([]byte, 32)
+	private = make([]byte, 32)
+	copy(public[:], puba[:])
+	copy(private[:], priva[:])
+	if len(public) != 32 {
+		panic("Invalid pubkey length generated")
+	}
+	if len(private) != 32 {
+		panic("Invalid seckey length generated")
+	}
+	return
+}
+
 /*
 Slot Header Format
 [ Recipient key ID		 16 Bytes ]

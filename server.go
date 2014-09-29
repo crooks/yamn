@@ -14,11 +14,49 @@ import (
 	"github.com/codahale/blake2"
 )
 
-func loopServer() {
-	var err error
+func loopServer() (err error) {
 	var filenames []string
+	// Populate public and secret keyrings
+	public := keymgr.NewPubring()
 	secret := keymgr.NewSecring()
+	public.ImportPubring(cfg.Files.Pubring)
 	secret.ImportSecring(cfg.Files.Secring)
+	generate := false
+	// Find out the Keyid we're advertising
+	advertisedKeyid, err := public.Advertising(cfg.Files.Pubkey)
+	if err != nil {
+		Info.Println("No valid Public key, will generate a new pair")
+		generate = true
+	}
+	// Try to validate the advertised key on Secring
+	if ! generate {
+		valid, err := secret.Validate(advertisedKeyid)
+		if err != nil {
+			Warn.Printf("%s: Failed to validate key in Secring", advertisedKeyid)
+			generate = true
+		} else if valid {
+			Info.Printf("Advertising keyid=%s", advertisedKeyid)
+		} else {
+			Info.Printf("%s has expired, will generate a new key pair", advertisedKeyid)
+			generate = true
+		}
+	}
+	// Create a new key pair
+	if generate {
+		Info.Println("Generating and advertising a new key pair")
+		pub, sec := eccGenerate()
+		err = secret.Publish(
+			cfg.Files.Pubkey,	cfg.Files.Secring,
+			pub, sec,
+			keyValidityDays,
+			cfg.Remailer.Exit,
+			cfg.Remailer.Name, cfg.Remailer.Address, version)
+		if err != nil {
+			Error.Printf("Aborting! Key generation failure: %s", err)
+			return
+		}
+	}
+
 	secret.Purge("test.txt")
 	Info.Println("Starting YAMN server")
 	for {
@@ -27,7 +65,7 @@ func loopServer() {
 		for _, file := range filenames {
 			err = processPoolFile(file, secret)
 			if err != nil {
-				Info.Println(err)
+				Info.Printf("Discarding message: %s", err)
 			}
 			poolDelete(file)
 		}
@@ -115,33 +153,37 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 	decodeHead only returns the decrypted slotData bytes.  The other fields are
 	only concerned with performing the decryption.
 	*/
-	decodedHeader, err := decodeHead(header, secret)
+	var decodedHeader []byte
+	decodedHeader, err = decodeHead(header, secret)
 	if err != nil {
-		panic(err)
+		return
 	}
 	// data contains the slotData struct
-	data, err := decodeData(decodedHeader)
+	var data slotData
+	data, err = decodeData(decodedHeader)
 	if err != nil {
-		panic(err)
+		return
 	}
 	digest := blake2.New(nil)
 	digest.Write(headers)
 	digest.Write(body)
 	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {
-		panic("Hash tag mismatch")
+		err = fmt.Errorf("Digest mismatch on Anti-tag hash")
+		return
 	}
 	if data.packetType == 0 {
 		Trace.Println("This is an Intermediate type message")
 		// inter contains the slotIntermediate struct
-		inter, err := decodeIntermediate(data.packetInfo)
+		var inter slotIntermediate
+		inter, err = decodeIntermediate(data.packetInfo)
 		if err != nil {
-			panic(err)
+			return
 		}
 		// Number of headers to decrypt is one less than max chain length
 		for headNum := 0; headNum < maxChainLength - 1; headNum++ {
 			iv, err = sPopBytes(&inter.aesIVs, 16)
 			if err != nil {
-				panic(err)
+				return
 			}
 			sbyte := headNum * headerBytes
 			ebyte := (headNum + 1) * headerBytes
@@ -150,7 +192,7 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 		// The tenth IV is used to encrypt the deterministic header
 		iv, err = sPopBytes(&inter.aesIVs, 16)
 		if err != nil {
-			panic(err)
+			return
 		}
 		//fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
 		fakeHeader := make([]byte, headerBytes)
@@ -158,23 +200,24 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 		// Body is decrypted with the final IV
 		iv, err = sPopBytes(&inter.aesIVs, 16)
 		if err != nil {
-			panic(err)
+			return
 		}
 		copy(body, AES_CTR(body, data.aesKey, iv))
 		// At this point there should be zero bytes left in the inter IV pool
 		if len(inter.aesIVs) != 0 {
 			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
-			panic(err)
+			return
 		}
 		err = exportMessage(headers, fakeHeader, body, inter.nextHop)
 		if err != nil {
-			panic(err)
+			return
 		}
 	} else if data.packetType == 1 {
 		Trace.Println("This is an Exit type message")
-		final, err := decodeFinal(data.packetInfo)
+		var final slotFinal
+		final, err = decodeFinal(data.packetInfo)
 		if err != nil {
-			panic(err)
+			return
 		}
 		body = AES_CTR(body, data.aesKey, final.aesIV)
 		fmt.Println(string(body[:final.bodyBytes]))

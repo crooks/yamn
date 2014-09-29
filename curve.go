@@ -12,7 +12,7 @@ import (
 const (
 	version string = "0.1a"
 	date_format string = "2006-01-02"
-	key_validity_days int = 60
+	keyValidityDays int = 60
 	max_frag_length = 10230
 	maxChainLength = 10
 	maxCopies = 5
@@ -56,11 +56,15 @@ func logInit(
 
 
 func main() {
+	var err error
 	logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
 	flags()
 	if flag_client {
 		mixprep()
 	} else {
-		loopServer()
+		err = loopServer()
+		if err != nil {
+			panic(err)
+		}
 	}
 }
