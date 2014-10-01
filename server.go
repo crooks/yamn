@@ -58,7 +58,7 @@ func loopServer() (err error) {
 	}
 
 	secret.Purge("test.txt")
-	Info.Println("Starting YAMN server")
+	Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
 	for {
 		mailRead()
 		filenames, err = poolRead()

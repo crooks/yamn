@@ -20,6 +20,7 @@ func assemble(msg mail.Message) []byte {
 	return buf.Bytes()
 }
 
+// testMail vets outbound messages to final recipients
 func testMail(b []byte) (recipients []string, err error) {
 	f := bytes.NewReader(b)
 	msg, err := mail.ReadMessage(f)

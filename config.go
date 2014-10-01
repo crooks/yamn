@@ -80,13 +80,20 @@ func init() {
 	// Memory usage
 	flag.BoolVar(&flag_meminfo, "meminfo", false, "Print memory info")
 
+	// Figure out the dir of the yamn binary
+	var dir string
+	dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		panic(err)
+	}
+
 	// Set defaults and read config file
-	cfg.Files.Pubkey = "key.txt"
-	cfg.Files.Pubring = "pubring.mix"
-	cfg.Files.Secring = "secring.mix"
-	cfg.Files.Mlist2 = "mlist2.txt"
-	cfg.Files.Pooldir = "pool"
-	cfg.Files.Maildir = "Maildir"
+	cfg.Files.Pubkey = path.Join(dir, "key.txt")
+	cfg.Files.Pubring = path.Join(dir, "pubring.mix")
+	cfg.Files.Secring = path.Join(dir, "secring.mix")
+	cfg.Files.Mlist2 = path.Join(dir, "mlist2.txt")
+	cfg.Files.Pooldir = path.Join(dir, "pool")
+	cfg.Files.Maildir = path.Join(dir, "Maildir")
 	cfg.Mail.Sendmail = true
 	cfg.Mail.Outfile = false
 	cfg.Mail.SMTPRelay = "127.0.0.1"
@@ -120,11 +127,6 @@ func init() {
 			os.Exit(1)
 		}
 	} else {
-		var dir string
-		dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
-		if err != nil {
-			panic(err)
-		}
 		fn := path.Join(dir, "yamn.cfg")
 		err = gcfg.ReadFileInto(&cfg, fn)
 		if err != nil {

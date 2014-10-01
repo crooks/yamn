@@ -4,7 +4,7 @@ package main
 
 import (
 	"io"
-	//"io/ioutil"
+	"io/ioutil"
 	"log"
 	"os"
 )
@@ -57,7 +57,8 @@ func logInit(
 
 func main() {
 	var err error
-	logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
+	//logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
+	logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 	flags()
 	if flag_client {
 		mixprep()
