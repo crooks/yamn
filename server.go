@@ -159,8 +159,8 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 		return
 	}
 	// data contains the slotData struct
-	data := new(slotData)
-	err = data.decodeData(decodedHeader)
+	var data slotData
+	data, err = decodeData(decodedHeader)
 	if err != nil {
 		return
 	}
@@ -174,8 +174,8 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 	if data.packetType == 0 {
 		Trace.Println("This is an Intermediate type message")
 		// inter contains the slotIntermediate struct
-		inter := new(slotIntermediate)
-		err = inter.decodeIntermediate(data.packetInfo)
+		var inter slotIntermediate
+		inter, err = decodeIntermediate(data.packetInfo)
 		if err != nil {
 			return
 		}
@@ -214,8 +214,8 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 		}
 	} else if data.packetType == 1 {
 		Trace.Println("This is an Exit type message")
-		final := new(slotFinal)
-		err = final.decodeFinal(data.packetInfo)
+		var final slotFinal
+		final, err = decodeFinal(data.packetInfo)
 		if err != nil {
 			return
 		}

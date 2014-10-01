@@ -170,7 +170,7 @@ func (d slotData) encodeData() (b []byte, err error) {
 	return
 }
 
-func (data slotData) decodeData(b []byte) (err error) {
+func decodeData(b []byte) (data slotData, err error) {
 	err = lenCheck(len(b), 392)
 	if err != nil {
 		return
@@ -220,7 +220,7 @@ func (f slotFinal) encodeFinal() []byte {
 	return buf.Bytes()
 }
 
-func (f slotFinal) decodeFinal(b []byte) (err error) {
+func decodeFinal(b []byte) (f slotFinal, err error) {
 	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
@@ -262,7 +262,7 @@ func (i slotIntermediate) encodeIntermediate() []byte {
 	return buf.Bytes()
 }
 
-func (i slotIntermediate) decodeIntermediate(b []byte) (err error) {
+func decodeIntermediate(b []byte) (i slotIntermediate, err error) {
 	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
