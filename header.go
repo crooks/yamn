@@ -60,7 +60,7 @@ type slotHead struct {
 	data []byte
 }
 
-func encodeHead(h slotHead) []byte {
+func (h slotHead) encodeHead() []byte {
 	// Generate an ECC key pair
 	sendpub, sendpriv, err := box.GenerateKey(rand.Reader)
 	if err != nil {
@@ -137,7 +137,7 @@ type slotData struct {
 	tagHash []byte
 }
 
-func encodeData(d slotData) (b []byte, err error) {
+func (d slotData) encodeData() (b []byte, err error) {
 	err = lenCheck(len(d.packetID), 16)
 	if err != nil {
 		return
@@ -170,7 +170,7 @@ func encodeData(d slotData) (b []byte, err error) {
 	return
 }
 
-func decodeData(b []byte) (data slotData, err error) {
+func (data slotData) decodeData(b []byte) (err error) {
 	err = lenCheck(len(b), 392)
 	if err != nil {
 		return
@@ -203,7 +203,7 @@ type slotFinal struct {
 	bodyBytes int
 }
 
-func encodeFinal(f slotFinal) []byte {
+func (f slotFinal) encodeFinal() []byte {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(f.chunkNum)
 	buf.WriteByte(f.numChunks)
@@ -220,16 +220,16 @@ func encodeFinal(f slotFinal) []byte {
 	return buf.Bytes()
 }
 
-func decodeFinal(b []byte) (final slotFinal, err error) {
+func (f slotFinal) decodeFinal(b []byte) (err error) {
 	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
 	}
-	final.chunkNum = b[0]
-	final.numChunks = b[1]
-	final.messageID = b[2:18]
-	final.aesIV = b[18:34]
-	final.bodyBytes = int(binary.LittleEndian.Uint32(b[34:]))
+	f.chunkNum = b[0]
+	f.numChunks = b[1]
+	f.messageID = b[2:18]
+	f.aesIV = b[18:34]
+	f.bodyBytes = int(binary.LittleEndian.Uint32(b[34:]))
 	return
 }
 
@@ -246,15 +246,15 @@ type slotIntermediate struct {
 	nextHop string
 }
 
-func encodeIntermediate(inter slotIntermediate) []byte {
+func (i slotIntermediate) encodeIntermediate() []byte {
 	var err error
-	err = lenCheck(len(inter.aesIVs), (maxChainLength + 1) * 16)
+	err = lenCheck(len(i.aesIVs), (maxChainLength + 1) * 16)
 	if err != nil {
 		panic(err)
 	}
 	buf := new(bytes.Buffer)
-	buf.Write(inter.aesIVs)
-	buf.WriteString(inter.nextHop)
+	buf.Write(i.aesIVs)
+	buf.WriteString(i.nextHop)
 	err = bufLenCheck(buf.Len(), 256)
 	if err != nil {
 		panic(err)
@@ -262,12 +262,12 @@ func encodeIntermediate(inter slotIntermediate) []byte {
 	return buf.Bytes()
 }
 
-func decodeIntermediate(b []byte) (inter slotIntermediate, err error) {
+func (i slotIntermediate) decodeIntermediate(b []byte) (err error) {
 	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
 	}
-	inter.aesIVs = b[:176]
-	inter.nextHop = strings.TrimRight(string(b[176:]), "\x00")
+	i.aesIVs = b[:176]
+	i.nextHop = strings.TrimRight(string(b[176:]), "\x00")
 	return
 }

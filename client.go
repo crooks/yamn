@@ -82,7 +82,7 @@ func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int
 func mixprep() {
 	var err error
 	var message []byte
-	var final slotFinal
+	final := new(slotFinal)
 	if len(flag_args) == 0  {
 		fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
 		message, err = ioutil.ReadAll(os.Stdin)
@@ -172,7 +172,7 @@ func mixprep() {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
 			}
-			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, final, pubring)
+			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
 			err = cutmarks(encmsg, sendto)
 			if err != nil {
 				Warn.Println(err)
@@ -212,7 +212,7 @@ func mixmsg(
 		//detPos := (numRandHeads + hopNum) * headerBytes
 		//copy(headers[:detPos], deterministic(interAESKeys, interAESIVs, chainLength, hopNum))
 		// Here we begin assembly of the slot data
-		var data slotData
+		data := new(slotData)
 		if err != nil {
 			panic(err)
 		}
@@ -226,19 +226,19 @@ func mixmsg(
 			if err != nil {
 				panic(err)
 			}
-			data.packetInfo = encodeFinal(final)
+			data.packetInfo = final.encodeFinal()
 			data.packetID = packetid
 			// Encrypt the message body
 			copy(body, AES_CTR(body, data.aesKey, final.aesIV))
 		} else {
-			var inter slotIntermediate
+			inter := new(slotIntermediate)
 			data.packetType = 0
 			// Grab a Key and block of IVs from the pool for this header
 			data.aesKey = keys[hopNum - 1]
 			inter.aesIVs = ivs[hopNum - 1]
 			// The chain hasn't been popped yet so hop still contains the last node name.
 			inter.nextHop = hop + strings.Repeat("\x00", 80 - len(hop))
-			data.packetInfo = encodeIntermediate(inter)
+			data.packetInfo = inter.encodeIntermediate()
 			data.packetID = randbytes(16)
 			// Encrypt the current header slots
 			for slot := 0; slot < maxChainLength - 1; slot++ {
@@ -265,9 +265,9 @@ func mixmsg(
 		digest.Write(headers[headerBytes:])
 		digest.Write(body)
 		data.tagHash = digest.Sum(nil)
-		var head slotHead
+		head := new(slotHead)
 		hop = popstr(&chain)
-		head.data, err = encodeData(data)
+		head.data, err = data.encodeData()
 		if err != nil {
 			panic(err)
 		}
@@ -277,7 +277,7 @@ func mixmsg(
 		}
 	  head.recipientKeyid = rem.Keyid
 	  head.recipientPK = rem.PK
-		copy(headers[:headerBytes], encodeHead(head))
+		copy(headers[:headerBytes], head.encodeHead())
 	}
 	if len(chain) != 0 {
 		panic("After encoding, chain was not empty.")
