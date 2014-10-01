@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"strings"
 	"math"
+	"errors"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/codahale/blake2"
 )
@@ -32,7 +33,8 @@ func readMessage(filename string) []byte {
 	}
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "%s: Malformed mail message\n", filename)
+		os.Exit(1)
 	}
 	if flag_to != "" {
 		msg.Header["To"] = []string{flag_to}
@@ -81,19 +83,12 @@ func mixprep() {
 	var err error
 	var message []byte
 	var final slotFinal
-	if len(flag_args) == 0 && ! flag_stdin {
-		os.Stderr.Write([]byte("No input filename provided\n"))
-		os.Exit(1)
-	} else if flag_stdin {
-		// Flag instructs message should be read from stdin
+	if len(flag_args) == 0  {
+		fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
 		message, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
-		}
-		if len(flag_args) == 1 {
-			// A single arg on an stdin msg implies a recipient address
-			flag_to = flag_args[0]
 		}
 	} else if len(flag_args) == 1 {
 		// A single arg should be the filename
@@ -123,6 +118,10 @@ func mixprep() {
 		Warn.Printf("No stats available: %s", cfg.Files.Mlist2)
 	}
 	in_chain := strings.Split(flag_chain, ",")
+	if len(in_chain) == 0 {
+		err = errors.New("Empty input chain")
+		return
+	}
 	final.messageID = randbytes(16)
 	var cnum int // Chunk number
 	var numc int // Number of chunks
@@ -160,7 +159,15 @@ func mixprep() {
 				// Set the last node in the chain to the previously select exitnode
 				in_chain[len(in_chain) - 1] = exitnode
 			}
-			chain := chain_build(in_chain, pubring)
+			var chain []string
+			chain, err = chain_build(in_chain, pubring)
+			if err != nil {
+				panic(err)
+			}
+			if len(chain) != len(in_chain) {
+				err = fmt.Errorf("Chain length mismatch.  In=%d, Out=%d", len(in_chain), len(chain))
+				panic(err)
+			}
 			//fmt.Println(chain)
 			if ! got_exit {
 				exitnode = chain[len(chain) - 1]

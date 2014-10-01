@@ -20,7 +20,7 @@ const (
 	date_format string = "2006-01-02"
 )
 
-type remailer struct {
+type Remailer struct {
 	name string // Remailer Shortname
 	Address string // Remailer Address
 	Keyid []byte // 16 Byte Mixmaster KeyID
@@ -34,14 +34,14 @@ type remailer struct {
 }
 
 type Pubring struct {
-	pub map[string]remailer
+	pub map[string]Remailer
 	xref map[string]string // A cross-reference of shortnames to addresses
 	advertised string // The keyid we're currently advertising
 }
 
 func NewPubring() *Pubring {
 	return &Pubring{
-		pub: make(map[string]remailer),
+		pub: make(map[string]Remailer),
 		xref: make(map[string]string),
 	}
 }
@@ -67,14 +67,19 @@ func (p Pubring) Candidates(minlat, maxlat int, minrel float32, exit bool) (c []
 	return
 }
 
+// Count returns the number of known Public keys
+func (p Pubring) Count() int {
+	return len(p.pub)
+}
+
 // Put inserts a new remailer struct into the Keyring
-func (p Pubring) Put(r remailer) {
+func (p Pubring) Put(r Remailer) {
 	p.pub[r.Address] = r
 	p.xref[r.name] = r.Address
 }
 
 // Get returns a remailer's public info when requested by name or address
-func (p Pubring) Get(ref string) (r remailer, err error) {
+func (p Pubring) Get(ref string) (r Remailer, err error) {
 	var exists bool
 	if strings.Contains(ref, "@") {
 		r, exists = p.pub[ref]
@@ -227,7 +232,7 @@ func (p Pubring) ImportPubring(filename string) (err error) {
 	var elements []string
 	var num_elements int
 	var line string //Each line within Pubring.mix
-	var rem *remailer
+	var rem *Remailer
 	var pkdata []byte // Decoded Public key
 	now := time.Now() // Current time for key validity testing
 	key_phase := 0
@@ -271,7 +276,7 @@ func (p Pubring) ImportPubring(filename string) (err error) {
 					key_phase = 0
 					continue
 				}
-				rem = new(remailer)
+				rem = new(Remailer)
 				rem.name = elements[0]
 				rem.Keyid, err = hex.DecodeString(elements[2])
 				if err != nil {
@@ -287,7 +292,7 @@ func (p Pubring) ImportPubring(filename string) (err error) {
 			}
 		case 1:
 			// Expecting Begin cutmark
-			if line == "-----Begin Mixmaster Public Key-----" {
+			if line == "-----Begin Mix Key-----" {
 				key_phase = 2
 			}
 		case 2:
@@ -324,7 +329,7 @@ func (p Pubring) ImportPubring(filename string) (err error) {
 			key_phase = 4
 		case 4:
 			// Expecting end cutmark
-			if line == "-----End Mixmaster Public Key-----" {
+			if line == "-----End Mix Key-----" {
 				p.Put(*rem)
 				key_phase = 0
 			}

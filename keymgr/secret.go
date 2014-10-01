@@ -80,10 +80,10 @@ func (s Secring) Publish(
 
 	fmt.Fprintln(w, header)
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "-----Begin Mixmaster Public Key-----")
+	fmt.Fprintln(w, "-----Begin Mix Key-----")
 	fmt.Fprintln(w, keyid)
 	fmt.Fprintln(w, hex.EncodeToString(pub))
-	fmt.Fprintln(w, "-----End Mixmaster Public Key-----")
+	fmt.Fprintln(w, "-----End Mix Key-----")
 	err = w.Flush()
 	if err != nil {
 		return

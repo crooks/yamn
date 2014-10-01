@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/smtp"
+	"errors"
 )
 
 func assemble(msg mail.Message) []byte {
@@ -17,6 +18,31 @@ func assemble(msg mail.Message) []byte {
 	buf.WriteString("\n")
 	buf.ReadFrom(msg.Body)
 	return buf.Bytes()
+}
+
+func testMail(b []byte) (recipients []string, err error) {
+	f := bytes.NewReader(b)
+	msg, err := mail.ReadMessage(f)
+	if err != nil {
+		Trace.Printf("Outbound read failure: %s", err)
+		return
+	}
+	var exists bool
+	h := msg.Header
+	_, exists = h["To"]
+	if ! exists {
+		err = errors.New("No recipient specified in final delivery")
+		Trace.Println(err)
+		return
+	}
+	addys, err := h.AddressList("To")
+	if err != nil {
+		return
+	}
+	for _, addy := range addys {
+		recipients = append(recipients, addy.Address)
+	}
+	return
 }
 
 func SMTPRelay(payload []byte, sendto string) (err error) {

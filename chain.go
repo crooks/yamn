@@ -36,7 +36,7 @@ func candidates(addresses, dist []string) (c []string) {
 }
 
 // chain_build takes a chain string and constructs a valid remailer chain
-func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string) {
+func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string, err error) {
 	dist := cfg.Stats.Distance
 	if dist > maxChainLength {
 		dist = maxChainLength
@@ -71,7 +71,8 @@ func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string) 
 			addresses = candidates(addresses, distance)
 			hop = addresses[randomInt(len(addresses) - 1)]
 		} else {
-			remailer, err := pubring.Get(hop)
+			var remailer keymgr.Remailer
+			remailer, err = pubring.Get(hop)
 			if err != nil {
 				return
 			}

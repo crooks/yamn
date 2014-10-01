@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"flag"
+	"path"
+	"path/filepath"
 	"code.google.com/p/gcfg"
 )
 
@@ -50,6 +52,9 @@ func init() {
 	// Function as a client
 	flag.BoolVar(&flag_client, "mail", false, "Function as a client")
 	flag.BoolVar(&flag_client, "m", false, "Function as a client")
+	// Send (from pool)
+	flag.BoolVar(&flag_send, "send", false, "Force pool send")
+	flag.BoolVar(&flag_send, "S", false, "Force pool send")
 	// Remailer chain
 	flag.StringVar(&flag_chain, "chain", "*,*,*", "Remailer chain")
 	flag.StringVar(&flag_chain, "l", "*,*,*", "Remailer chain")
@@ -63,7 +68,7 @@ func init() {
 	flag.IntVar(&flag_copies, "copies", 0, "Number of copies")
 	flag.IntVar(&flag_copies, "c", 0, "Number of copies")
 	// Config file
-	flag.StringVar(&flag_config, "config", "mix.cfg", "Config file")
+	flag.StringVar(&flag_config, "config", "", "Config file")
 	// Read STDIN
 	flag.BoolVar(&flag_stdin, "read-mail", false, "Read a message from stdin")
 	flag.BoolVar(&flag_stdin, "R", false, "Read a message from stdin")
@@ -102,10 +107,30 @@ func init() {
 	cfg.Remailer.Exit = false
 	cfg.Remailer.MaxSize = 12
 
-	err = gcfg.ReadFileInto(&cfg, "mix.cfg")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if flag_config != "" {
+		err = gcfg.ReadFileInto(&cfg, flag_config)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to read %s", flag_config)
+			os.Exit(1)
+		}
+	} else if os.Getenv("GOLANG") != "" {
+		err = gcfg.ReadFileInto(&cfg, os.Getenv("GOLANG"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to read %s", flag_config)
+			os.Exit(1)
+		}
+	} else {
+		var dir string
+		dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			panic(err)
+		}
+		fn := path.Join(dir, "yamn.cfg")
+		err = gcfg.ReadFileInto(&cfg, fn)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to read %s - %s", fn, err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -115,6 +140,7 @@ func flags() {
 }
 
 var flag_client bool
+var flag_send bool
 var flag_chain string
 var flag_to string
 var flag_subject string

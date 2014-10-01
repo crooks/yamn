@@ -219,8 +219,27 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 		if err != nil {
 			return
 		}
-		body = AES_CTR(body, data.aesKey, final.aesIV)
-		fmt.Println(string(body[:final.bodyBytes]))
+		body = AES_CTR(body[:final.bodyBytes], data.aesKey, final.aesIV)
+		var recipients []string
+		recipients, err = testMail(body)
+		if err != nil {
+			return
+		}
+		for _, sendto := range recipients {
+			if cfg.Mail.Sendmail {
+				err = sendmail(body, sendto)
+				if err != nil {
+					Warn.Println("Sendmail failed")
+					return
+				}
+			} else {
+				err = SMTPRelay(body, sendto)
+				if err != nil {
+					Warn.Println("SMTP relay failed")
+					return
+				}
+			}
+		}
 	}
 	return
 }

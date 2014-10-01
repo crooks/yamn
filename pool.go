@@ -23,7 +23,7 @@ import (
 func poolRead() (selectedPoolFiles []string, err error) {
 	poolFiles, err := readDir(cfg.Files.Pooldir)
 	if err != nil {
-		Warn.Println("Unable to access pool: %s", err)
+		Warn.Printf("Unable to access pool: %s", err)
 		return
 	}
 	poolSize := len(poolFiles)
@@ -165,10 +165,12 @@ func remailerFoo(subject, sender string) (err error) {
 	m.SMTP.User = cfg.Mail.SMTPUsername
 	m.SMTP.Password = cfg.Mail.SMTPPassword
 	if strings.HasPrefix(subject, "remailer-key") {
+		Trace.Printf("remailer-key request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Pubkey
 		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
 	} else if strings.HasPrefix(subject, "remailer-conf") {
+		Trace.Printf("remailer-conf request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
 		m.Text(fmt.Sprintf("Remailer-Type: Mixmaster %s\n", version))
 		m.Text("Supported Formats:\n   Mixmaster\n")
@@ -235,7 +237,7 @@ func mailRead() (err error) {
 			// It's a remailer-foo request
 			err = remailerFoo(subject, head.Get("From"))
 			if err != nil {
-				panic(err)
+				Info.Println(err)
 			}
 		} else {
 			// It's not a remailer-foo request so assume a remailer message
