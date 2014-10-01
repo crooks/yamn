@@ -15,6 +15,8 @@ type Config struct {
 		Mlist2 string
 		Pubkey string
 		Secring string
+		Adminkey string
+		Help string
 		Pooldir string
 		Maildir string
 	}
@@ -92,6 +94,8 @@ func init() {
 	cfg.Files.Pubring = path.Join(dir, "pubring.mix")
 	cfg.Files.Secring = path.Join(dir, "secring.mix")
 	cfg.Files.Mlist2 = path.Join(dir, "mlist2.txt")
+	cfg.Files.Adminkey = path.Join(dir, "adminkey.txt")
+	cfg.Files.Help = path.Join(dir, "help.txt")
 	cfg.Files.Pooldir = path.Join(dir, "pool")
 	cfg.Files.Maildir = path.Join(dir, "Maildir")
 	cfg.Mail.Sendmail = true

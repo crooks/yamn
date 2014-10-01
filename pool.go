@@ -183,6 +183,14 @@ func remailerFoo(subject, sender string) (err error) {
 		}
 		m.Text("\";\n")
 		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS\n")
+	} else if strings.HasPrefix(subject, "remailer-adminkey") {
+		Trace.Printf("remailer-adminkey request from %s", sender)
+		m.Set("Subject", fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
+		m.Filename = cfg.Files.Adminkey
+	} else if strings.HasPrefix(subject, "remailer-help") {
+		Trace.Printf("remailer-help request from %s", sender)
+		m.Set("Subject", fmt.Sprintf("Your help request for the %s Anonymous Remailer", cfg.Remailer.Name))
+		m.Filename = cfg.Files.Help
 	} else {
 		if len(subject) > 20 {
 			// Truncate long subject headers before logging them
@@ -194,6 +202,7 @@ func remailerFoo(subject, sender string) (err error) {
 	var msg []byte
 	msg, err = m.Compile()
 	if err != nil {
+		Info.Printf("Unable to send %s", subject)
 		return
 	}
 	if cfg.Mail.Sendmail {
