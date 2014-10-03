@@ -10,8 +10,9 @@ import (
 	"strings"
 	"math"
 	"errors"
+	"crypto/sha512"
 	"github.com/crooks/yamn/keymgr"
-	"github.com/codahale/blake2"
+	//"github.com/codahale/blake2"
 )
 
 func headDiag(headers []byte) {
@@ -261,7 +262,8 @@ func mixmsg(
 			}
 			copy(headers[pos:], fakes)
 		}
-		digest := blake2.New(nil)
+		//digest := blake2.New(nil)
+		digest := sha512.New()
 		digest.Write(headers[headerBytes:])
 		digest.Write(body)
 		data.tagHash = digest.Sum(nil)

@@ -11,10 +11,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"crypto/rand"
+	"crypto/sha256"
 	"math/big"
 	"encoding/base64"
 	"strconv"
-	"github.com/codahale/blake2"
+	//"github.com/codahale/blake2"
 )
 
 // randbytes returns n Bytes of random data
@@ -158,10 +159,11 @@ func cutmarks(mixmsg []byte, sendto string) (err error) {
 	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
 	// Write message length
 	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
-	digest := blake2.New(&blake2.Config{Size: 16})
+	//digest := blake2.New(&blake2.Config{Size: 16})
+	digest := sha256.New()
 	digest.Write(mixmsg)
 	// Write message digest
-	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)) + "\n")
+	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)[:16]) + "\n")
 	// Write the payload
 	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(mixmsg)) + "\n")
 	buf.WriteString("-----END REMAILER MESSAGE-----\n")

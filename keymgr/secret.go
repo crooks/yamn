@@ -4,14 +4,12 @@ package keymgr
 
 import (
 	"bufio"
-	//"io/ioutil"
 	"os"
 	"time"
 	"fmt"
 	"encoding/hex"
-	//"crypto/rand"
-	"github.com/codahale/blake2"
-	//"code.google.com/p/go.crypto/nacl/box"
+	"crypto/sha256"
+	//"github.com/codahale/blake2"
 )
 
 type secret struct {
@@ -52,9 +50,10 @@ func (s Secring) Publish(
 	key := new(secret)
 	key.sk = sec
 	// Create Keyid
-	digest := blake2.New(&blake2.Config{Size: 16})
+	//digest := blake2.New(&blake2.Config{Size: 16})
+	digest := sha256.New()
 	digest.Write(pub)
-	key.keyid = digest.Sum(nil)
+	key.keyid = digest.Sum(nil)[:16]
 	mapkey := hex.EncodeToString(key.keyid)
 	// Validity dates
 	key.from = time.Now()

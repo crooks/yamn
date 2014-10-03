@@ -11,9 +11,11 @@ import (
 	"errors"
 	"io/ioutil"
 	"encoding/hex"
+	"crypto/sha256"
+	"crypto/sha512"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/idlog"
-	"github.com/codahale/blake2"
+	//"github.com/codahale/blake2"
 )
 
 func loopServer() (err error) {
@@ -107,7 +109,8 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	}
 	if sendto == cfg.Remailer.Address {
 		Info.Println("Message loops back to us. Storing in pool.")
-		digest := blake2.New(&blake2.Config{Size: 16})
+		//digest := blake2.New(&blake2.Config{Size: 16})
+		digest := sha256.New()
 		digest.Write(buf.Bytes())
 		filename := "m" + hex.EncodeToString(digest.Sum(nil))
 		filename = path.Join(cfg.Files.Pooldir, filename[:14])
@@ -182,7 +185,8 @@ func processPoolFile(filename string, secret *keymgr.Secring, idlog idlog.IDLog)
 		err = errors.New("Packet ID collision")
 		return
 	}
-	digest := blake2.New(nil)
+	//digest := blake2.New(nil)
+	digest := sha512.New()
 	digest.Write(headers)
 	digest.Write(body)
 	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {

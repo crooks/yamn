@@ -15,7 +15,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/mail"
-	"github.com/codahale/blake2"
+	"crypto/sha256"
+	//"github.com/codahale/blake2"
 	"github.com/crooks/yamn/quickmail"
 	"github.com/luksen/maildir"
 )
@@ -125,9 +126,10 @@ func poolWrite(reader io.Reader) (err error) {
 		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
 		return
 	}
-	digest := blake2.New(&blake2.Config{Size: 16})
+	//digest := blake2.New(&blake2.Config{Size: 16})
+	digest := sha256.New()
 	digest.Write(payload)
-	if ! bytes.Equal(digest.Sum(nil), payloadDigest) {
+	if ! bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
 		Info.Println("Incorrect payload digest")
 		return
 	}
