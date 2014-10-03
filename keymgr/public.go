@@ -136,7 +136,7 @@ func (p Pubring) Advertising(filename string) (keyid string, err error) {
 	return
 }
 
-func (p Pubring) ImportStats(filename string)  (err error) {
+func (p *Pubring) ImportStats(filename string)  (err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return

@@ -19,6 +19,7 @@ type Config struct {
 		Help string
 		Pooldir string
 		Maildir string
+		IDlog string
 	}
 	Mail struct {
 		Sendmail bool
@@ -46,6 +47,7 @@ type Config struct {
 		Address string
 		Exit bool
 		MaxSize int
+		IDexp int
 	}
 }
 
@@ -98,6 +100,7 @@ func init() {
 	cfg.Files.Help = path.Join(dir, "help.txt")
 	cfg.Files.Pooldir = path.Join(dir, "pool")
 	cfg.Files.Maildir = path.Join(dir, "Maildir")
+	cfg.Files.IDlog = path.Join(dir, "idlog")
 	cfg.Mail.Sendmail = true
 	cfg.Mail.Outfile = false
 	cfg.Mail.SMTPRelay = "127.0.0.1"
@@ -117,6 +120,7 @@ func init() {
 	cfg.Remailer.Address = "mix@nowhere.invalid"
 	cfg.Remailer.Exit = false
 	cfg.Remailer.MaxSize = 12
+	cfg.Remailer.IDexp = 14
 
 	if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)

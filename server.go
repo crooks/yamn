@@ -8,9 +8,11 @@ import (
 	"path"
 	"bytes"
 	"time"
+	"errors"
 	"io/ioutil"
 	"encoding/hex"
 	"github.com/crooks/yamn/keymgr"
+	"github.com/crooks/yamn/idlog"
 	"github.com/codahale/blake2"
 )
 
@@ -21,6 +23,14 @@ func loopServer() (err error) {
 	secret := keymgr.NewSecring()
 	public.ImportPubring(cfg.Files.Pubring)
 	secret.ImportSecring(cfg.Files.Secring)
+	// Open the IDlog
+	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
+	idlog, err := idlog.NewInstance(cfg.Files.IDlog)
+	if err != nil {
+		panic(err)
+	}
+	defer idlog.Close()
+	// Is a new ECC Keypair required?
 	generate := false
 	// Find out the Keyid we're advertising
 	advertisedKeyid, err := public.Advertising(cfg.Files.Pubkey)
@@ -57,13 +67,16 @@ func loopServer() (err error) {
 		}
 	}
 
+	//TODO Make this a flag function
 	secret.Purge("test.txt")
+
+	// Actually start the server loop
 	Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
 	for {
 		mailRead()
 		filenames, err = poolRead()
 		for _, file := range filenames {
-			err = processPoolFile(file, secret)
+			err = processPoolFile(file, secret, idlog)
 			if err != nil {
 				Info.Printf("Discarding message: %s", err)
 			}
@@ -110,7 +123,7 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	return
 }
 
-func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
+func processPoolFile(filename string, secret *keymgr.Secring, idlog idlog.IDLog) (err error) {
 	f, err := os.Open(path.Join(cfg.Files.Pooldir, filename))
 	defer f.Close()
 	if err != nil {
@@ -162,6 +175,11 @@ func processPoolFile(filename string, secret *keymgr.Secring) (err error) {
 	var data slotData
 	data, err = decodeData(decodedHeader)
 	if err != nil {
+		return
+	}
+	// Test uniqueness of packet ID
+	if ! idlog.Unique(data.packetID, cfg.Remailer.IDexp) {
+		err = errors.New("Packet ID collision")
 		return
 	}
 	digest := blake2.New(nil)
