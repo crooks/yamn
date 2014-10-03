@@ -36,13 +36,15 @@ type Remailer struct {
 type Pubring struct {
 	pub map[string]Remailer
 	xref map[string]string // A cross-reference of shortnames to addresses
-	advertised string // The keyid we're currently advertising
+	stats bool // Have current reliability stats been imported?
+	advertised string // The keyid a local server is currently advertising
 }
 
 func NewPubring() *Pubring {
 	return &Pubring{
 		pub: make(map[string]Remailer),
 		xref: make(map[string]string),
+		stats: false,
 	}
 }
 
@@ -218,6 +220,7 @@ func (p Pubring) ImportStats(filename string)  (err error) {
 			break
 		}
 	}
+	p.stats = true
 	return
 }
 
