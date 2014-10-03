@@ -49,13 +49,16 @@ func (s Secring) Publish(
 		err = fmt.Errorf("Invalid seckey length. Wanted=32, Got=%d", len(pub))
 		return
 	}
-	// Keyid
+	key := new(secret)
+	key.sk = sec
+	// Create Keyid
 	digest := blake2.New(&blake2.Config{Size: 16})
 	digest.Write(pub)
-	keyid := hex.EncodeToString(digest.Sum(nil))
+	key.keyid = digest.Sum(nil)
+	mapkey := hex.EncodeToString(key.keyid)
 	// Validity dates
-	ctime := time.Now()
-	etime := time.Now().Add(time.Duration(24 * valid) * time.Hour)
+	key.from = time.Now()
+	key.until = time.Now().Add(time.Duration(24 * valid) * time.Hour)
 
 	// Public Key first
 	f, err := os.Create(pubfile)
@@ -72,16 +75,16 @@ func (s Secring) Publish(
 	}
 	header := name + " "
 	header += address + " "
-	header += keyid + " "
+	header += mapkey + " "
 	header += "4:" + version + " "
 	header += capstring + " "
-	header += ctime.UTC().Format(date_format) + " "
-	header += etime.UTC().Format(date_format)
+	header += key.from.UTC().Format(date_format) + " "
+	header += key.until.UTC().Format(date_format)
 
 	fmt.Fprintln(w, header)
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "-----Begin Mix Key-----")
-	fmt.Fprintln(w, keyid)
+	fmt.Fprintln(w, mapkey)
 	fmt.Fprintln(w, hex.EncodeToString(pub))
 	fmt.Fprintln(w, "-----End Mix Key-----")
 	err = w.Flush()
@@ -96,15 +99,17 @@ func (s Secring) Publish(
 	}
 	defer f.Close()
 	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
-	keydata += fmt.Sprintf("Created: %s\n", ctime.UTC().Format(date_format))
-	keydata += fmt.Sprintf("Expires: %s\n", etime.UTC().Format(date_format))
-	keydata += keyid  + "\n"
-	keydata += hex.EncodeToString(sec) + "\n"
+	keydata += fmt.Sprintf("Created: %s\n", key.from.UTC().Format(date_format))
+	keydata += fmt.Sprintf("Expires: %s\n", key.until.UTC().Format(date_format))
+	keydata += mapkey  + "\n"
+	keydata += hex.EncodeToString(key.sk) + "\n"
 	keydata += "-----End Mixmaster Secret Key-----\n"
 	_, err = f.WriteString(keydata)
 	if err != nil {
 		return
 	}
+	// Add the new key to the in memory secret keyring
+	s.sec[mapkey] = *key
 	return
 }
 
