@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	//"crypto/rand"
 	//"github.com/codahale/blake2"
-	//"code.google.com/p/go.crypto/nacl/box"
 )
 
 const (
@@ -72,6 +71,22 @@ func (p Pubring) Candidates(minlat, maxlat int, minrel float32, exit bool) (c []
 // Count returns the number of known Public keys
 func (p Pubring) Count() int {
 	return len(p.pub)
+}
+
+// Produces a list of public key headers
+func (p Pubring) KeyList() (addresses []string) {
+	for addy := range(p.pub) {
+		key := p.pub[addy]
+		header := key.name + " "
+		header += key.Address + " "
+		header += hex.EncodeToString(key.Keyid) + " "
+		header += key.version + " "
+		header += key.caps + " "
+		header += key.from.UTC().Format(date_format) + " "
+		header += key.until.UTC().Format(date_format)
+		addresses = append(addresses, header)
+	}
+	return
 }
 
 // Put inserts a new remailer struct into the Keyring
@@ -221,6 +236,22 @@ func (p *Pubring) ImportStats(filename string)  (err error) {
 		}
 	}
 	p.stats = true
+	return
+}
+
+func Headers(filename string) (headers []string, err error) {
+	var f *os.File
+	f, err = os.Open(filename)
+	if err != nil {
+		return
+	}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(strings.Split(line, " ")) == 7 {
+			headers = append(headers, line)
+		}
+	}
 	return
 }
 

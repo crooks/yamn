@@ -13,6 +13,7 @@ type message struct {
 	headers map[string]string
 	Prefix string
 	Filename string
+	Items []string
 	Suffix string
 	SMTP struct {
 		User string
@@ -40,6 +41,10 @@ func (m message) Del(head string) {
 
 func (m *message) Text(t string) {
 	m.Prefix += t
+}
+
+func (m *message) List(l []string) {
+	m.Items = l
 }
 
 func (m message) Compile() (b []byte, err error) {
@@ -72,6 +77,11 @@ func (m message) Compile() (b []byte, err error) {
 		defer f.Close()
 		_, err = buf.ReadFrom(f)
 		buf.WriteString("\n")
+	}
+	if len(m.Items) > 0 {
+		for _, entry := range m.Items {
+			buf.WriteString(entry + "\n")
+		}
 	}
 	if m.Suffix != "" {
 		buf.WriteString(m.Suffix)

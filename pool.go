@@ -17,6 +17,7 @@ import (
 	"net/mail"
 	"crypto/sha256"
 	//"github.com/codahale/blake2"
+	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/quickmail"
 	"github.com/luksen/maildir"
 )
@@ -167,11 +168,13 @@ func remailerFoo(subject, sender string) (err error) {
 	m.SMTP.User = cfg.Mail.SMTPUsername
 	m.SMTP.Password = cfg.Mail.SMTPPassword
 	if strings.HasPrefix(subject, "remailer-key") {
+		// remailer-key
 		Trace.Printf("remailer-key request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Pubkey
 		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
 	} else if strings.HasPrefix(subject, "remailer-conf") {
+		// remailer-conf
 		Trace.Printf("remailer-conf request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
 		m.Text(fmt.Sprintf("Remailer-Type: Mixmaster %s\n", version))
@@ -184,12 +187,21 @@ func remailerFoo(subject, sender string) (err error) {
 			m.Text(" middle")
 		}
 		m.Text("\";\n")
-		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS\n")
+		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS")
+		var pubList []string
+		pubList, err := keymgr.Headers(cfg.Files.Pubring)
+		if err != nil {
+			Info.Printf("Could not read %s", cfg.Files.Pubring)
+		} else {
+			m.List(pubList)
+		}
 	} else if strings.HasPrefix(subject, "remailer-adminkey") {
+		// remailer-adminkey
 		Trace.Printf("remailer-adminkey request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Adminkey
 	} else if strings.HasPrefix(subject, "remailer-help") {
+		// remailer-help
 		Trace.Printf("remailer-help request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Your help request for the %s Anonymous Remailer", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Help
