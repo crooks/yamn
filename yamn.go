@@ -3,10 +3,12 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 )
 
 const (
@@ -57,8 +59,18 @@ func logInit(
 
 func main() {
 	var err error
-	//logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
-	logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
+	switch strings.ToLower(cfg.Remailer.Loglevel) {
+	case "trace":
+		logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
+	case "info":
+		logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
+	case "warn":
+		logInit(ioutil.Discard, ioutil.Discard, os.Stdout, os.Stderr)
+	case "error":
+		logInit(ioutil.Discard, ioutil.Discard, ioutil.Discard, os.Stderr)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown loglevel: %s\n", cfg.Remailer.Loglevel)
+	}
 	flags()
 	if flag_client {
 		mixprep()

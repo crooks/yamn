@@ -48,6 +48,8 @@ type Config struct {
 		Exit bool
 		MaxSize int
 		IDexp int
+		Loop int
+		Loglevel string
 	}
 }
 
@@ -121,6 +123,8 @@ func init() {
 	cfg.Remailer.Exit = false
 	cfg.Remailer.MaxSize = 12
 	cfg.Remailer.IDexp = 14
+	cfg.Remailer.Loop = 180
+	cfg.Remailer.Loglevel = "info"
 
 	if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)
