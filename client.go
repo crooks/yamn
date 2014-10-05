@@ -111,12 +111,6 @@ func mixprep() {
 		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
 		return
 	}
-	// TODO This is only required for random node selection in chains
-	// Populate keyring's uptime and latency fields
-	err = pubring.ImportStats(cfg.Files.Mlist2)
-	if err == nil {
-		Trace.Printf("Imported stats from: %s", cfg.Files.Mlist2)
-	}
 	in_chain := strings.Split(flag_chain, ",")
 	if len(in_chain) == 0 {
 		err = errors.New("Empty input chain")

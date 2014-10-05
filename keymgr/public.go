@@ -35,17 +35,46 @@ type Remailer struct {
 type Pubring struct {
 	pub map[string]Remailer
 	xref map[string]string // A cross-reference of shortnames to addresses
-	stats bool // Have current reliability stats been imported?
+	Stats bool // Have current reliability stats been imported?
 	advertised string // The keyid a local server is currently advertising
+	keysImported time.Time // Last time pubring.mix was imported
+	statsImported time.Time // Last time mlist2.txt was imported
 }
 
 func NewPubring() *Pubring {
 	return &Pubring{
 		pub: make(map[string]Remailer),
 		xref: make(map[string]string),
-		stats: false,
+		Stats: false,
 	}
 }
+
+// KeyRefresh returns True if the Pubring file has been modified
+func (p *Pubring) KeyRefresh(filename string) bool {
+	stat, err := os.Stat(filename)
+	if err != nil {
+		panic(err)
+	}
+	if stat.ModTime().After(p.keysImported) {
+		return true
+	}
+	return false
+}
+
+// StatRefresh returns True if the mlist2.txt file has been modified
+func (p *Pubring) StatRefresh(filename string) bool {
+	stat, err := os.Stat(filename)
+	if err != nil {
+		// mlist2 isn't vital to server or client functions so live with it
+		p.Stats = false
+		return false
+	}
+	if stat.ModTime().After(p.statsImported) {
+		return true
+	}
+	return false
+}
+
 
 // Candidates provides a list of remailer addresses that match the specified criteria
 func (p Pubring) Candidates(minlat, maxlat int, minrel float32, exit bool) (c []string) {
@@ -235,7 +264,13 @@ func (p *Pubring) ImportStats(filename string)  (err error) {
 			break
 		}
 	}
-	p.stats = true
+	// Update last-imported timestamp for stats
+	stat, err := os.Stat(filename)
+	if err != nil {
+		panic(err)
+	}
+	p.statsImported = stat.ModTime()
+	p.Stats = true
 	return
 }
 
@@ -369,5 +404,10 @@ func (p Pubring) ImportPubring(filename string) (err error) {
 			}
 		} // End of phases
 	}// End of file scan loop
+	stat, err := os.Stat(filename)
+	if err != nil {
+		panic(err)
+	}
+	p.keysImported = stat.ModTime()
 	return
 }

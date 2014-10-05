@@ -78,6 +78,16 @@ func loopServer() (err error) {
 		mailRead()
 		filenames, err = poolRead()
 		for _, file := range filenames {
+			if public.KeyRefresh(cfg.Files.Pubring) {
+				// Time to re-read the pubring file
+				Info.Printf("Reimporting keyring: %s", cfg.Files.Pubring)
+				public.ImportPubring(cfg.Files.Pubring)
+			}
+			if public.StatRefresh(cfg.Files.Mlist2) {
+				// Time to re-read the pubring file
+				Info.Printf("Reimporting stats: %s", cfg.Files.Mlist2)
+				public.ImportStats(cfg.Files.Mlist2)
+			}
 			err = processPoolFile(file, secret, idlog)
 			if err != nil {
 				Info.Printf("Discarding message: %s", err)

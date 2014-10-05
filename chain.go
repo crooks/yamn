@@ -60,6 +60,13 @@ func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string, 
 	for {
 		hop = popstr(&inChain)
 		if hop == "*" {
+			if ! pubring.Stats {
+				err = pubring.ImportStats(cfg.Files.Mlist2)
+				if err != nil {
+					Info.Printf("Unable to import remailer stats")
+					return
+				}
+			}
 			// Random remailer selection
 			if len(outChain) == 0 {
 				// Construct a list of suitable exit remailers
