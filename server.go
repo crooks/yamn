@@ -72,10 +72,18 @@ func loopServer() (err error) {
 	//TODO Make this a flag function
 	secret.Purge("test.txt")
 
+	// Maintain time of last pool process
+	poolProcessTime := time.Now()
+	poolProcessDelay := time.Duration(cfg.Remailer.Loop) * time.Second
 	// Actually start the server loop
 	Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
 	for {
-		mailRead()
+		if time.Now().Before(poolProcessTime) {
+			mailRead()
+			// Don't do anything beyond this point until poolProcessTime
+			time.Sleep(60 * time.Second)
+			continue
+		}
 		filenames, err = poolRead()
 		for _, file := range filenames {
 			if public.KeyRefresh(cfg.Files.Pubring) {
@@ -94,7 +102,7 @@ func loopServer() (err error) {
 			}
 			poolDelete(file)
 		}
-		time.Sleep(60 * time.Second)
+		poolProcessTime = time.Now().Add(poolProcessDelay)
 	}
 }
 
