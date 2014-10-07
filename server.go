@@ -25,6 +25,15 @@ func loopServer() (err error) {
 	secret := keymgr.NewSecring()
 	public.ImportPubring(cfg.Files.Pubring)
 	secret.ImportSecring(cfg.Files.Secring)
+	// Create some dirs if it doesn't already exist
+	err = os.MkdirAll(cfg.Files.IDlog, 0700)
+	if err != nil {
+		return
+	}
+	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
+	if err != nil {
+		return
+	}
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
 	idlog, err := idlog.NewInstance(cfg.Files.IDlog)
@@ -72,9 +81,23 @@ func loopServer() (err error) {
 	//TODO Make this a flag function
 	secret.Purge("test.txt")
 
+	// Complain about excessively small loop values.
+	if cfg.Remailer.Loop < 60 {
+		Warn.Println(
+			fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Remailer.Loop),
+			"Will loop every 60 seconds. A higher setting is recommended.")
+	}
+	// Complain about high pool rates.
+	if cfg.Pool.Rate > 90 {
+		Warn.Println(
+			fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
+			"high. Unless testing, a lower setting is recommended.")
+	}
+
 	// Maintain time of last pool process
 	poolProcessTime := time.Now()
 	poolProcessDelay := time.Duration(cfg.Remailer.Loop) * time.Second
+
 	// Actually start the server loop
 	Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
 	for {
@@ -84,18 +107,14 @@ func loopServer() (err error) {
 			time.Sleep(60 * time.Second)
 			continue
 		}
+		// Test if in-memory pubring is current
+		if public.KeyRefresh(cfg.Files.Pubring) {
+			// Time to re-read the pubring file
+			Info.Printf("Reimporting keyring: %s", cfg.Files.Pubring)
+			public.ImportPubring(cfg.Files.Pubring)
+		}
 		filenames, err = poolRead()
 		for _, file := range filenames {
-			if public.KeyRefresh(cfg.Files.Pubring) {
-				// Time to re-read the pubring file
-				Info.Printf("Reimporting keyring: %s", cfg.Files.Pubring)
-				public.ImportPubring(cfg.Files.Pubring)
-			}
-			if public.StatRefresh(cfg.Files.Mlist2) {
-				// Time to re-read the pubring file
-				Info.Printf("Reimporting stats: %s", cfg.Files.Mlist2)
-				public.ImportStats(cfg.Files.Mlist2)
-			}
 			err = processPoolFile(file, secret, idlog)
 			if err != nil {
 				Info.Printf("Discarding message: %s", err)

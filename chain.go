@@ -60,12 +60,18 @@ func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string, 
 	for {
 		hop = popstr(&inChain)
 		if hop == "*" {
-			if ! pubring.Stats {
+			// Check modification timestamp on stats file
+			if pubring.StatRefresh(cfg.Files.Mlist2) {
 				err = pubring.ImportStats(cfg.Files.Mlist2)
 				if err != nil {
-					Info.Printf("Unable to import remailer stats")
+					Warn.Printf("Unable to read stats: %s", err)
 					return
 				}
+			}
+			// Check generated timestamp from stats file
+			if pubring.StatsStale(cfg.Stats.StaleHrs) {
+				Warn.Println("Stale stats.  Generated age exceeds configured",
+					fmt.Sprintf("threshold of %d hours", cfg.Stats.StaleHrs))
 			}
 			// Random remailer selection
 			if len(outChain) == 0 {

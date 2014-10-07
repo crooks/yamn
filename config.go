@@ -37,6 +37,7 @@ type Config struct {
 		Relfinal float32
 		Numcopies int
 		Distance int
+		StaleHrs int
 	}
 	Pool struct {
 		Size int
@@ -116,6 +117,7 @@ func init() {
 	cfg.Stats.Maxlat = 60
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
+	cfg.Stats.StaleHrs = 24
 	cfg.Pool.Size = 45
 	cfg.Pool.Rate = 65
 	cfg.Remailer.Name = "anon"

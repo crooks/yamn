@@ -17,6 +17,7 @@ import (
 
 const (
 	date_format string = "2006-01-02"
+	generatedFormat string = "Mon 02 Jan 2006 15:04:05 GMT"
 )
 
 type Remailer struct {
@@ -37,8 +38,9 @@ type Pubring struct {
 	xref map[string]string // A cross-reference of shortnames to addresses
 	Stats bool // Have current reliability stats been imported?
 	advertised string // The keyid a local server is currently advertising
-	keysImported time.Time // Last time pubring.mix was imported
-	statsImported time.Time // Last time mlist2.txt was imported
+	keysImported time.Time // Timestamp on most recently read pubring.mix file
+	statsImported time.Time // Timestamp on most recently read mlist2.txt file
+	statsGenerated time.Time // Generated timestamp on mlist2.txt file
 }
 
 func NewPubring() *Pubring {
@@ -49,6 +51,14 @@ func NewPubring() *Pubring {
 	}
 }
 
+// StatsStale returns true if stats are over h hours old
+func (p *Pubring) StatsStale(h int) bool {
+	if p.Stats && int((time.Since(p.statsGenerated).Hours())) > h {
+		return true
+	}
+	return false
+}
+
 // KeyRefresh returns True if the Pubring file has been modified
 func (p *Pubring) KeyRefresh(filename string) bool {
 	stat, err := os.Stat(filename)
@@ -56,6 +66,8 @@ func (p *Pubring) KeyRefresh(filename string) bool {
 		panic(err)
 	}
 	if stat.ModTime().After(p.keysImported) {
+		fmt.Fprintf(os.Stderr, "Memory says: %s\n", p.keysImported)
+		fmt.Fprintf(os.Stderr, "File sayss: %s\n", stat.ModTime())
 		return true
 	}
 	return false
@@ -196,17 +208,29 @@ func (p *Pubring) ImportStats(filename string)  (err error) {
 	var exists bool //Test for presence of remailer in xref
 	stat_phase := 0
 	/* Stat phases are:
-	0 Expecting long string of dashes
+	0 Want Generated timestamp
+	1 Expecting long string of dashes
+	2 Expecting stats lines
 	*/
 	for scanner.Scan() {
 		line = scanner.Text()
 		switch stat_phase {
 		case 0:
-			// Expecting dashes
-			if strings.HasPrefix(line, "----------") {
-				stat_phase = 1
+			// Generated: Tue 07 Oct 2014 10:50:01 GMT
+			if strings.HasPrefix(line, "Generated: ") {
+				p.statsGenerated, err = time.Parse(generatedFormat, line[11:])
+				if err != nil {
+					err = fmt.Errorf("Failed to parse Generated date: %s", err)
+					return
+				}
+				stat_phase++
 			}
 		case 1:
+			// Expecting dashes
+			if strings.HasPrefix(line, "----------") {
+				stat_phase++
+			}
+		case 2:
 			// Expecting stats
 			line = strings.Split(line, "%")[0]
 			elements = strings.Fields(line)
@@ -257,9 +281,9 @@ func (p *Pubring) ImportStats(filename string)  (err error) {
 					fmt.Fprintf(os.Stderr, "%s: Stats for unknown remailer\n", rem_name)
 				}
 			} else {
-				stat_phase = 2
+				stat_phase++
 			}
-		case 2:
+		case 3:
 			// Reserved for future mlist2.txt processing
 			break
 		}
@@ -291,7 +315,7 @@ func Headers(filename string) (headers []string, err error) {
 }
 
 // ImportPubring reads a YAMN Pubring.mix file
-func (p Pubring) ImportPubring(filename string) (err error) {
+func (p *Pubring) ImportPubring(filename string) (err error) {
 	var f *os.File
 	f, err = os.Open(filename)
 	if err != nil {
@@ -404,6 +428,8 @@ func (p Pubring) ImportPubring(filename string) (err error) {
 			}
 		} // End of phases
 	}// End of file scan loop
+
+	// Set key imported timestamp
 	stat, err := os.Stat(filename)
 	if err != nil {
 		panic(err)
