@@ -22,9 +22,9 @@ func loopServer() (err error) {
 	var filenames []string
 	// Populate public and secret keyrings
 	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
-	secret := keymgr.NewSecring()
+	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
 	public.ImportPubring()
-	secret.ImportSecring(cfg.Files.Secring)
+	secret.ImportSecring()
 	// Create some dirs if it doesn't already exist
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
 	if err != nil {
@@ -44,21 +44,21 @@ func loopServer() (err error) {
 	// Is a new ECC Keypair required?
 	generate := false
 	// Find out the Keyid we're advertising
-	advertisedKeyid, err := public.Advertising(cfg.Files.Pubkey)
+	err = secret.SetMyKeyid()
 	if err != nil {
 		Info.Println("No valid Public key, will generate a new pair")
 		generate = true
 	}
 	// Try to validate the advertised key on Secring
 	if ! generate {
-		valid, err := secret.Validate(advertisedKeyid)
+		valid, err := secret.Validate()
 		if err != nil {
-			Warn.Printf("%s: Failed to validate key in Secring", advertisedKeyid)
+			Warn.Printf("%s: Failed to validate key in Secring", cfg.Files.Secring)
 			generate = true
 		} else if valid {
-			Info.Printf("Advertising keyid=%s", advertisedKeyid)
+			Info.Printf("Advertising keyid=%s", secret.GetMyKeyidStr())
 		} else {
-			Info.Printf("%s has expired, will generate a new key pair", advertisedKeyid)
+			Info.Printf("%s has expired, will generate a new key pair", secret.GetMyKeyidStr())
 			generate = true
 		}
 	}
@@ -67,7 +67,6 @@ func loopServer() (err error) {
 		Info.Println("Generating and advertising a new key pair")
 		pub, sec := eccGenerate()
 		err = secret.Publish(
-			cfg.Files.Pubkey,	cfg.Files.Secring,
 			pub, sec,
 			keyValidityDays,
 			cfg.Remailer.Exit,
@@ -76,6 +75,7 @@ func loopServer() (err error) {
 			Error.Printf("Aborting! Key generation failure: %s", err)
 			return
 		}
+		Info.Printf("Advertising new Keyid: %s", secret.GetMyKeyidStr())
 	}
 
 	//TODO Make this a flag function

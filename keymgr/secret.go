@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 	"fmt"
+	"strings"
 	"encoding/hex"
 	"crypto/sha256"
 	//"github.com/codahale/blake2"
@@ -20,15 +21,21 @@ type secret struct {
 }
 
 type Secring struct {
+	secringFile string // Filename of secret keyring
+	pubkeyFile string // Public keyfile (key.txt)
+	myKeyid []byte // Keyid this remailer is advertising
 	sec map[string]secret
 }
 
-func NewSecring() *Secring {
-	return &Secring{sec: make(map[string]secret)}
+func NewSecring(secfile, pubkey string) *Secring {
+	return &Secring{
+		secringFile: secfile,
+		pubkeyFile: pubkey,
+		sec: make(map[string]secret),
+	}
 }
 
-func (s Secring) Publish(
-	pubfile, secfile string,
+func (s *Secring) Publish(
 	pub, sec []byte,
 	valid int, exit bool,
 	name, address, version string) (err error) {
@@ -60,7 +67,7 @@ func (s Secring) Publish(
 	key.until = time.Now().Add(time.Duration(24 * valid) * time.Hour)
 
 	// Public Key first
-	f, err := os.Create(pubfile)
+	f, err := os.Create(s.pubkeyFile)
 	if err != nil {
 		return
 	}
@@ -92,7 +99,7 @@ func (s Secring) Publish(
 	}
 
 	// Secret Keyring next
-	f, err = os.OpenFile(secfile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	f, err = os.OpenFile(s.secringFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return
 	}
@@ -109,10 +116,12 @@ func (s Secring) Publish(
 	}
 	// Add the new key to the in memory secret keyring
 	s.sec[mapkey] = *key
+	// Advertise the new keyid
+	s.myKeyid = key.keyid
 	return
 }
 
-func (s Secring) Get(keyid string) (sec secret, err error) {
+func (s *Secring) Get(keyid string) (sec secret, err error) {
 	var exists bool
 	sec, exists = s.sec[keyid]
 	if ! exists {
@@ -122,7 +131,7 @@ func (s Secring) Get(keyid string) (sec secret, err error) {
 	return
 }
 
-func (s Secring) GetSK(keyid string) (sk []byte, err error) {
+func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 	sec, exists := s.sec[keyid]
 	if ! exists {
 		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
@@ -132,8 +141,49 @@ func (s Secring) GetSK(keyid string) (sk []byte, err error) {
 	return
 }
 
-// Validate tests if the input keyid has minimum 7 days of validity remaining
-func (s Secring) Validate(keyid string) (valid bool, err error) {
+// GetMyKeyidStr returns the string version of the advertised keyid
+func (s *Secring) GetMyKeyidStr() string {
+	return hex.EncodeToString(s.myKeyid)
+}
+
+// SetMyKeyid imports keyid currently being advertised
+func (s *Secring) SetMyKeyid() (err error) {
+	f, err := os.Open(s.pubkeyFile)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	found := false
+	var elements []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		elements = strings.Split(line, " ")
+		if len(elements) == 7 {
+			found = true
+			break
+		}
+	}
+	if ! found {
+		err = fmt.Errorf("%s: No key header found", s.pubkeyFile)
+		return
+	}
+	keyidstr := elements[2]
+	if len(keyidstr) != 32 {
+		err = fmt.Errorf("%s: Corrupted keyid. Not 32 chars.", s.pubkeyFile)
+		return
+	}
+	s.myKeyid, err = hex.DecodeString(keyidstr)
+	if err != nil {
+		err = fmt.Errorf("%s: Corrupted keyid. Not valid hexadecimal", s.pubkeyFile)
+		return
+	}
+	return
+}
+
+// Validate tests if the advertised keyid has minimum of 7 days validity
+func (s *Secring) Validate() (valid bool, err error) {
+	keyid := hex.EncodeToString(s.myKeyid)
 	sec, exists := s.sec[keyid]
 	if ! exists {
 		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
@@ -148,8 +198,7 @@ func (s Secring) Validate(keyid string) (valid bool, err error) {
 	return
 }
 
-
-func (s Secring) Purge(filename string) (err error) {
+func (s *Secring) Purge(filename string) (err error) {
 	f, err := os.Create(filename)
   if err != nil {
 		err = fmt.Errorf("%s: Cannot create file")
@@ -181,9 +230,9 @@ func (s Secring) Purge(filename string) (err error) {
 
 
 // ImportSecring reads a YAML secring.mix file
-func (s Secring) ImportSecring(filename string) (err error) {
+func (s Secring) ImportSecring() (err error) {
 	var f *os.File
-	f, err = os.Open(filename)
+	f, err = os.Open(s.secringFile)
 	if err != nil {
 		return
 	}
