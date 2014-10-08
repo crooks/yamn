@@ -43,60 +43,26 @@ func loopServer() (err error) {
 	defer idlog.Close()
 	// Is a new ECC Keypair required?
 	generate := false
-	// Find out the Keyid we're advertising
+	/*
+	Ascertain the Keyid we're advertising.  This only needs to be done once at
+	server startup as the act of new key publication sets the keyid to the newly
+	generated key.
+	*/
 	err = secret.SetMyKeyid()
 	if err != nil {
 		Info.Println("No valid Public key, will generate a new pair")
 		generate = true
-	}
-	// Try to validate the advertised key on Secring
-	if ! generate {
-		valid, err := secret.Validate()
-		if err != nil {
-			Warn.Printf("%s: Failed to validate key in Secring", cfg.Files.Secring)
-			generate = true
-		} else if valid {
-			Info.Printf("Advertising keyid=%s", secret.GetMyKeyidStr())
-		} else {
-			Info.Printf("%s has expired, will generate a new key pair", secret.GetMyKeyidStr())
-			generate = true
-		}
-	}
-	// Create a new key pair
-	if generate {
-		Info.Println("Generating and advertising a new key pair")
-		pub, sec := eccGenerate()
-		err = secret.Publish(
-			pub, sec,
-			keyValidityDays,
-			cfg.Remailer.Exit,
-			cfg.Remailer.Name, cfg.Remailer.Address, version)
-		if err != nil {
-			Error.Printf("Aborting! Key generation failure: %s", err)
-			return
-		}
-		Info.Printf("Advertising new Keyid: %s", secret.GetMyKeyidStr())
-	}
-
-	//TODO Make this a flag function
-	secret.Purge("test.txt")
-
-	// Complain about excessively small loop values.
-	if cfg.Remailer.Loop < 60 {
-		Warn.Println(
-			fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Remailer.Loop),
-			"Will loop every 60 seconds. A higher setting is recommended.")
-	}
-	// Complain about high pool rates.
-	if cfg.Pool.Rate > 90 {
-		Warn.Println(
-			fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
-			"high. Unless testing, a lower setting is recommended.")
+	} else {
+		Info.Printf("Advertising existing keyid: %s", secret.GetMyKeyidStr())
 	}
 
 	// Maintain time of last pool process
 	poolProcessTime := time.Now()
 	poolProcessDelay := time.Duration(cfg.Remailer.Loop) * time.Second
+
+	// Make a note of what day it is
+	today := time.Now()
+	oneday := time.Duration(24) * time.Hour
 
 	// Actually start the server loop
 	Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
@@ -106,6 +72,57 @@ func loopServer() (err error) {
 			// Don't do anything beyond this point until poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
+		}
+		// Test if it's time to do daily events
+		if generate || time.Since(today) > oneday {
+			Info.Println("Performing daily events")
+			// Try to validate the advertised key on Secring
+			if ! generate {
+				valid, err := secret.Validate()
+				if err != nil {
+					Warn.Printf("%s: Failed to validate key in Secring", cfg.Files.Secring)
+					generate = true
+				} else if valid {
+					Info.Printf("Advertising current keyid: %s", secret.GetMyKeyidStr())
+				} else {
+					Info.Printf("%s has expired, will generate a new key pair", secret.GetMyKeyidStr())
+					generate = true
+				}
+			}
+			// Create a new key pair
+			if generate {
+				Info.Println("Generating and advertising a new key pair")
+				pub, sec := eccGenerate()
+				err = secret.Publish(
+					pub, sec,
+					keyValidityDays,
+					cfg.Remailer.Exit,
+					cfg.Remailer.Name, cfg.Remailer.Address, version)
+				if err != nil {
+					Error.Printf("Aborting! Key generation failure: %s", err)
+					return
+				}
+				Info.Printf("Advertising new Keyid: %s", secret.GetMyKeyidStr())
+				generate = false
+			}
+
+			//TODO Make this a flag function
+			secret.Purge("test.txt")
+
+			// Complain about excessively small loop values.
+			if cfg.Remailer.Loop < 60 {
+				Warn.Println(
+					fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Remailer.Loop),
+					"Will loop every 60 seconds. A higher setting is recommended.")
+			}
+			// Complain about high pool rates.
+			if cfg.Pool.Rate > 90 {
+				Warn.Println(
+					fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
+					"high. Unless testing, a lower setting is recommended.")
+			}
+			// Reset today so we don't do these tasks for the next 24 hours.
+			today = time.Now()
 		}
 		// Test if in-memory pubring is current
 		if public.KeyRefresh() {
