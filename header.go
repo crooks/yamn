@@ -60,7 +60,7 @@ type slotHead struct {
 	data []byte
 }
 
-func (h slotHead) encodeHead() []byte {
+func (h *slotHead) encodeHead() []byte {
 	// Generate an ECC key pair
 	sendpub, sendpriv, err := box.GenerateKey(rand.Reader)
 	if err != nil {
@@ -170,7 +170,7 @@ func (d slotData) encodeData() (b []byte, err error) {
 	return
 }
 
-func decodeData(b []byte) (data slotData, err error) {
+func (data *slotData) decodeData(b []byte) (err error) {
 	err = lenCheck(len(b), 392)
 	if err != nil {
 		return
@@ -203,7 +203,7 @@ type slotFinal struct {
 	bodyBytes int
 }
 
-func (f slotFinal) encodeFinal() []byte {
+func (f *slotFinal) encodeFinal() []byte {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(f.chunkNum)
 	buf.WriteByte(f.numChunks)
@@ -220,7 +220,7 @@ func (f slotFinal) encodeFinal() []byte {
 	return buf.Bytes()
 }
 
-func decodeFinal(b []byte) (f slotFinal, err error) {
+func (f *slotFinal) decodeFinal(b []byte) (err error) {
 	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
@@ -246,7 +246,7 @@ type slotIntermediate struct {
 	nextHop string
 }
 
-func (i slotIntermediate) encodeIntermediate() []byte {
+func (i *slotIntermediate) encodeIntermediate() []byte {
 	var err error
 	err = lenCheck(len(i.aesIVs), (maxChainLength + 1) * 16)
 	if err != nil {
@@ -262,7 +262,7 @@ func (i slotIntermediate) encodeIntermediate() []byte {
 	return buf.Bytes()
 }
 
-func decodeIntermediate(b []byte) (i slotIntermediate, err error) {
+func (i *slotIntermediate) decodeIntermediate(b []byte) (err error) {
 	err = lenCheck(len(b), 256)
 	if err != nil {
 		return
