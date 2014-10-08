@@ -21,9 +21,9 @@ import (
 func loopServer() (err error) {
 	var filenames []string
 	// Populate public and secret keyrings
-	public := keymgr.NewPubring()
+	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
 	secret := keymgr.NewSecring()
-	public.ImportPubring(cfg.Files.Pubring)
+	public.ImportPubring()
 	secret.ImportSecring(cfg.Files.Secring)
 	// Create some dirs if it doesn't already exist
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
@@ -108,10 +108,10 @@ func loopServer() (err error) {
 			continue
 		}
 		// Test if in-memory pubring is current
-		if public.KeyRefresh(cfg.Files.Pubring) {
+		if public.KeyRefresh() {
 			// Time to re-read the pubring file
 			Info.Printf("Reimporting keyring: %s", cfg.Files.Pubring)
-			public.ImportPubring(cfg.Files.Pubring)
+			public.ImportPubring()
 		}
 		filenames, err = poolRead()
 		for _, file := range filenames {

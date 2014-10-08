@@ -105,8 +105,8 @@ func mixprep() {
 		os.Exit(1)
 	}
 	// Create the Public Keyring
-	pubring := keymgr.NewPubring()
-	err = pubring.ImportPubring(cfg.Files.Pubring)
+	pubring := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
+	err = pubring.ImportPubring()
 	if err != nil {
 		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
 		return

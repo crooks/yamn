@@ -61,8 +61,8 @@ func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string, 
 		hop = popstr(&inChain)
 		if hop == "*" {
 			// Check modification timestamp on stats file
-			if pubring.StatRefresh(cfg.Files.Mlist2) {
-				err = pubring.ImportStats(cfg.Files.Mlist2)
+			if pubring.StatRefresh() {
+				err = pubring.ImportStats()
 				if err != nil {
 					Warn.Printf("Unable to read stats: %s", err)
 					return

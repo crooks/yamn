@@ -34,6 +34,8 @@ type Remailer struct {
 }
 
 type Pubring struct {
+	pubringFile string // Pubring filename
+	statsFile string // mlist type file
 	pub map[string]Remailer
 	xref map[string]string // A cross-reference of shortnames to addresses
 	Stats bool // Have current reliability stats been imported?
@@ -43,8 +45,10 @@ type Pubring struct {
 	statsGenerated time.Time // Generated timestamp on mlist2.txt file
 }
 
-func NewPubring() *Pubring {
+func NewPubring(pubfile, statfile string) *Pubring {
 	return &Pubring{
+		pubringFile: pubfile,
+		statsFile: statfile,
 		pub: make(map[string]Remailer),
 		xref: make(map[string]string),
 		Stats: false,
@@ -60,22 +64,20 @@ func (p *Pubring) StatsStale(h int) bool {
 }
 
 // KeyRefresh returns True if the Pubring file has been modified
-func (p *Pubring) KeyRefresh(filename string) bool {
-	stat, err := os.Stat(filename)
+func (p *Pubring) KeyRefresh() bool {
+	stat, err := os.Stat(p.pubringFile)
 	if err != nil {
 		panic(err)
 	}
 	if stat.ModTime().After(p.keysImported) {
-		fmt.Fprintf(os.Stderr, "Memory says: %s\n", p.keysImported)
-		fmt.Fprintf(os.Stderr, "File sayss: %s\n", stat.ModTime())
 		return true
 	}
 	return false
 }
 
 // StatRefresh returns True if the mlist2.txt file has been modified
-func (p *Pubring) StatRefresh(filename string) bool {
-	stat, err := os.Stat(filename)
+func (p *Pubring) StatRefresh() bool {
+	stat, err := os.Stat(p.statsFile)
 	if err != nil {
 		// mlist2 isn't vital to server or client functions so live with it
 		p.Stats = false
@@ -192,8 +194,8 @@ func (p Pubring) Advertising(filename string) (keyid string, err error) {
 	return
 }
 
-func (p *Pubring) ImportStats(filename string)  (err error) {
-	f, err := os.Open(filename)
+func (p *Pubring) ImportStats()  (err error) {
+	f, err := os.Open(p.statsFile)
 	if err != nil {
 		return
 	}
@@ -289,7 +291,7 @@ func (p *Pubring) ImportStats(filename string)  (err error) {
 		}
 	}
 	// Update last-imported timestamp for stats
-	stat, err := os.Stat(filename)
+	stat, err := os.Stat(p.statsFile)
 	if err != nil {
 		panic(err)
 	}
@@ -315,9 +317,9 @@ func Headers(filename string) (headers []string, err error) {
 }
 
 // ImportPubring reads a YAMN Pubring.mix file
-func (p *Pubring) ImportPubring(filename string) (err error) {
+func (p *Pubring) ImportPubring() (err error) {
 	var f *os.File
-	f, err = os.Open(filename)
+	f, err = os.Open(p.pubringFile)
 	if err != nil {
 		return
 	}
@@ -430,7 +432,7 @@ func (p *Pubring) ImportPubring(filename string) (err error) {
 	}// End of file scan loop
 
 	// Set key imported timestamp
-	stat, err := os.Stat(filename)
+	stat, err := os.Stat(p.pubringFile)
 	if err != nil {
 		panic(err)
 	}
