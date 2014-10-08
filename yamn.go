@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	version string = "0.1a"
+	version string = "0.1b"
 	date_format string = "2006-01-02"
 	keyValidityDays int = 60
 	max_frag_length = 10230
