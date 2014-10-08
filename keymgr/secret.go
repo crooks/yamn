@@ -35,6 +35,8 @@ func NewSecring(secfile, pubkey string) *Secring {
 	}
 }
 
+// Publish takes a key pair, does some basic validation and writes
+// public/private keys to their respective files.
 func (s *Secring) Publish(
 	pub, sec []byte,
 	valid int, exit bool,
@@ -61,7 +63,7 @@ func (s *Secring) Publish(
 	digest := sha256.New()
 	digest.Write(pub)
 	key.keyid = digest.Sum(nil)[:16]
-	mapkey := hex.EncodeToString(key.keyid)
+	keyidstr := hex.EncodeToString(key.keyid)
 	// Validity dates
 	key.from = time.Now()
 	key.until = time.Now().Add(time.Duration(24 * valid) * time.Hour)
@@ -81,7 +83,7 @@ func (s *Secring) Publish(
 	}
 	header := name + " "
 	header += address + " "
-	header += mapkey + " "
+	header += keyidstr + " "
 	header += "4:" + version + " "
 	header += capstring + " "
 	header += key.from.UTC().Format(date_format) + " "
@@ -90,7 +92,7 @@ func (s *Secring) Publish(
 	fmt.Fprintln(w, header)
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "-----Begin Mix Key-----")
-	fmt.Fprintln(w, mapkey)
+	fmt.Fprintln(w, keyidstr)
 	fmt.Fprintln(w, hex.EncodeToString(pub))
 	fmt.Fprintln(w, "-----End Mix Key-----")
 	err = w.Flush()
@@ -107,7 +109,7 @@ func (s *Secring) Publish(
 	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
 	keydata += fmt.Sprintf("Created: %s\n", key.from.UTC().Format(date_format))
 	keydata += fmt.Sprintf("Expires: %s\n", key.until.UTC().Format(date_format))
-	keydata += mapkey  + "\n"
+	keydata += keyidstr  + "\n"
 	keydata += hex.EncodeToString(key.sk) + "\n"
 	keydata += "-----End Mixmaster Secret Key-----\n"
 	_, err = f.WriteString(keydata)
@@ -115,12 +117,13 @@ func (s *Secring) Publish(
 		return
 	}
 	// Add the new key to the in memory secret keyring
-	s.sec[mapkey] = *key
+	s.sec[keyidstr] = *key
 	// Advertise the new keyid
 	s.myKeyid = key.keyid
 	return
 }
 
+// Return the Secret struct that corresponds to the requested Keyid
 func (s *Secring) Get(keyid string) (sec secret, err error) {
 	var exists bool
 	sec, exists = s.sec[keyid]
@@ -131,6 +134,7 @@ func (s *Secring) Get(keyid string) (sec secret, err error) {
 	return
 }
 
+// Return the Secret Key that corresponds to the requested Keyid
 func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 	sec, exists := s.sec[keyid]
 	if ! exists {
@@ -189,7 +193,7 @@ func (s *Secring) Validate() (valid bool, err error) {
 		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
 		return
 	}
-	days7 := time.Now().Add(time.Hour * 24 * 7)
+	days7 := time.Now().Add(time.Duration(24 * 7) * time.Hour)
 	if sec.until.Before(days7) {
 		valid = false
 	} else {
@@ -198,6 +202,8 @@ func (s *Secring) Validate() (valid bool, err error) {
 	return
 }
 
+// Purge writes the in-memory Secring to a file, excluding keys that expired
+// more than 28 days ago.
 func (s *Secring) Purge(filename string) (err error) {
 	f, err := os.Create(filename)
   if err != nil {
@@ -229,7 +235,7 @@ func (s *Secring) Purge(filename string) (err error) {
 
 
 
-// ImportSecring reads a YAML secring.mix file
+// ImportSecring reads a YAML secring.mix file into memory
 func (s Secring) ImportSecring() (err error) {
 	var f *os.File
 	f, err = os.Open(s.secringFile)
