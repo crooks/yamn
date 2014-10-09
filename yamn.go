@@ -13,12 +13,12 @@ import (
 
 const (
 	version string = "0.1b"
-	date_format string = "2006-01-02"
+	dayLength int = 24 * 60 * 60 // Day in seconds
 	keyValidityDays int = 60
-	max_frag_length = 10230
+	maxFragLength = 10230
 	maxChainLength = 10
 	maxCopies = 5
-	base64_line_wrap = 40
+	base64LineWrap = 40
 	headerBytes = 512
 	headersBytes = headerBytes * maxChainLength
 	encHeadBytes = headersBytes - headerBytes
@@ -74,10 +74,12 @@ func main() {
 	flags()
 	if flag_client {
 		mixprep()
-	} else {
+	} else if flag_remailer {
 		err = loopServer()
 		if err != nil {
 			panic(err)
 		}
+	} else {
+		fmt.Printf("Version: %s\n", version)
 	}
 }

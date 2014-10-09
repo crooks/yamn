@@ -62,10 +62,15 @@ func loopServer() (err error) {
 
 	// Make a note of what day it is
 	today := time.Now()
-	oneday := time.Duration(24) * time.Hour
+	oneday := time.Duration(dayLength) * time.Second
 
 	// Actually start the server loop
-	Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
+	if cfg.Remailer.Daemon || flag_daemon {
+		Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
+	} else {
+		Info.Printf("Performing routine remailer functions for: %s",
+			cfg.Remailer.Name)
+	}
 	for {
 		if time.Now().Before(poolProcessTime) {
 			mailRead()
@@ -139,7 +144,12 @@ func loopServer() (err error) {
 			poolDelete(file)
 		}
 		poolProcessTime = time.Now().Add(poolProcessDelay)
-	}
+		// Break out of the loop if we're not running as a daemon
+		if ! flag_daemon && ! cfg.Remailer.Daemon {
+			break
+		}
+	} // End of server loop
+	return
 }
 
 func exportMessage(headers, fake, body []byte, sendto string) (err error) {

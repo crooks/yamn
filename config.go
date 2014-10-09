@@ -51,6 +51,7 @@ type Config struct {
 		IDexp int
 		Loop int
 		Loglevel string
+		Daemon bool
 	}
 }
 
@@ -62,6 +63,16 @@ func init() {
 	// Send (from pool)
 	flag.BoolVar(&flag_send, "send", false, "Force pool send")
 	flag.BoolVar(&flag_send, "S", false, "Force pool send")
+	// Perform remailer actions
+	flag.BoolVar(&flag_remailer, "remailer", false,
+		"Perform routine remailer actions")
+	flag.BoolVar(&flag_remailer, "M", false,
+		"Perform routine remailer actions")
+	// Start remailer as a daemon
+	flag.BoolVar(&flag_daemon, "daemon", false,
+		"Start remailer as a daemon. (Requires -M")
+	flag.BoolVar(&flag_daemon, "D", false,
+		"Start remailer as a daemon. (Requires -M")
 	// Remailer chain
 	flag.StringVar(&flag_chain, "chain", "*,*,*", "Remailer chain")
 	flag.StringVar(&flag_chain, "l", "*,*,*", "Remailer chain")
@@ -127,6 +138,7 @@ func init() {
 	cfg.Remailer.IDexp = 14
 	cfg.Remailer.Loop = 180
 	cfg.Remailer.Loglevel = "info"
+	cfg.Remailer.Daemon = false
 
 	if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)
@@ -157,6 +169,8 @@ func flags() {
 
 var flag_client bool
 var flag_send bool
+var flag_remailer bool
+var flag_daemon bool
 var flag_chain string
 var flag_to string
 var flag_subject string

@@ -119,7 +119,7 @@ func mixprep() {
 	final.messageID = randbytes(16)
 	var cnum int // Chunk number
 	var numc int // Number of chunks
-	numc = int(math.Ceil(float64(msglen) / float64(max_frag_length)))
+	numc = int(math.Ceil(float64(msglen) / float64(maxFragLength)))
 	final.numChunks = uint8(numc)
 	cnum = 1
 	var exitnode string // Address of exit node (for multiple copy chains)
@@ -131,8 +131,8 @@ func mixprep() {
 	for cnum = 1; cnum <= numc; cnum++ {
 		final.chunkNum = uint8(cnum)
 		// First byte of message fragment
-		first_byte = (cnum - 1) * max_frag_length
-		last_byte = first_byte + max_frag_length
+		first_byte = (cnum - 1) * maxFragLength
+		last_byte = first_byte + maxFragLength
 		// Don't slice beyond the end of the message
 		if last_byte > msglen {
 			last_byte = msglen

@@ -127,8 +127,8 @@ func wrap(str string) (newstr string) {
 	var substr string
 	var end int
 	strlen := len(str)
-	for i := 0; i <= strlen; i += base64_line_wrap {
-		end = i + base64_line_wrap
+	for i := 0; i <= strlen; i += base64LineWrap {
+		end = i + base64LineWrap
 		if end > strlen {
 			end = strlen
 		}
