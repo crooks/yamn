@@ -42,6 +42,7 @@ type Config struct {
 	Pool struct {
 		Size int
 		Rate int
+		Loop int
 	}
 	Remailer struct {
 		Name string
@@ -49,7 +50,6 @@ type Config struct {
 		Exit bool
 		MaxSize int
 		IDexp int
-		Loop int
 		Loglevel string
 		Daemon bool
 	}
@@ -131,12 +131,12 @@ func init() {
 	cfg.Stats.StaleHrs = 24
 	cfg.Pool.Size = 45
 	cfg.Pool.Rate = 65
+	cfg.Pool.Loop = 300
 	cfg.Remailer.Name = "anon"
 	cfg.Remailer.Address = "mix@nowhere.invalid"
 	cfg.Remailer.Exit = false
 	cfg.Remailer.MaxSize = 12
 	cfg.Remailer.IDexp = 14
-	cfg.Remailer.Loop = 180
 	cfg.Remailer.Loglevel = "info"
 	cfg.Remailer.Daemon = false
 

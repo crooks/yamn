@@ -58,7 +58,7 @@ func loopServer() (err error) {
 
 	// Maintain time of last pool process
 	poolProcessTime := time.Now()
-	poolProcessDelay := time.Duration(cfg.Remailer.Loop) * time.Second
+	poolProcessDelay := time.Duration(cfg.Pool.Loop) * time.Second
 
 	// Make a note of what day it is
 	today := time.Now()
@@ -115,9 +115,9 @@ func loopServer() (err error) {
 			secret.Purge("test.txt")
 
 			// Complain about excessively small loop values.
-			if cfg.Remailer.Loop < 60 {
+			if cfg.Pool.Loop < 60 {
 				Warn.Println(
-					fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Remailer.Loop),
+					fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Pool.Loop),
 					"Will loop every 60 seconds. A higher setting is recommended.")
 			}
 			// Complain about high pool rates.
