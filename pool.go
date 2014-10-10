@@ -32,7 +32,8 @@ func poolRead() (selectedPoolFiles []string, err error) {
 	Trace.Printf("Pool contains %d messages.\n", poolSize)
 	if poolSize < cfg.Pool.Size {
 		// Pool isn't sufficiently populated
-		Trace.Println("Pool insufficiently populated to trigger sending.")
+		Trace.Println("Pool insufficiently populated to trigger sending.",
+			fmt.Sprintf("Require=%d, Got=%d", cfg.Pool.Size, poolSize))
 		return
 	}
 	keys := randInts(len(poolFiles))
@@ -244,8 +245,6 @@ func mailRead() (err error) {
 	}
 	if len(keys) > 0 {
 		Trace.Printf("Reading %d messages from %s\n", len(keys), cfg.Files.Maildir)
-	} else {
-		Trace.Printf("No messages in %s\n", cfg.Files.Maildir)
 	}
 	// Fetch headers for each Maildir key
 	var head mail.Header
@@ -273,7 +272,16 @@ func mailRead() (err error) {
 			if err != nil {
 				Info.Println(err)
 			}
+		} // End of remailer-foo or remailer message
+		/*
+		Suspect there may be a bug in the Maildir library.  Keys returned the
+		Unseen function cannot be passed directly to Purge as they lack the ":2,"
+		suffix.
+		*/
+		err = dir.Purge(key + ":2,")
+		if err != nil {
+			Warn.Printf("Cannot delete mail: %s", err)
 		}
-	}
+	} // Maildir keys loop
 	return
 }

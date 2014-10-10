@@ -353,7 +353,11 @@ func randhop(message []byte, public *keymgr.Pubring) (err error) {
 	if err != nil {
 		panic(err)
 	}
-	Trace.Println("Performing a random hop to an Exit Remailer.")
+	if len(chain) != 1 {
+		err = fmt.Errorf("Randhop chain must be single hop.  Got=%d", len(chain))
+		panic(err)
+	}
+	Trace.Printf("Performing a random hop to an Exit Remailer: %s.", chain[0])
 	packetid := randbytes(16)
 	encmsg, sendto := mixmsg(message, packetid, chain, *final, public)
 	err = cutmarks(encmsg, sendto)
