@@ -137,7 +137,7 @@ func loopServer() (err error) {
 		}
 		filenames, err = poolRead()
 		for _, file := range filenames {
-			err = processPoolFile(file, secret, idlog)
+			err = processPoolFile(file, public, secret, idlog)
 			if err != nil {
 				Info.Printf("Discarding message: %s", err)
 			}
@@ -190,7 +190,7 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	return
 }
 
-func processPoolFile(filename string, secret *keymgr.Secring, idlog idlog.IDLog) (err error) {
+func processPoolFile(filename string, public *keymgr.Pubring, secret *keymgr.Secring, idlog idlog.IDLog) (err error) {
 	f, err := os.Open(path.Join(cfg.Files.Pooldir, filename))
 	defer f.Close()
 	if err != nil {
@@ -306,26 +306,59 @@ func processPoolFile(filename string, secret *keymgr.Secring, idlog idlog.IDLog)
 			return
 		}
 		body = AES_CTR(body[:final.bodyBytes], data.aesKey, final.aesIV)
-		var recipients []string
-		recipients, err = testMail(body)
-		if err != nil {
-			return
-		}
-		for _, sendto := range recipients {
-			if cfg.Mail.Sendmail {
-				err = sendmail(body, sendto)
-				if err != nil {
-					Warn.Println("Sendmail failed")
-					return
-				}
-			} else {
-				err = SMTPRelay(body, sendto)
-				if err != nil {
-					Warn.Println("SMTP relay failed")
-					return
-				}
+		if cfg.Remailer.Exit {
+			var recipients []string
+			recipients, err = testMail(body)
+			if err != nil {
+				return
 			}
-		}
+			for _, sendto := range recipients {
+				if cfg.Mail.Sendmail {
+					err = sendmail(body, sendto)
+					if err != nil {
+						Warn.Println("Sendmail failed")
+						return
+					}
+				} else {
+					err = SMTPRelay(body, sendto)
+					if err != nil {
+						Warn.Println("SMTP relay failed")
+						return
+					}
+				} // End of Sendmail or Relay condition
+			} // recipients loop
+		} else {
+			// Need to randhop as we're not an exit remailer
+			randhop(body, public)
+		} // End of Exit or Randhop
+	} // Intermediate or exit
+	return
+}
+
+// randhop is a simplified client function that does single-hop encodings
+func randhop(message []byte, public *keymgr.Pubring) (err error) {
+	msglen := len(message)
+	if msglen == 0 {
+		Info.Println("Zero-byte message during randhop, ignoring it.")
+		return
+	}
+	// Make a single hop chain with a random node
+	in_chain := []string{"*"}
+	final := new(slotFinal)
+	final.messageID = randbytes(16)
+	final.chunkNum = uint8(1)
+	final.numChunks = uint8(1)
+	var chain []string
+	chain, err = chain_build(in_chain, public)
+	if err != nil {
+		panic(err)
+	}
+	Trace.Println("Performing a random hop to an Exit Remailer.")
+	packetid := randbytes(16)
+	encmsg, sendto := mixmsg(message, packetid, chain, *final, public)
+	err = cutmarks(encmsg, sendto)
+	if err != nil {
+		Warn.Println(err)
 	}
 	return
 }
