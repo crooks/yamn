@@ -273,12 +273,7 @@ func mailRead() (err error) {
 				Info.Println(err)
 			}
 		} // End of remailer-foo or remailer message
-		/*
-		Suspect there may be a bug in the Maildir library.  Keys returned the
-		Unseen function cannot be passed directly to Purge as they lack the ":2,"
-		suffix.
-		*/
-		err = dir.Purge(key + ":2,")
+		err = dir.Purge(key)
 		if err != nil {
 			Warn.Printf("Cannot delete mail: %s", err)
 		}
