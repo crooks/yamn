@@ -10,3 +10,11 @@ and MD5, YAMN will use AES, NaCl Box and Blake2.
 * Deterministic header padding to protect against tagging attacks
 
 * Others TBA
+
+Installation from source:-
+go get github.com/crooks/yamn
+go get code.google.com/p/go.crypto/nacl/box
+go get github.com/syndtr/goleveldb
+go get github.com/luksen/maildir
+cd ~/go/src/github.com/crooks/yamn
+go build
