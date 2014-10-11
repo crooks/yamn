@@ -93,11 +93,17 @@ func loopServer() (err error) {
 			cfg.Remailer.Name)
 	}
 	for {
-		if time.Now().Before(poolProcessTime) {
+		if flag_daemon && time.Now().Before(poolProcessTime) {
 			mailRead()
 			// Don't do anything beyond this point until poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
+		} else if ! flag_daemon {
+			/*
+			When not running as a Daemon, always read mail first. Otherwise, the
+			loop will terminate before mail is ever read.
+			*/
+			mailRead()
 		}
 		// Test if it's time to do daily events
 		if generate || time.Since(today) > oneday {
