@@ -23,8 +23,12 @@ type secret struct {
 type Secring struct {
 	secringFile string // Filename of secret keyring
 	pubkeyFile string // Public keyfile (key.txt)
-	myKeyid []byte // Keyid this remailer is advertising
 	sec map[string]secret
+	name string // Local remailer's name
+	address string // Local remailer's email address
+	myKeyid []byte // Keyid this remailer is advertising
+	exit bool // Is this an Exit type remailer?
+	version string // Yamn version string
 }
 
 func NewSecring(secfile, pubkey string) *Secring {
@@ -35,12 +39,49 @@ func NewSecring(secfile, pubkey string) *Secring {
 	}
 }
 
+// SetName validates and sets the remailer name
+func (s *Secring) SetName(name string) (err error) {
+	l := len(name)
+	if l < 2 || l > 12 {
+		err = fmt.Errorf("Remailer name must be between 2 and 12 chars, not %d.", l)
+		return
+	}
+	s.name = strings.ToLower(name)
+	return
+}
+
+// SetAddress validates and sets the remailer address
+func (s *Secring) SetAddress(addy string) (err error) {
+	l := len(addy)
+	if l < 3 || l > 80 {
+		err = fmt.Errorf("Remailer address must be between 2 and 80 chars, not %d.", l)
+		return
+	}
+	index := strings.Index(addy, "@")
+	if index == -1 {
+		err = fmt.Errorf("%s: Remailer address doesn't contain an @.", addy)
+		return
+	} else if index == 0 || l - index < 3 {
+		err = fmt.Errorf("%s: Invalid remailer address.", addy)
+		return
+	}
+	s.address = strings.ToLower(addy)
+	return
+}
+
+// SetExit defines if this is a Middle or Exit remailer
+func (s *Secring) SetExit(exit bool) {
+	s.exit = exit
+}
+
+// SetVersion sets the version string used on keys
+func (s *Secring) SetVersion(v string) {
+	s.version = "4:" + v
+}
+
 // Publish takes a key pair, does some basic validation and writes
 // public/private keys to their respective files.
-func (s *Secring) Publish(
-	pub, sec []byte,
-	valid int, exit bool,
-	name, address, version string) (err error) {
+func (s *Secring) Publish(pub, sec []byte, valid int) (err error) {
 	/*
 	Each time this function is called, the passed public key is written to
 	key.txt.  This implies that the most recently created key is always
@@ -76,15 +117,15 @@ func (s *Secring) Publish(
 	w := bufio.NewWriter(f)
 	var capstring string
 	// M = Middle, E = Exit
-	if exit {
+	if s.exit {
 		capstring += "E"
 	} else {
 		capstring += "M"
 	}
-	header := name + " "
-	header += address + " "
+	header := s.name + " "
+	header += s.address + " "
 	header += keyidstr + " "
-	header += "4:" + version + " "
+	header += s.version + " "
 	header += capstring + " "
 	header += key.from.UTC().Format(date_format) + " "
 	header += key.until.UTC().Format(date_format)
@@ -120,6 +161,52 @@ func (s *Secring) Publish(
 	s.sec[keyidstr] = *key
 	// Advertise the new keyid
 	s.myKeyid = key.keyid
+	return
+}
+
+// RefreshMyKey rewrites the key.txt file with current info
+func (s *Secring) RefreshMyKey() (err error) {
+	infile, err := os.Open(s.pubkeyFile)
+	if err != nil {
+		return
+	}
+	defer infile.Close()
+	// Create a tmp file rather than overwriting directly
+	outfile, err := os.Create(s.pubkeyFile + ".tmp")
+	if err != nil {
+		return
+	}
+	defer outfile.Close()
+	in := bufio.NewScanner(infile)
+	out := bufio.NewWriter(outfile)
+	var line string
+  for in.Scan() {
+		line = in.Text()
+		elements := strings.Fields(line)
+		if len(elements) == 7 {
+			var capstring string
+			// M = Middle, E = Exit
+			if s.exit {
+				capstring += "E"
+			} else {
+				capstring += "M"
+			}
+			header := s.name + " "
+			header += s.address + " "
+			header += hex.EncodeToString(s.myKeyid) + " "
+			header += s.version + " "
+			header += capstring + " "
+			header += elements[5] + " "
+			header += elements[6]
+			fmt.Fprintln(out, header)
+		} else {
+			fmt.Fprintln(out, line)
+		}
+	}
+	err = out.Flush()
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -233,10 +320,8 @@ func (s *Secring) Purge(filename string) (err error) {
 	return
 }
 
-
-
 // ImportSecring reads a YAML secring.mix file into memory
-func (s Secring) ImportSecring() (err error) {
+func (s *Secring) ImportSecring() (err error) {
 	var f *os.File
 	f, err = os.Open(s.secringFile)
 	if err != nil {

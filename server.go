@@ -25,6 +25,17 @@ func loopServer() (err error) {
 	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
 	public.ImportPubring()
 	secret.ImportSecring()
+	// Tell the secret keyring some basic info about this remailer
+	err = secret.SetName(cfg.Remailer.Name)
+	if err != nil {
+		return
+	}
+	err = secret.SetAddress(cfg.Remailer.Address)
+	if err != nil {
+		return
+	}
+	secret.SetExit(cfg.Remailer.Exit)
+	secret.SetVersion(version)
 	// Create some dirs if it doesn't already exist
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
 	if err != nil {
@@ -54,6 +65,16 @@ func loopServer() (err error) {
 		generate = true
 	} else {
 		Info.Printf("Advertising existing keyid: %s", secret.GetMyKeyidStr())
+		// Write a tmp pub.key using current config
+		err = secret.RefreshMyKey()
+		if err != nil {
+			Warn.Println(err)
+		} else {
+			err = os.Rename(cfg.Files.Pubkey + ".tmp", cfg.Files.Pubkey)
+			if err != nil {
+				Warn.Println(err)
+			}
+		}
 	}
 
 	// Maintain time of last pool process
@@ -98,11 +119,7 @@ func loopServer() (err error) {
 			if generate {
 				Info.Println("Generating and advertising a new key pair")
 				pub, sec := eccGenerate()
-				err = secret.Publish(
-					pub, sec,
-					keyValidityDays,
-					cfg.Remailer.Exit,
-					cfg.Remailer.Name, cfg.Remailer.Address, version)
+				err = secret.Publish(pub, sec, keyValidityDays)
 				if err != nil {
 					Error.Printf("Aborting! Key generation failure: %s", err)
 					return
