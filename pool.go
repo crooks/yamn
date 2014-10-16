@@ -81,30 +81,34 @@ func poolWrite(reader io.Reader) (err error) {
 		line := scanner.Text()
 		switch scanPhase {
 		case 0:
-			// Expecting ::\n or a Subject header
+			// Expecting ::\n (or maybe a Mail header)
 			if line == "::" {
 				scanPhase = 1
-			} else if strings.HasPrefix(line, "Subject: ") {
-				// We have a Subject header.  This is probably a mail message.
-				msgSubject = strings.ToLower(line[9:])
-				if strings.HasPrefix(msgSubject, "remailer-") {
-					remailerFooRequest = true
-				}
-			} else if strings.HasPrefix(line, "From: ") {
-				// A From header might be useful if this is a remailer-foo request.
-				msgFrom = line[6:]
+				continue
 			}
-			if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
-				// Do remailer-foo processing
-				err = remailerFoo(msgSubject, msgFrom)
-				if err != nil {
-					Info.Println(err)
-					err = nil
+			if flag_stdin {
+				if strings.HasPrefix(line, "Subject: ") {
+					// We have a Subject header.  This is probably a mail message.
+					msgSubject = strings.ToLower(line[9:])
+					if strings.HasPrefix(msgSubject, "remailer-") {
+						remailerFooRequest = true
+					}
+				} else if strings.HasPrefix(line, "From: ") {
+					// A From header might be useful if this is a remailer-foo request.
+					msgFrom = line[6:]
 				}
-				// Don't bother to read any further
-				scanPhase = 255
-				break
-			}
+				if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
+					// Do remailer-foo processing
+					err = remailerFoo(msgSubject, msgFrom)
+					if err != nil {
+						Info.Println(err)
+						err = nil
+					}
+					// Don't bother to read any further
+					scanPhase = 255
+					break
+				}
+			} // End of STDIN flag test
 		case 1:
 			// Expecting Begin cutmarks
 			if line == "-----BEGIN REMAILER MESSAGE-----" {
