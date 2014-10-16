@@ -116,6 +116,9 @@ func mixprep() {
 		err = errors.New("Empty input chain")
 		return
 	}
+	// Delivery type 0 indicates SMTP.  No other methods (other than dummies)
+	// are currently supported.
+	final.deliveryMethod = 0
 	final.messageID = randbytes(16)
 	var cnum int // Chunk number
 	var numc int // Number of chunks

@@ -164,15 +164,16 @@ func (s *Secring) Publish(pub, sec []byte, valid int) (err error) {
 	return
 }
 
-// RefreshMyKey rewrites the key.txt file with current info
-func (s *Secring) RefreshMyKey() (err error) {
+// WriteMyKey writes the local public key to filename with current
+// configurtaion settings.
+func (s *Secring) WriteMyKey(filename string) (err error) {
 	infile, err := os.Open(s.pubkeyFile)
 	if err != nil {
 		return
 	}
 	defer infile.Close()
 	// Create a tmp file rather than overwriting directly
-	outfile, err := os.Create(s.pubkeyFile + ".tmp")
+	outfile, err := os.Create(filename)
 	if err != nil {
 		return
 	}

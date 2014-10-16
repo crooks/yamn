@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"time"
 	"errors"
+	"strings"
 	"io/ioutil"
 	"encoding/hex"
 	"crypto/sha256"
@@ -66,11 +67,13 @@ func loopServer() (err error) {
 	} else {
 		Info.Printf("Advertising existing keyid: %s", secret.GetMyKeyidStr())
 		// Write a tmp pub.key using current config
-		err = secret.RefreshMyKey()
+		tmpKey := cfg.Files.Pubkey + ".tmp"
+		err = secret.WriteMyKey(tmpKey)
 		if err != nil {
 			Warn.Println(err)
 		} else {
-			err = os.Rename(cfg.Files.Pubkey + ".tmp", cfg.Files.Pubkey)
+			// Overwrite the published key with the refreshed version
+			err = os.Rename(tmpKey, cfg.Files.Pubkey)
 			if err != nil {
 				Warn.Println(err)
 			}
@@ -328,7 +331,18 @@ func processPoolFile(filename string, public *keymgr.Pubring, secret *keymgr.Sec
 		if err != nil {
 			return
 		}
+		// Test for dummy message
+		if final.deliveryMethod == 255 {
+			Trace.Println("Discarding dummy message")
+			return
+		}
 		body = AES_CTR(body[:final.bodyBytes], data.aesKey, final.aesIV)
+		// If delivery methods other than SMTP are ever supported, something needs
+		// to happen around here.
+		if final.deliveryMethod != 0 {
+			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
+			return
+		}
 		if cfg.Remailer.Exit {
 			var recipients []string
 			recipients, err = testMail(body)
@@ -355,6 +369,13 @@ func processPoolFile(filename string, public *keymgr.Pubring, secret *keymgr.Sec
 			randhop(body, public)
 		} // End of Exit or Randhop
 	} // Intermediate or exit
+	// Decide if we want to inject a dummy
+	if randomInt(20) < 3 {
+		err = dummy(public)
+		if err != nil {
+			Warn.Printf("Sending dummy failed: %s", err)
+		}
+	}
 	return
 }
 
@@ -368,6 +389,7 @@ func randhop(message []byte, public *keymgr.Pubring) (err error) {
 	// Make a single hop chain with a random node
 	in_chain := []string{"*"}
 	final := new(slotFinal)
+	final.deliveryMethod = 0
 	final.messageID = randbytes(16)
 	final.chunkNum = uint8(1)
 	final.numChunks = uint8(1)
@@ -381,6 +403,31 @@ func randhop(message []byte, public *keymgr.Pubring) (err error) {
 		panic(err)
 	}
 	Trace.Printf("Performing a random hop to an Exit Remailer: %s.", chain[0])
+	packetid := randbytes(16)
+	encmsg, sendto := mixmsg(message, packetid, chain, *final, public)
+	err = cutmarks(encmsg, sendto)
+	if err != nil {
+		Warn.Println(err)
+	}
+	return
+}
+
+// dummy is a simplified client function that sends dummy messages
+func dummy(public *keymgr.Pubring) (err error) {
+	message := []byte("I hope Len approves")
+	// Make a single hop chain with a random node
+	in_chain := []string{"*","*"}
+	final := new(slotFinal)
+	final.deliveryMethod = 255
+	final.messageID = randbytes(16)
+	final.chunkNum = uint8(1)
+	final.numChunks = uint8(1)
+	var chain []string
+	chain, err = chain_build(in_chain, public)
+	if err != nil {
+		panic(err)
+	}
+	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)
 	encmsg, sendto := mixmsg(message, packetid, chain, *final, public)
 	err = cutmarks(encmsg, sendto)

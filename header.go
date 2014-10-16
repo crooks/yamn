@@ -193,6 +193,11 @@ Final Hop
 [ Message ID		 16 Bytes ]
 [ AES-CTR IV		 16 Bytes ]
 [ Body length		  4 Bytes ]
+[ Delivery method	  1 Byte  ]
+
+Currently supported delivery methods are:-
+[ SMTP				  0 ]
+[ Dummy - discard 		255 ]
 */
 
 type slotFinal struct {
@@ -201,6 +206,7 @@ type slotFinal struct {
 	messageID []byte
 	aesIV []byte
 	bodyBytes int
+	deliveryMethod uint8
 }
 
 func (f *slotFinal) encodeFinal() []byte {
@@ -212,7 +218,8 @@ func (f *slotFinal) encodeFinal() []byte {
 	tmp := make([]byte, 4)
 	binary.LittleEndian.PutUint32(tmp, uint32(f.bodyBytes))
 	buf.Write(tmp)
-	err := bufLenCheck(buf.Len(), 38)
+	buf.WriteByte(f.deliveryMethod)
+	err := bufLenCheck(buf.Len(), 39)
 	if err != nil {
 		panic(err)
 	}
@@ -229,7 +236,8 @@ func (f *slotFinal) decodeFinal(b []byte) (err error) {
 	f.numChunks = b[1]
 	f.messageID = b[2:18]
 	f.aesIV = b[18:34]
-	f.bodyBytes = int(binary.LittleEndian.Uint32(b[34:]))
+	f.bodyBytes = int(binary.LittleEndian.Uint32(b[34:38]))
+	f.deliveryMethod = b[38]
 	return
 }
 

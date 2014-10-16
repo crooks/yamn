@@ -251,7 +251,7 @@ func mailRead() (err error) {
 	for _, key := range keys {
 		head, err = dir.Header(key)
 		if err != nil {
-			panic(err)
+			return
 		}
 		// The Subject determines if the message needs remailer-foo handling
 		subject := strings.TrimSpace(strings.ToLower(head.Get("Subject")))
