@@ -251,7 +251,8 @@ func mailRead() (err error) {
 	for _, key := range keys {
 		head, err = dir.Header(key)
 		if err != nil {
-			return
+			Warn.Printf("%s: Getting headers failed with: %s", key, err)
+			continue
 		}
 		// The Subject determines if the message needs remailer-foo handling
 		subject := strings.TrimSpace(strings.ToLower(head.Get("Subject")))
@@ -266,7 +267,8 @@ func mailRead() (err error) {
 			var msg *mail.Message
 			msg, err := dir.Message(key)
 			if err != nil {
-				panic(err)
+				Warn.Printf("%s: Reading message failed with: %s", key, err)
+				continue
 			}
 			err = poolWrite(msg.Body)
 			if err != nil {
