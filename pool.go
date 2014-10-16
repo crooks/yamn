@@ -8,6 +8,7 @@ import (
 	"io"
 	"bytes"
 	"bufio"
+	"errors"
 	"strconv"
 	"strings"
 	"path"
@@ -114,8 +115,12 @@ func poolWrite(reader io.Reader) (err error) {
 			b64 += line
 		} // End of switch
 	} // End of file scan
-	if scanPhase != 5 {
-		err = fmt.Errorf("Payload scanning failed at phase %d\n", scanPhase)
+	switch scanPhase {
+	case 0:
+		err = errors.New("No Begin cutmarks found on message")
+		return
+	case 4:
+		err = errors.New("No End cutmarks found on message")
 		return
 	}
 	var payload []byte

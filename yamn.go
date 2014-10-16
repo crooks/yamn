@@ -74,6 +74,12 @@ func main() {
 	flags()
 	if flag_client {
 		mixprep()
+	} else if flag_stdin {
+		// Expecting a remailer message on Stdin
+		err = poolWrite(os.Stdin)
+    if err != nil {
+			Warn.Println(err)
+    }
 	} else if flag_remailer {
 		err = loopServer()
 		if err != nil {
