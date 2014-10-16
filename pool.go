@@ -65,6 +65,9 @@ func poolWrite(reader io.Reader) (err error) {
 	var payloadLen int
 	var payloadDigest []byte
 	var poolFileName string
+	var msgFrom string
+	var msgSubject string
+	var remailerFooRequest bool
 	/* Scan phases are:
 	0	Expecting ::
 	1 Expecting Begin cutmarks
@@ -72,14 +75,35 @@ func poolWrite(reader io.Reader) (err error) {
 	3	Expecting hash
 	4 In payload and checking for End cutmark
 	5 Got End cutmark
+	255 Ignore and return
 	*/
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch scanPhase {
 		case 0:
-			// Expecting ::\n
+			// Expecting ::\n or a Subject header
 			if line == "::" {
 				scanPhase = 1
+			} else if strings.HasPrefix(line, "Subject: ") {
+				// We have a Subject header.  This is probably a mail message.
+				msgSubject = strings.ToLower(line[9:])
+				if strings.HasPrefix(msgSubject, "remailer-") {
+					remailerFooRequest = true
+				}
+			} else if strings.HasPrefix(line, "From: ") {
+				// A From header might be useful if this is a remailer-foo request.
+				msgFrom = line[6:]
+			}
+			if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
+				// Do remailer-foo processing
+				err = remailerFoo(msgSubject, msgFrom)
+				if err != nil {
+					Info.Println(err)
+					err = nil
+				}
+				// Don't bother to read any further
+				scanPhase = 255
+				break
 			}
 		case 1:
 			// Expecting Begin cutmarks
@@ -117,10 +141,15 @@ func poolWrite(reader io.Reader) (err error) {
 	} // End of file scan
 	switch scanPhase {
 	case 0:
+		err = errors.New("No :: found on message")
+		return
+	case 1:
 		err = errors.New("No Begin cutmarks found on message")
 		return
 	case 4:
 		err = errors.New("No End cutmarks found on message")
+		return
+	case 255:
 		return
 	}
 	var payload []byte
