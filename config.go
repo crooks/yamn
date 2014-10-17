@@ -92,6 +92,9 @@ func init() {
 	flag.BoolVar(&flag_stdin, "R", false, "Read a message from stdin")
 	// Write to STDOUT
 	flag.BoolVar(&flag_stdout, "stdout", false, "Write message to stdout")
+	// Inject dummy
+	flag.BoolVar(&flag_dummy, "dummy", false, "Inject a dummy message")
+	flag.BoolVar(&flag_dummy, "d", false, "Inject a dummy message")
 	// Print Version
 	flag.BoolVar(&flag_version, "version", false, "Print version string")
 	flag.BoolVar(&flag_version, "V", false, "Print version string")
@@ -179,6 +182,7 @@ var flag_config string
 var flag_copies int
 var flag_stdin bool
 var flag_stdout bool
+var flag_dummy bool
 var flag_version bool
 var flag_meminfo bool
 var cfg Config

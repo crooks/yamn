@@ -286,3 +286,13 @@ func mixmsg(
 	copy(payload[headersBytes:], body)
 	return
 }
+
+func injectDummy() {
+	// Populate public keyring
+	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
+	public.ImportPubring()
+	err := dummy(public)
+	if err != nil {
+		Info.Println("Dummy injection failed")
+	}
+}

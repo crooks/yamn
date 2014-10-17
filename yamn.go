@@ -85,6 +85,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+	} else if flag_dummy {
+		injectDummy()
 	} else {
 		fmt.Printf("Version: %s\n", version)
 	}
