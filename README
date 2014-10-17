@@ -18,3 +18,26 @@ go get github.com/syndtr/goleveldb
 go get github.com/luksen/maildir
 cd ~/go/src/github.com/crooks/yamn
 go build
+
+Post-install configuration:-
+Create a dir for yamn.  (mkdir yamn)
+Copy yamn binary (yamn.exe on Windows) to the above dir
+Copy yamn.cfg.sample to same dir and rename to yamn.cfg
+Modify yamn.cfg to meet your requirements
+
+Examples:-
+
+Send an anonymous email
+yamn --mail msg.txt
+
+Use a user-defined chain
+yamn --mail --chain="*,*,yamn" msg.txt
+
+Send multiple copies
+yamn --mail --copies=2 msg.txt
+
+Perform remailer functions
+yamn --remailer
+
+Start a remailer daemon
+yamn --remailer --daemon
