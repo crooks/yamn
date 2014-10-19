@@ -251,7 +251,15 @@ IVs are 9 * header slots, payload and deterministic
 
 type slotIntermediate struct {
 	aesIVs []byte
-	nextHop string
+	nextHop []byte
+}
+
+func (i *slotIntermediate) setNextHop(nh string) {
+	i.nextHop = []byte(nh + strings.Repeat("\x00", 80 - len(nh)))
+}
+
+func (i *slotIntermediate) getNextHop() string {
+	return strings.TrimRight(string(i.nextHop), "\x00")
 }
 
 func (i *slotIntermediate) encodeIntermediate() []byte {
@@ -262,7 +270,7 @@ func (i *slotIntermediate) encodeIntermediate() []byte {
 	}
 	buf := new(bytes.Buffer)
 	buf.Write(i.aesIVs)
-	buf.WriteString(i.nextHop)
+	buf.Write(i.nextHop)
 	err = bufLenCheck(buf.Len(), 256)
 	if err != nil {
 		panic(err)
@@ -276,6 +284,6 @@ func (i *slotIntermediate) decodeIntermediate(b []byte) (err error) {
 		return
 	}
 	i.aesIVs = b[:176]
-	i.nextHop = strings.TrimRight(string(b[176:]), "\x00")
+	i.nextHop = b[176:]
 	return
 }

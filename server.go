@@ -8,12 +8,10 @@ import (
 	"path"
 	"bytes"
 	"time"
-	"errors"
 	"strings"
 	"io/ioutil"
 	"encoding/hex"
 	"crypto/sha256"
-	"crypto/sha512"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/idlog"
 	//"github.com/codahale/blake2"
@@ -48,11 +46,11 @@ func loopServer() (err error) {
 	}
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
-	idlog, err := idlog.NewInstance(cfg.Files.IDlog)
+	id, err := idlog.NewInstance(cfg.Files.IDlog)
 	if err != nil {
 		panic(err)
 	}
-	defer idlog.Close()
+	defer id.Close()
 	// Is a new ECC Keypair required?
 	generate := false
 	/*
@@ -97,7 +95,7 @@ func loopServer() (err error) {
 	}
 	for {
 		if flag_daemon && time.Now().Before(poolProcessTime) {
-			mailRead()
+			mailRead(public, secret, id)
 			// Don't do anything beyond this point until poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
@@ -106,7 +104,7 @@ func loopServer() (err error) {
 			When not running as a Daemon, always read mail first. Otherwise, the
 			loop will terminate before mail is ever read.
 			*/
-			mailRead()
+			mailRead(public, secret, id)
 		}
 		// Test if it's time to do daily events
 		if generate || time.Since(today) > oneday {
@@ -163,11 +161,17 @@ func loopServer() (err error) {
 		}
 		filenames, err = poolRead()
 		for _, file := range filenames {
-			err = processPoolFile(file, public, secret, idlog)
+			//TODO Read some files here!
 			if err != nil {
 				Info.Printf("Discarding message: %s", err)
 			}
-			poolDelete(file)
+			Info.Printf("Do something with: %s", file)
+			err = mailFile(path.Join(cfg.Files.Pooldir, file))
+			if err != nil {
+				Warn.Printf("Pool mailing failed: %s", err)
+			} else {
+				poolDelete(file)
+			}
 		}
 		poolProcessTime = time.Now().Add(poolProcessDelay)
 		// Break out of the loop if we're not running as a daemon
@@ -212,169 +216,6 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	} else {
 		Trace.Printf("Forwarding message to: %s", sendto)
 		err = cutmarks(buf.Bytes(), sendto)
-	}
-	return
-}
-
-func processPoolFile(filename string, public *keymgr.Pubring, secret *keymgr.Secring, idlog idlog.IDLog) (err error) {
-	f, err := os.Open(path.Join(cfg.Files.Pooldir, filename))
-	defer f.Close()
-	if err != nil {
-		return
-	}
-	Trace.Printf("Processing pool file: %s\n", filename)
-	// Initialize some slices for the message components
-	header := make([]byte, headerBytes)
-	headers := make([]byte, encHeadBytes)
-	body := make([]byte, bodyBytes)
-	var bytesRead int
-	// Read each message component and validate its size
-	bytesRead, err = f.Read(header)
-	if err != nil {
-		return
-	}
-	if bytesRead != headerBytes {
-		Warn.Printf("Incorrect header bytes. Wanted=%d, Got=%d", headerBytes, bytesRead)
-		return
-	}
-	bytesRead, err = f.Read(headers)
-	if err != nil {
-		return
-	}
-	if bytesRead != encHeadBytes {
-		Warn.Printf("Incorrect headers bytes. Wanted=%d, Got=%d", encHeadBytes, bytesRead)
-		return
-	}
-	bytesRead, err = f.Read(body)
-	if err != nil {
-		return
-	}
-	if bytesRead != bodyBytes {
-		Warn.Printf("Incorrect body bytes. Wanted=%d, Got=%d", bodyBytes, bytesRead)
-		return
-	}
-
-	var iv []byte
-	/*
-	decodeHead only returns the decrypted slotData bytes.  The other fields are
-	only concerned with performing the decryption.
-	*/
-	var decodedHeader []byte
-	decodedHeader, err = decodeHead(header, secret)
-	if err != nil {
-		return
-	}
-	// data contains the slotData struct
-	data := new(slotData)
-	err = data.decodeData(decodedHeader)
-	if err != nil {
-		return
-	}
-	// Test uniqueness of packet ID
-	if ! idlog.Unique(data.packetID, cfg.Remailer.IDexp) {
-		err = errors.New("Packet ID collision")
-		return
-	}
-	//digest := blake2.New(nil)
-	digest := sha512.New()
-	digest.Write(headers)
-	digest.Write(body)
-	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {
-		err = fmt.Errorf("Digest mismatch on Anti-tag hash")
-		return
-	}
-	if data.packetType == 0 {
-		Trace.Println("This is an Intermediate type message")
-		// inter contains the slotIntermediate struct
-		inter := new(slotIntermediate)
-		err = inter.decodeIntermediate(data.packetInfo)
-		if err != nil {
-			return
-		}
-		// Number of headers to decrypt is one less than max chain length
-		for headNum := 0; headNum < maxChainLength - 1; headNum++ {
-			iv, err = sPopBytes(&inter.aesIVs, 16)
-			if err != nil {
-				return
-			}
-			sbyte := headNum * headerBytes
-			ebyte := (headNum + 1) * headerBytes
-			copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
-		}
-		// The tenth IV is used to encrypt the deterministic header
-		iv, err = sPopBytes(&inter.aesIVs, 16)
-		if err != nil {
-			return
-		}
-		//fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
-		fakeHeader := make([]byte, headerBytes)
-		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
-		// Body is decrypted with the final IV
-		iv, err = sPopBytes(&inter.aesIVs, 16)
-		if err != nil {
-			return
-		}
-		copy(body, AES_CTR(body, data.aesKey, iv))
-		// At this point there should be zero bytes left in the inter IV pool
-		if len(inter.aesIVs) != 0 {
-			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
-			return
-		}
-		err = exportMessage(headers, fakeHeader, body, inter.nextHop)
-		if err != nil {
-			return
-		}
-	} else if data.packetType == 1 {
-		Trace.Println("This is an Exit type message")
-		final := new(slotFinal)
-		err = final.decodeFinal(data.packetInfo)
-		if err != nil {
-			return
-		}
-		// Test for dummy message
-		if final.deliveryMethod == 255 {
-			Trace.Println("Discarding dummy message")
-			return
-		}
-		body = AES_CTR(body[:final.bodyBytes], data.aesKey, final.aesIV)
-		// If delivery methods other than SMTP are ever supported, something needs
-		// to happen around here.
-		if final.deliveryMethod != 0 {
-			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
-			return
-		}
-		if cfg.Remailer.Exit {
-			var recipients []string
-			recipients, err = testMail(body)
-			if err != nil {
-				return
-			}
-			for _, sendto := range recipients {
-				if cfg.Mail.Sendmail {
-					err = sendmail(body, sendto)
-					if err != nil {
-						Warn.Println("Sendmail failed")
-						return
-					}
-				} else {
-					err = SMTPRelay(body, sendto)
-					if err != nil {
-						Warn.Println("SMTP relay failed")
-						return
-					}
-				} // End of Sendmail or Relay condition
-			} // recipients loop
-		} else {
-			// Need to randhop as we're not an exit remailer
-			randhop(body, public)
-		} // End of Exit or Randhop
-	} // Intermediate or exit
-	// Decide if we want to inject a dummy
-	if randomInt(20) < 3 {
-		err = dummy(public)
-		if err != nil {
-			Warn.Printf("Sending dummy failed: %s", err)
-		}
 	}
 	return
 }

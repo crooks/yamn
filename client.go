@@ -235,7 +235,7 @@ func mixmsg(
 			data.aesKey = keys[hopNum - 1]
 			inter.aesIVs = ivs[hopNum - 1]
 			// The chain hasn't been popped yet so hop still contains the last node name.
-			inter.nextHop = hop + strings.Repeat("\x00", 80 - len(hop))
+			inter.setNextHop(hop)
 			data.packetInfo = inter.encodeIntermediate()
 			data.packetID = randbytes(16)
 			// Encrypt the current header slots

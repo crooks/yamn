@@ -3,6 +3,8 @@
 package main
 
 import (
+	"os"
+	"strings"
 	"net/mail"
 	"bytes"
 	"fmt"
@@ -42,6 +44,39 @@ func testMail(b []byte) (recipients []string, err error) {
 	}
 	for _, addy := range addys {
 		recipients = append(recipients, addy.Address)
+	}
+	return
+}
+
+func mailFile(filename string) (err error) {
+	var f *os.File
+	f, err = os.Open(filename)
+	defer f.Close()
+	addy := make([]byte, 80)
+	var bytesRead int
+	bytesRead, err = f.Read(addy)
+	if err != nil {
+		Warn.Printf("Failed to read address from %s: %s", filename, err)
+	}
+	if bytesRead != 80 {
+		Error.Println("Incorrect byte count reading email address from",
+			fmt.Sprintf("%s. Expected=80, Got=%d", filename, bytesRead))
+	}
+	sendto := strings.TrimRight(string(addy), "\x00")
+	Trace.Printf("Pool recipient is: %s", sendto)
+	payload := make([]byte, messageBytes)
+	bytesRead, err = f.Read(payload)
+	if err != nil {
+		Warn.Printf("Failed to read payload from %s: %s", filename, err)
+	}
+	if bytesRead != messageBytes {
+		Error.Println("Incorrect byte count reading payload from",
+			fmt.Sprintf("%s. Expected=%d, Got=%d", filename, messageBytes, bytesRead))
+	}
+	err = cutmarks(payload, sendto)
+	if err != nil {
+		Warn.Printf("Cutmarking failed: %s", err)
+		return
 	}
 	return
 }
