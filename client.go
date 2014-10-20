@@ -172,7 +172,7 @@ func mixprep() {
 				got_exit = true
 			}
 			encmsg, sendTo := mixmsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
-			err = poolWriter(armor(encmsg, sendTo), sendTo)
+			err = outPoolWrite(armor(encmsg, sendTo), sendTo)
 			if err != nil {
 				Warn.Println(err)
 			}

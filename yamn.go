@@ -76,10 +76,19 @@ func main() {
 		mixprep()
 	} else if flag_stdin {
 		// Expecting a remailer message on Stdin
-		err = poolWrite(os.Stdin)
+		var msg []byte
+		msg, err = stripArmor(os.Stdin)
     if err != nil {
 			Warn.Println(err)
     }
+		// remailer-foo requests will have nil payloads.
+		// We don't want to pool them!
+		if msg != nil {
+			err = inPoolWrite(msg)
+  	  if err != nil {
+				Warn.Println(err)
+	    }
+		}
 	} else if flag_remailer {
 		err = loopServer()
 		if err != nil {

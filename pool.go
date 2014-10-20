@@ -58,133 +58,6 @@ func poolDelete(filename string) (err error) {
 	return
 }
 
-// poolWrite takes a Mixmaster formatted message from an io reader and
-// stores it in the pool.
-func poolWrite(reader io.Reader) (err error) {
-	scanner := bufio.NewScanner(reader)
-	scanPhase := 0
-	var b64 string
-	var payloadLen int
-	var payloadDigest []byte
-	var poolFileName string
-	var msgFrom string
-	var msgSubject string
-	var remailerFooRequest bool
-	/* Scan phases are:
-	0	Expecting ::
-	1 Expecting Begin cutmarks
-	2 Expecting size
-	3	Expecting hash
-	4 In payload and checking for End cutmark
-	5 Got End cutmark
-	255 Ignore and return
-	*/
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch scanPhase {
-		case 0:
-			// Expecting ::\n (or maybe a Mail header)
-			if line == "::" {
-				scanPhase = 1
-				continue
-			}
-			if flag_stdin {
-				if strings.HasPrefix(line, "Subject: ") {
-					// We have a Subject header.  This is probably a mail message.
-					msgSubject = strings.ToLower(line[9:])
-					if strings.HasPrefix(msgSubject, "remailer-") {
-						remailerFooRequest = true
-					}
-				} else if strings.HasPrefix(line, "From: ") {
-					// A From header might be useful if this is a remailer-foo request.
-					msgFrom = line[6:]
-				}
-				if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
-					// Do remailer-foo processing
-					err = remailerFoo(msgSubject, msgFrom)
-					if err != nil {
-						Info.Println(err)
-						err = nil
-					}
-					// Don't bother to read any further
-					scanPhase = 255
-					break
-				}
-			} // End of STDIN flag test
-		case 1:
-			// Expecting Begin cutmarks
-			if line == "-----BEGIN REMAILER MESSAGE-----" {
-				scanPhase = 2
-			}
-		case 2:
-			// Expecting size
-			payloadLen, err = strconv.Atoi(line)
-			if err != nil {
-				err = fmt.Errorf("Unable to extract payload size from %s", line)
-				return
-			}
-			scanPhase = 3
-		case 3:
-			if len(line) != 24 {
-				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
-				return
-			} else {
-				payloadDigest, err = base64.StdEncoding.DecodeString(line)
-				if err != nil {
-					err = fmt.Errorf("Unable to decode Base64 hash on payload")
-					return
-				}
-				poolFileName = "m" + hex.EncodeToString(payloadDigest)
-			}
-			scanPhase = 4
-		case 4:
-			if line == "-----END REMAILER MESSAGE-----" {
-				scanPhase = 5
-				break
-			}
-			b64 += line
-		} // End of switch
-	} // End of file scan
-	switch scanPhase {
-	case 0:
-		err = errors.New("No :: found on message")
-		return
-	case 1:
-		err = errors.New("No Begin cutmarks found on message")
-		return
-	case 4:
-		err = errors.New("No End cutmarks found on message")
-		return
-	case 255:
-		return
-	}
-	var payload []byte
-	payload, err = base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		Info.Printf("Unable to decode Base64 payload")
-		return
-	}
-	if len(payload) != payloadLen {
-		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
-		return
-	}
-	//digest := blake2.New(&blake2.Config{Size: 16})
-	digest := sha256.New()
-	digest.Write(payload)
-	if ! bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
-		Info.Println("Incorrect payload digest")
-		return
-	}
-	outFileName := path.Join(cfg.Files.Pooldir, poolFileName[:14])
-	err = ioutil.WriteFile(outFileName, payload, 0600)
-	if err != nil {
-		Error.Printf("Failed to write %s to %s\n", outFileName, cfg.Files.Pooldir)
-		return
-	}
-	return
-}
-
-
 // readdir returns a list of files in a specified directory that begin with
 // the specified prefix.
 func readDir(path, prefix string) (files []string, err error) {
@@ -311,13 +184,17 @@ func mailRead(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (e
 				Warn.Printf("%s: Reading message failed with: %s", key, err)
 				continue
 			}
-			var msg *yamnMsg
+			var msg []byte
 			// Convert the armored Yamn message to its byte components
 			msg, err = stripArmor(mailMsg.Body)
 			if err != nil {
 				Info.Println(err)
 			}
-			err = msg.decodeMsg(secret, id)
+			if msg == nil {
+				Warn.Println("Dearmor returned zero bytes")
+				continue
+			}
+			err = decodeMsg(msg, secret, id)
 			if err != nil {
 				Info.Println(err)
 			}
@@ -337,28 +214,17 @@ func mailRead(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (e
 	return
 }
 
-type yamnMsg struct {
-	header []byte // First message header
-	encHeaders []byte // Other header slots
-	body []byte // Message body
-}
-
-func newYamnMsg() *yamnMsg {
-	return &yamnMsg{
-		header: make([]byte, headerBytes),
-		encHeaders: make([]byte, encHeadBytes),
-		body: make([]byte, bodyBytes),
-	}
-}
-
 // stripArmor takes a Mixmaster formatted message from an ioreader and
 // returns its payload as a byte slice
-func stripArmor(reader io.Reader) (msg *yamnMsg, err error) {
+func stripArmor(reader io.Reader) (payload []byte, err error) {
 	scanner := bufio.NewScanner(reader)
 	scanPhase := 0
 	var b64 string
 	var payloadLen int
 	var payloadDigest []byte
+	var msgFrom string
+	var msgSubject string
+	var remailerFooRequest bool
 	/* Scan phases are:
 	0	Expecting ::
 	1 Expecting Begin cutmarks
@@ -366,15 +232,40 @@ func stripArmor(reader io.Reader) (msg *yamnMsg, err error) {
 	3	Expecting hash
 	4 In payload and checking for End cutmark
 	5 Got End cutmark
+	255 Ignore and return
 	*/
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch scanPhase {
 		case 0:
-			// Expecting ::\n
+			// Expecting ::\n (or maybe a Mail header)
 			if line == "::" {
 				scanPhase = 1
+				continue
 			}
+			if flag_stdin {
+				if strings.HasPrefix(line, "Subject: ") {
+					// We have a Subject header.  This is probably a mail message.
+					msgSubject = strings.ToLower(line[9:])
+					if strings.HasPrefix(msgSubject, "remailer-") {
+						remailerFooRequest = true
+					}
+				} else if strings.HasPrefix(line, "From: ") {
+					// A From header might be useful if this is a remailer-foo request.
+					msgFrom = line[6:]
+				}
+				if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
+					// Do remailer-foo processing
+					err = remailerFoo(msgSubject, msgFrom)
+					if err != nil {
+						Info.Println(err)
+						err = nil
+					}
+					// Don't bother to read any further
+					scanPhase = 255
+					break
+				}
+			} // End of STDIN flag test
 		case 1:
 			// Expecting Begin cutmarks
 			if line == "-----BEGIN REMAILER MESSAGE-----" {
@@ -418,8 +309,9 @@ func stripArmor(reader io.Reader) (msg *yamnMsg, err error) {
 	case 4:
 		err = errors.New("No End cutmarks found on message")
 		return
+	case 255:
+		return
 	}
-	var payload []byte
 	payload, err = base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		Info.Printf("Unable to decode Base64 payload")
@@ -436,26 +328,26 @@ func stripArmor(reader io.Reader) (msg *yamnMsg, err error) {
 		Info.Println("Incorrect payload digest")
 		return
 	}
-	msg = newYamnMsg()
-	msg.header = payload[:headerBytes]
-	msg.encHeaders = payload[headerBytes:headersBytes]
-	msg.body = payload[headersBytes:]
-	if len(msg.body) != bodyBytes {
-		Warn.Printf("Incorrect body size during dearmor. Expected=%d, Got=%d",
-			bodyBytes, len(msg.body))
-		return
-	}
 	return
 }
 
-func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error) {
+func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error) {
+	// Split the message into its component parts
+	msgHeader := rawMsg[:headerBytes]
+	msgEncHeaders := rawMsg[headerBytes:headersBytes]
+	msgBody := rawMsg[headersBytes:]
+	if len(msgBody) != bodyBytes {
+		Warn.Printf("Incorrect body size during dearmor. Expected=%d, Got=%d",
+			bodyBytes, len(msgBody))
+		return
+	}
 	var iv []byte
 	/*
 	decodeHead only returns the decrypted slotData bytes.  The other fields are
 	only concerned with performing the decryption.
 	*/
 	var decodedHeader []byte
-	decodedHeader, err = decodeHead(msg.header, secret)
+	decodedHeader, err = decodeHead(msgHeader, secret)
 	if err != nil {
 		return
 	}
@@ -472,8 +364,8 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 	}
 	//digest := blake2.New(nil)
 	digest := sha512.New()
-	digest.Write(msg.encHeaders)
-	digest.Write(msg.body)
+	digest.Write(msgEncHeaders)
+	digest.Write(msgBody)
 	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {
 		err = fmt.Errorf("Digest mismatch on Anti-tag hash")
 		return
@@ -494,7 +386,7 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 			}
 			sbyte := headNum * headerBytes
 			ebyte := (headNum + 1) * headerBytes
-			copy(msg.encHeaders[sbyte:ebyte], AES_CTR(msg.encHeaders[sbyte:ebyte], data.aesKey, iv))
+			copy(msgEncHeaders[sbyte:ebyte], AES_CTR(msgEncHeaders[sbyte:ebyte], data.aesKey, iv))
 		}
 		// The tenth IV is used to encrypt the deterministic header
 		iv, err = sPopBytes(&inter.aesIVs, 16)
@@ -509,7 +401,7 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 		if err != nil {
 			return
 		}
-		copy(msg.body, AES_CTR(msg.body, data.aesKey, iv))
+		copy(msgBody, AES_CTR(msgBody, data.aesKey, iv))
 		// At this point there should be zero bytes left in the inter IV pool
 		if len(inter.aesIVs) != 0 {
 			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
@@ -517,14 +409,14 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 		}
 		// Insert encrypted headers
 		mixMsg := make([]byte, encHeadBytes, messageBytes)
-		copy(mixMsg, msg.encHeaders)
+		copy(mixMsg, msgEncHeaders)
 		// Insert fake header
 		mixMsg = mixMsg[0:len(mixMsg) + headerBytes]
 		copy(mixMsg[encHeadBytes:], fakeHeader)
 		// Insert body
 		msgLen := len(mixMsg)
 		mixMsg = mixMsg[0:msgLen + bodyBytes]
-		copy(mixMsg[msgLen:], msg.body)
+		copy(mixMsg[msgLen:], msgBody)
 		// Create a string from the nextHop, for populating a To header
 		sendTo := inter.getNextHop()
 		if sendTo == cfg.Remailer.Address {
@@ -537,7 +429,7 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 				return
 			}
 		} else {
-			err = poolWriter(armor(mixMsg, sendTo), sendTo)
+			err = outPoolWrite(armor(mixMsg, sendTo), sendTo)
 			if err != nil {
 				Warn.Printf("Unable to create pool file: %s", err)
 				return
@@ -555,7 +447,7 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 			Trace.Println("Discarding dummy message")
 			return
 		}
-		msg.body = AES_CTR(msg.body[:final.bodyBytes], data.aesKey, final.aesIV)
+		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)
 		// If delivery methods other than SMTP are ever supported, something needs
 		// to happen around here.
 		if final.deliveryMethod != 0 {
@@ -564,12 +456,12 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 		}
 		if cfg.Remailer.Exit {
 			var recipients []string
-			recipients, err = testMail(msg.body)
+			recipients, err = testMail(msgBody)
 			if err != nil {
 				return
 			}
 			for _, sendTo := range recipients {
-				err = poolWriter(msg.body, sendTo)
+				err = outPoolWrite(msgBody, sendTo)
 				if err != nil {
 					Warn.Printf("Exit message for %s not pooled", sendTo)
 				}
@@ -583,7 +475,17 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 	return
 }
 
-func poolWriter(payload []byte, sendTo string) (err error) {
+func inPoolWrite(mixMsg []byte) (err error) {
+	outfileName := randPoolFilename("i")
+	err = ioutil.WriteFile(outfileName, mixMsg, 0600)
+	if err != nil {
+	Warn.Printf("Failed to write raw message to pool: %s", err)
+		return
+	}
+	return
+}
+
+func outPoolWrite(payload []byte, sendTo string) (err error) {
 	digest := sha256.New()
 	digest.Write([]byte(sendTo))
 	digest.Write(payload)
