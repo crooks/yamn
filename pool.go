@@ -515,64 +515,34 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
 			return
 		}
-		digest := sha256.New()
-		digest.Write(inter.nextHop)
-		digest.Write(msg.body)
-		poolFileName := "m" + hex.EncodeToString(digest.Sum(nil))[:14]
-		var f *os.File
-		f, err = os.Create(path.Join(cfg.Files.Pooldir, poolFileName))
-		if err != nil {
-			Warn.Printf("Unable to create pool file: %s", err)
-			return
-		}
-		defer f.Close()
-		// numBytes is populated with the number of Bytes written by each Write.
-		var numBytes int
-		// Write nextHop
-		numBytes, err = f.Write(inter.nextHop)
-		if err != nil {
-			Error.Printf("Failed to write Next Hop to pool: %s", err)
-			return
-		}
-		if numBytes != 80 {
-			err = fmt.Errorf("Wrong byte count writing nextHop. Expected=80, Got=%d",
-				numBytes)
-			return
-		}
-		// Write headers
-		numBytes, err = f.Write(msg.encHeaders)
-		if err != nil {
-			Error.Printf("Failed to write headers to pool: %s", err)
-			return
-		}
-		if numBytes != encHeadBytes {
-			err = fmt.Errorf("Wrong byte count writing headers. Expected=%d, Got=%d",
-				encHeadBytes, numBytes)
-			return
-		}
-		// Write fake header
-		numBytes, err = f.Write(fakeHeader)
-		if err != nil {
-			Error.Printf("Failed to write fake header to pool: %s", err)
-			return
-		}
-		if numBytes != headerBytes {
-			err = fmt.Errorf("Wrong byte count writing fake header. Expected=%d, Got=%d",
-				headerBytes, numBytes)
-			return
-		}
-		// Write body
-		numBytes, err = f.Write(msg.body)
-		if err != nil {
-			Error.Printf("Failed to write body to pool: %s", err)
-			return
-		}
-		if numBytes != bodyBytes {
-			err = fmt.Errorf("Wrong byte count writing body. Expected=%d, Got=%d",
-				bodyBytes, numBytes)
-			return
-		}
-		return
+		// Insert encrypted headers
+		mixMsg := make([]byte, encHeadBytes, messageBytes)
+		copy(mixMsg, msg.encHeaders)
+		// Insert fake header
+		mixMsg = mixMsg[0:len(mixMsg) + headerBytes]
+		copy(mixMsg[encHeadBytes:], fakeHeader)
+		// Insert body
+		msgLen := len(mixMsg)
+		mixMsg = mixMsg[0:msgLen + bodyBytes]
+		copy(mixMsg[msgLen:], msg.body)
+		// Create a string from the nextHop, for populating a To header
+		sendTo := inter.getNextHop()
+		if sendTo == cfg.Remailer.Address {
+			Info.Println("Message loops back to us.",
+				"Storing in pool instead of sending it.")
+			outfileName := randPoolFilename("i")
+			err = ioutil.WriteFile(outfileName, mixMsg, 0600)
+			if err != nil {
+				Warn.Printf("Failed to write to pool: %s", err)
+				return
+			}
+		} else {
+			err = poolWriter(armor(mixMsg, sendTo), sendTo)
+			if err != nil {
+				Warn.Printf("Unable to create pool file: %s", err)
+				return
+			}
+		} // End of local or remote delivery
 	} else if data.packetType == 1 {
 		Trace.Println("This is an Exit type message")
 		final := new(slotFinal)
@@ -598,20 +568,11 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 			if err != nil {
 				return
 			}
-			for _, sendto := range recipients {
-				if cfg.Mail.Sendmail {
-					err = sendmail(msg.body, sendto)
-					if err != nil {
-						Warn.Println("Sendmail failed")
-						return
-					}
-				} else {
-					err = SMTPRelay(msg.body, sendto)
-					if err != nil {
-						Warn.Println("SMTP relay failed")
-						return
-					}
-				} // End of Sendmail or Relay condition
+			for _, sendTo := range recipients {
+				err = poolWriter(msg.body, sendTo)
+				if err != nil {
+					Warn.Printf("Exit message for %s not pooled", sendTo)
+				}
 			} // recipients loop
 		} else {
 			// Need to randhop as we're not an exit remailer
@@ -619,5 +580,38 @@ func (msg *yamnMsg) decodeMsg(secret *keymgr.Secring, id idlog.IDLog) (err error
 			//randhop(msg.body, public)
 		} // End of Exit or Randhop
 	} // Intermediate or exit
+	return
+}
+
+func poolWriter(payload []byte, sendTo string) (err error) {
+	digest := sha256.New()
+	digest.Write([]byte(sendTo))
+	digest.Write(payload)
+	poolFileName := "m" + hex.EncodeToString(digest.Sum(nil))[:14]
+	var f *os.File
+	f, err = os.Create(path.Join(cfg.Files.Pooldir, poolFileName))
+	if err != nil {
+		Error.Printf("Unable to create pool file: %s", err)
+		return
+	}
+	defer f.Close()
+	// Write recipient
+	paddedSendTo := []byte(sendTo + strings.Repeat("\x00", 80 - len(sendTo)))
+	var numBytes int
+	numBytes, err = f.Write(paddedSendTo)
+	if err != nil {
+		Error.Printf("Failed to write recipient to pool file: %s", err)
+		return
+	}
+	if numBytes != 80 {
+		Error.Println("Wrong byte count writing recipient to pool.",
+			fmt.Sprintf("Expected=80, Got=%d", numBytes))
+		return
+	}
+	_, err = f.Write(payload)
+	if err != nil {
+		Error.Printf("Failed to write payload to pool file: %s", err)
+		return
+	}
 	return
 }

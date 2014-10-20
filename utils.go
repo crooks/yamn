@@ -56,6 +56,20 @@ func randInts(n int) (m []int) {
 	return
 }
 
+// randPoolFilename returns a random filename with a given prefix
+func randPoolFilename(prefix string) (fqfn string) {
+	for {
+		outfileName := prefix + hex.EncodeToString(randbytes(7))
+		fqfn = path.Join(cfg.Files.Pooldir, outfileName)
+		_, err := os.Stat(fqfn)
+		if err != nil {
+			// For once we want an error (indicating the file doesn't exist)
+			break
+		}
+	}
+	return
+}
+
 // lenCheck verifies that a slice is of a specified length
 func lenCheck(got, expected int) (err error) {
 	if got != expected {
@@ -191,5 +205,35 @@ func cutmarks(mixmsg []byte, sendto string) (err error) {
 		}
 	}
 	return
+}
+
+// armor encodes a mixmsg into a Mixmaster formatted email payload
+func armor(mixmsg []byte, sendto string) []byte {
+	/*
+	With the exception of email delivery to recipients, every outbound message
+	should be wrapped by this function.
+	*/
+	buf := new(bytes.Buffer)
+	if ! cfg.Mail.Outfile {
+		// Add email headers as we're not writing output to a file
+		buf.WriteString(fmt.Sprintf("To: %s\n", sendto))
+		buf.WriteString(fmt.Sprintf("From: %s\n", cfg.Mail.EnvelopeSender))
+		buf.WriteString("\n")
+	}
+	buf.WriteString("::\n")
+	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
+	buf.WriteString(header)
+	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
+	// Write message length
+	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
+	//digest := blake2.New(&blake2.Config{Size: 16})
+	digest := sha256.New()
+	digest.Write(mixmsg)
+	// Write message digest
+	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)[:16]) + "\n")
+	// Write the payload
+	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(mixmsg)) + "\n")
+	buf.WriteString("-----END REMAILER MESSAGE-----\n")
+	return buf.Bytes()
 }
 

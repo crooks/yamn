@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/mail"
 	"strings"
+	"path"
 	"math"
 	"errors"
 	"crypto/sha512"
@@ -170,13 +171,26 @@ func mixprep() {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
 			}
-			encmsg, sendto := mixmsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
-			err = cutmarks(encmsg, sendto)
+			encmsg, sendTo := mixmsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
+			err = poolWriter(armor(encmsg, sendTo), sendTo)
 			if err != nil {
 				Warn.Println(err)
 			}
 		} // End of copies loop
 	} // End of fragments loop
+	var filenames []string
+	filenames, err = poolRead()
+	if err != nil {
+		Warn.Printf("Reading pool failed: %s", err)
+	}
+	for _, file := range filenames {
+		err = mailFile(path.Join(cfg.Files.Pooldir, file))
+		if err != nil {
+			Warn.Printf("Pool mailing failed: %s", err)
+		} else {
+			poolDelete(file)
+		}
+	}
 }
 
 // mixmsg encodes a plaintext fragment into mixmaster format.

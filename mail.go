@@ -8,8 +8,12 @@ import (
 	"net/mail"
 	"bytes"
 	"fmt"
+	"path"
+	"encoding/hex"
 	"net/smtp"
+	"io/ioutil"
 	"errors"
+	"crypto/sha256"
 )
 
 func assemble(msg mail.Message) []byte {
@@ -49,34 +53,40 @@ func testMail(b []byte) (recipients []string, err error) {
 }
 
 func mailFile(filename string) (err error) {
-	var f *os.File
-	f, err = os.Open(filename)
-	defer f.Close()
-	addy := make([]byte, 80)
-	var bytesRead int
-	bytesRead, err = f.Read(addy)
+	var payload []byte
+	payload, err = ioutil.ReadFile(filename)
 	if err != nil {
-		Warn.Printf("Failed to read address from %s: %s", filename, err)
-	}
-	if bytesRead != 80 {
-		Error.Println("Incorrect byte count reading email address from",
-			fmt.Sprintf("%s. Expected=80, Got=%d", filename, bytesRead))
-	}
-	sendto := strings.TrimRight(string(addy), "\x00")
-	Trace.Printf("Pool recipient is: %s", sendto)
-	payload := make([]byte, messageBytes)
-	bytesRead, err = f.Read(payload)
-	if err != nil {
-		Warn.Printf("Failed to read payload from %s: %s", filename, err)
-	}
-	if bytesRead != messageBytes {
-		Error.Println("Incorrect byte count reading payload from",
-			fmt.Sprintf("%s. Expected=%d, Got=%d", filename, messageBytes, bytesRead))
-	}
-	err = cutmarks(payload, sendto)
-	if err != nil {
-		Warn.Printf("Cutmarking failed: %s", err)
+		Error.Printf("Failed to read file for mailing: %s", err)
 		return
+	}
+	sendTo := strings.TrimRight(string(payload[:80]), "\x00")
+	payload = payload[80:]
+	// Test if the message is destined for the local remailer
+	Trace.Printf("Message recipient is: %s", sendTo)
+	if cfg.Mail.Outfile {
+		var f *os.File
+		digest := sha256.New()
+		digest.Write(payload)
+		filename := "outfile-" + hex.EncodeToString(digest.Sum(nil)[:16])
+		f, err = os.Create(path.Join(cfg.Files.Pooldir, filename))
+		defer f.Close()
+		_, err = f.WriteString(string(payload))
+		if err != nil {
+			Warn.Printf("Outfile write failed: %s\n", err)
+			return
+		}
+	} else if cfg.Mail.Sendmail {
+		err = sendmail(payload, sendTo)
+		if err != nil {
+			Warn.Println("Sendmail failed")
+			return
+		}
+	} else {
+		err = SMTPRelay(payload, sendTo)
+		if err != nil {
+			Warn.Println("SMTP relay failed")
+			return
+		}
 	}
 	return
 }
