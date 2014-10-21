@@ -125,7 +125,6 @@ func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
 		return
 	}
 	poolSize := len(poolFiles)
-	}
 	processed := 0
 	for _, f := range poolFiles {
 		filename := path.Join(cfg.Files.Pooldir, f)
