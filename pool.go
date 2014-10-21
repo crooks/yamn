@@ -125,6 +125,7 @@ func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
 		return
 	}
 	poolSize := len(poolFiles)
+	}
 	processed := 0
 	for _, f := range poolFiles {
 		filename := path.Join(cfg.Files.Pooldir, f)
@@ -141,8 +142,10 @@ func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
 		poolDelete(f)
 		processed++
 	}
-	Trace.Printf("Inbound pool processing complete. Read=%d, Decoded=%d",
-		poolSize, processed)
+	if poolSize > 0 {
+		Trace.Printf("Inbound pool processing complete. Read=%d, Decoded=%d",
+			poolSize, processed)
+	}
 }
 
 // inPoolWrite writes a raw Byte Yamn message to the Inbound pool
