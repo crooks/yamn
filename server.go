@@ -95,15 +95,19 @@ func loopServer() (err error) {
 	}
 	for {
 		if flag_daemon && time.Now().Before(poolProcessTime) {
-			mailRead(public, secret, id)
+			// Process the inbound Pool
+			processInpool("i", secret, id)
+			// Process the Maildir
+			processMail(public, secret, id)
 			// Don't do anything beyond this point until poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
 		} else if ! flag_daemon {
 			/*
-			When not running as a Daemon, always read mail first. Otherwise, the
-			loop will terminate before mail is ever read.
+			When not running as a Daemon, always read sources first. Otherwise, the
+			loop will terminate before they're ever read.
 			*/
+			processInpool("i", secret, id)
 			mailRead(public, secret, id)
 		}
 		// Test if it's time to do daily events

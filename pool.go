@@ -25,6 +25,7 @@ import (
 	"github.com/luksen/maildir"
 )
 
+// poolRead returns a dynamic Mix of filenames from the outbound pool
 func poolRead() (selectedPoolFiles []string, err error) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
@@ -49,6 +50,7 @@ func poolRead() (selectedPoolFiles []string, err error) {
 	return
 }
 
+// Delete a given file from the pool
 func poolDelete(filename string) (err error) {
 	// Delete a pool file
 	err = os.Remove(path.Join(cfg.Files.Pooldir, filename))
@@ -150,7 +152,8 @@ func remailerFoo(subject, sender string) (err error) {
 	return
 }
 
-func mailRead(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (err error) {
+// processMail reads the Remailer's Maildir and processes the content
+func processMail(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (err error) {
 	dir := maildir.Dir(cfg.Files.Maildir)
 	// Get a list of Maildir keys from the directory
 	keys, err := dir.Unseen()
@@ -212,6 +215,34 @@ func mailRead(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (e
 		}
 	} // Maildir keys loop
 	return
+}
+
+// processInpool is similar to processMail but reads the Inbound Pool
+func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
+	poolFiles, err := readDir(cfg.Files.Pooldir, prefix)
+	if err != nil {
+		Warn.Printf("Unable to access inbound pool: %s", err)
+		return
+	}
+	poolSize := len(poolFiles)
+	processed := 0
+	for _, f := range poolFiles {
+		filename := path.Join(cfg.Files.Pooldir, f)
+		msg := make([]byte, messageBytes)
+		msg, err = ioutil.ReadFile(filename)
+		if err != nil {
+			Warn.Printf("Failed to read %s from pool: %s", f, err)
+			continue
+		}
+		err = decodeMsg(msg, secret, id)
+		if err != nil {
+			Warn.Println(err)
+		}
+		poolDelete(f)
+		processed++
+	}
+	Trace.Printf("Inbound pool processing complete. Read=%d, Decoded=%d",
+		poolSize, processed)
 }
 
 // stripArmor takes a Mixmaster formatted message from an ioreader and
@@ -331,6 +362,8 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	return
 }
 
+// decodeMsg is the actual YAMN message decoder.  It's output is always a pooled
+// file, either in the Inbound or Outbound queue.
 func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error) {
 	// Split the message into its component parts
 	msgHeader := rawMsg[:headerBytes]
