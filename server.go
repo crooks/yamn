@@ -328,6 +328,11 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 			} // Randhop condition
 		} // recipients loop
 	} // Intermediate or exit
+
+	// Decide if we want to inject a dummy
+	if randomInt(20) < 3 {
+		dummy(public)
+	}
 	return
 }
 
@@ -366,7 +371,8 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 }
 
 // dummy is a simplified client function that sends dummy messages
-func dummy(public *keymgr.Pubring) (err error) {
+func dummy(public *keymgr.Pubring) {
+	var err error
 	plainMsg := []byte("I hope Len approves")
 	// Make a single hop chain with a random node
 	in_chain := []string{"*","*"}

@@ -100,13 +100,6 @@ func processMail(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog)
 			if err != nil {
 				Info.Println(err)
 			}
-			// Decide if we want to inject a dummy
-			if randomInt(20) < 3 {
-				err = dummy(public)
-				if err != nil {
-					Warn.Printf("Sending dummy failed: %s", err)
-				}
-			}
 		} // End of remailer-foo or remailer message
 		err = dir.Purge(key)
 		if err != nil {

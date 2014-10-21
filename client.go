@@ -178,6 +178,13 @@ func mixprep() {
 			}
 		} // End of copies loop
 	} // End of fragments loop
+
+	// Decide if we want to inject a dummy
+	if randomInt(7) < 3 {
+		dummy(pubring)
+	}
+
+	// Process the outbound pool
 	var filenames []string
 	filenames, err = poolRead()
 	if err != nil {
@@ -305,8 +312,5 @@ func injectDummy() {
 	// Populate public keyring
 	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
 	public.ImportPubring()
-	err := dummy(public)
-	if err != nil {
-		Info.Println("Dummy injection failed")
-	}
+	dummy(public)
 }
