@@ -222,6 +222,152 @@ func exportMessage(headers, fake, body []byte, sendto string) (err error) {
 	return
 }
 
+// decodeMsg is the actual YAMN message decoder.  It's output is always a pooled
+// file, either in the Inbound or Outbound queue.
+func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error) {
+	// Split the message into its component parts
+	msgHeader := rawMsg[:headerBytes]
+	msgEncHeaders := rawMsg[headerBytes:headersBytes]
+	msgBody := rawMsg[headersBytes:]
+	if len(msgBody) != bodyBytes {
+		Warn.Printf("Incorrect body size during dearmor. Expected=%d, Got=%d",
+			bodyBytes, len(msgBody))
+		return
+	}
+	var iv []byte
+	/*
+	decodeHead only returns the decrypted slotData bytes.  The other fields are
+	only concerned with performing the decryption.
+	*/
+	var decodedHeader []byte
+	decodedHeader, err = decodeHead(msgHeader, secret)
+	if err != nil {
+		return
+	}
+	// data contains the slotData struct
+	data := new(slotData)
+	err = data.decodeData(decodedHeader)
+	if err != nil {
+		return
+	}
+	// Test uniqueness of packet ID
+	if ! id.Unique(data.packetID, cfg.Remailer.IDexp) {
+		err = errors.New("Packet ID collision")
+		return
+	}
+	//digest := blake2.New(nil)
+	digest := sha512.New()
+	digest.Write(msgEncHeaders)
+	digest.Write(msgBody)
+	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {
+		err = fmt.Errorf("Digest mismatch on Anti-tag hash")
+		return
+	}
+	if data.packetType == 0 {
+		Trace.Println("This is an Intermediate type message")
+		// inter contains the slotIntermediate struct
+		inter := new(slotIntermediate)
+		err = inter.decodeIntermediate(data.packetInfo)
+		if err != nil {
+			return
+		}
+		// Number of headers to decrypt is one less than max chain length
+		for headNum := 0; headNum < maxChainLength - 1; headNum++ {
+			iv, err = sPopBytes(&inter.aesIVs, 16)
+			if err != nil {
+				return
+			}
+			sbyte := headNum * headerBytes
+			ebyte := (headNum + 1) * headerBytes
+			copy(msgEncHeaders[sbyte:ebyte], AES_CTR(msgEncHeaders[sbyte:ebyte], data.aesKey, iv))
+		}
+		// The tenth IV is used to encrypt the deterministic header
+		iv, err = sPopBytes(&inter.aesIVs, 16)
+		if err != nil {
+			return
+		}
+		//fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
+		fakeHeader := make([]byte, headerBytes)
+		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
+		// Body is decrypted with the final IV
+		iv, err = sPopBytes(&inter.aesIVs, 16)
+		if err != nil {
+			return
+		}
+		copy(msgBody, AES_CTR(msgBody, data.aesKey, iv))
+		// At this point there should be zero bytes left in the inter IV pool
+		if len(inter.aesIVs) != 0 {
+			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
+			return
+		}
+		// Insert encrypted headers
+		mixMsg := make([]byte, encHeadBytes, messageBytes)
+		copy(mixMsg, msgEncHeaders)
+		// Insert fake header
+		mixMsg = mixMsg[0:len(mixMsg) + headerBytes]
+		copy(mixMsg[encHeadBytes:], fakeHeader)
+		// Insert body
+		msgLen := len(mixMsg)
+		mixMsg = mixMsg[0:msgLen + bodyBytes]
+		copy(mixMsg[msgLen:], msgBody)
+		// Create a string from the nextHop, for populating a To header
+		sendTo := inter.getNextHop()
+		if sendTo == cfg.Remailer.Address {
+			Info.Println("Message loops back to us.",
+				"Storing in pool instead of sending it.")
+			outfileName := randPoolFilename("i")
+			err = ioutil.WriteFile(outfileName, mixMsg, 0600)
+			if err != nil {
+				Warn.Printf("Failed to write to pool: %s", err)
+				return
+			}
+		} else {
+			err = outPoolWrite(armor(mixMsg, sendTo), sendTo)
+			if err != nil {
+				Warn.Printf("Unable to create pool file: %s", err)
+				return
+			}
+		} // End of local or remote delivery
+	} else if data.packetType == 1 {
+		Trace.Println("This is an Exit type message")
+		final := new(slotFinal)
+		err = final.decodeFinal(data.packetInfo)
+		if err != nil {
+			return
+		}
+		// Test for dummy message
+		if final.deliveryMethod == 255 {
+			Trace.Println("Discarding dummy message")
+			return
+		}
+		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)
+		// If delivery methods other than SMTP are ever supported, something needs
+		// to happen around here.
+		if final.deliveryMethod != 0 {
+			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
+			return
+		}
+		if cfg.Remailer.Exit {
+			var recipients []string
+			recipients, err = testMail(msgBody)
+			if err != nil {
+				return
+			}
+			for _, sendTo := range recipients {
+				err = outPoolWrite(msgBody, sendTo)
+				if err != nil {
+					Warn.Printf("Exit message for %s not pooled", sendTo)
+				}
+			} // recipients loop
+		} else {
+			// Need to randhop as we're not an exit remailer
+			//TODO Sort out randhopping
+			//randhop(msg.body, public)
+		} // End of Exit or Randhop
+	} // Intermediate or exit
+	return
+}
+
 // randhop is a simplified client function that does single-hop encodings
 func randhop(message []byte, public *keymgr.Pubring) (err error) {
 	msglen := len(message)
