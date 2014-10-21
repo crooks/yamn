@@ -25,7 +25,6 @@ func poolRead() (selectedPoolFiles []string, err error) {
 		return
 	}
 	poolSize := len(poolFiles)
-	Trace.Printf("Pool contains %d messages.\n", poolSize)
 	if poolSize < cfg.Pool.Size {
 		// Pool isn't sufficiently populated
 		Trace.Println("Pool insufficiently populated to trigger sending.",
@@ -97,7 +96,7 @@ func processMail(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog)
 				Warn.Println("Dearmor returned zero bytes")
 				continue
 			}
-			err = decodeMsg(msg, secret, id)
+			err = decodeMsg(msg, public, secret, id)
 			if err != nil {
 				Info.Println(err)
 			}
@@ -118,7 +117,7 @@ func processMail(public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog)
 }
 
 // processInpool is similar to processMail but reads the Inbound Pool
-func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
+func processInpool(prefix string, public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, prefix)
 	if err != nil {
 		Warn.Printf("Unable to access inbound pool: %s", err)
@@ -134,7 +133,7 @@ func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
 			Warn.Printf("Failed to read %s from pool: %s", f, err)
 			continue
 		}
-		err = decodeMsg(msg, secret, id)
+		err = decodeMsg(msg, public, secret, id)
 		if err != nil {
 			Warn.Println(err)
 		}

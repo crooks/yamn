@@ -171,7 +171,7 @@ func mixprep() {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
 			}
-			encmsg, sendTo := mixmsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
+			encmsg, sendTo := encodeMsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
 			err = outPoolWrite(armor(encmsg, sendTo), sendTo)
 			if err != nil {
 				Warn.Println(err)
@@ -193,8 +193,8 @@ func mixprep() {
 	}
 }
 
-// mixmsg encodes a plaintext fragment into mixmaster format.
-func mixmsg(
+// encodeMsg encodes a plaintext fragment into mixmaster format.
+func encodeMsg(
 	msg, packetid []byte,
 	chain []string,
 	final slotFinal,

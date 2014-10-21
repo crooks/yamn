@@ -97,7 +97,7 @@ func loopServer() (err error) {
 	for {
 		if flag_daemon && time.Now().Before(poolProcessTime) {
 			// Process the inbound Pool
-			processInpool("i", secret, id)
+			processInpool("i", public, secret, id)
 			// Process the Maildir
 			processMail(public, secret, id)
 			// Don't do anything beyond this point until poolProcessTime
@@ -108,7 +108,7 @@ func loopServer() (err error) {
 			When not running as a Daemon, always read sources first. Otherwise, the
 			loop will terminate before they're ever read.
 			*/
-			processInpool("i", secret, id)
+			processInpool("i", public, secret, id)
 			processMail(public, secret, id)
 		}
 		// Test if it's time to do daily events
@@ -187,7 +187,7 @@ func loopServer() (err error) {
 
 // decodeMsg is the actual YAMN message decoder.  It's output is always a pooled
 // file, either in the Inbound or Outbound queue.
-func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error) {
+func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (err error) {
 	// Split the message into its component parts
 	msgHeader := rawMsg[:headerBytes]
 	msgEncHeaders := rawMsg[headerBytes:headersBytes]
@@ -292,7 +292,6 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error
 			}
 		} // End of local or remote delivery
 	} else if data.packetType == 1 {
-		Trace.Println("This is an Exit type message")
 		final := new(slotFinal)
 		err = final.decodeFinal(data.packetInfo)
 		if err != nil {
@@ -310,32 +309,32 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error
 			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
 			return
 		}
-		if cfg.Remailer.Exit {
-			var recipients []string
-			recipients, err = testMail(msgBody)
-			if err != nil {
-				return
-			}
-			for _, sendTo := range recipients {
+		var recipients []string
+		recipients, err = testMail(msgBody)
+		if err != nil {
+			return
+		}
+		for _, sendTo := range recipients {
+			if cfg.Remailer.Exit {
 				err = outPoolWrite(msgBody, sendTo)
 				if err != nil {
 					Warn.Printf("Exit message for %s not pooled", sendTo)
 				}
-			} // recipients loop
-		} else {
-			// Need to randhop as we're not an exit remailer
-			//TODO Sort out randhopping
-			//randhop(msg.body, public)
-		} // End of Exit or Randhop
+				Trace.Printf("Pooling Exit message for %s", sendTo)
+			} else { // Exit condition
+				// Need to randhop as we're not an exit remailer
+				Trace.Printf("Randhopping Exit message for %s", sendTo)
+				randhop(msgBody, public)
+			} // Randhop condition
+		} // recipients loop
 	} // Intermediate or exit
 	return
 }
 
-/*
 // randhop is a simplified client function that does single-hop encodings
-func randhop(message []byte, public *keymgr.Pubring) (err error) {
-	msglen := len(message)
-	if msglen == 0 {
+func randhop(plainMsg []byte, public *keymgr.Pubring) {
+	var err error
+	if len(plainMsg) == 0 {
 		Info.Println("Zero-byte message during randhop, ignoring it.")
 		return
 	}
@@ -355,16 +354,16 @@ func randhop(message []byte, public *keymgr.Pubring) (err error) {
 		err = fmt.Errorf("Randhop chain must be single hop.  Got=%d", len(chain))
 		panic(err)
 	}
-	Trace.Printf("Performing a random hop to an Exit Remailer: %s.", chain[0])
+	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
 	packetid := randbytes(16)
-	encmsg, sendto := mixmsg(message, packetid, chain, *final, public)
-	err = cutmarks(encmsg, sendto)
+	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
+	err = outPoolWrite(armor(yamnMsg, sendTo), sendTo)
 	if err != nil {
-		Warn.Println(err)
+		Warn.Printf("Unable to write randhop to outbound pool file: %s", err)
+		return
 	}
 	return
 }
-*/
 
 // dummy is a simplified client function that sends dummy messages
 func dummy(public *keymgr.Pubring) (err error) {
@@ -383,7 +382,7 @@ func dummy(public *keymgr.Pubring) (err error) {
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)
-	yamnMsg, sendTo := mixmsg(plainMsg, packetid, chain, *final, public)
+	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
 	err = outPoolWrite(armor(yamnMsg, sendTo), sendTo)
 	if err != nil {
 		Warn.Printf("Unable to write dummy to outbound pool file: %s", err)

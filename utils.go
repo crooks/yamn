@@ -173,8 +173,8 @@ func wrap(str string) (newstr string) {
 	return
 }
 
-// armor encodes a mixmsg into a Mixmaster formatted email payload
-func armor(mixmsg []byte, sendto string) []byte {
+// armor base64 encodes a Yamn message for emailing
+func armor(yamnMsg []byte, sendto string) []byte {
 	/*
 	With the exception of email delivery to recipients, every outbound message
 	should be wrapped by this function.
@@ -191,14 +191,14 @@ func armor(mixmsg []byte, sendto string) []byte {
 	buf.WriteString(header)
 	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
 	// Write message length
-	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
+	buf.WriteString(strconv.Itoa(len(yamnMsg)) + "\n")
 	//digest := blake2.New(&blake2.Config{Size: 16})
 	digest := sha256.New()
-	digest.Write(mixmsg)
+	digest.Write(yamnMsg)
 	// Write message digest
 	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)[:16]) + "\n")
 	// Write the payload
-	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(mixmsg)) + "\n")
+	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(yamnMsg)) + "\n")
 	buf.WriteString("-----END REMAILER MESSAGE-----\n")
 	return buf.Bytes()
 }

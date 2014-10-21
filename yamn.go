@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	version string = "0.1b"
+	version string = "0.1c"
 	dayLength int = 24 * 60 * 60 // Day in seconds
 	keyValidityDays int = 60
 	maxFragLength = 10230
