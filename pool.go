@@ -5,23 +5,15 @@ package main
 import (
 	"fmt"
 	"os"
-	"io"
-	"bytes"
-	"bufio"
-	"errors"
-	"strconv"
 	"strings"
 	"path"
 	"io/ioutil"
-	"encoding/base64"
-	"encoding/hex"
 	"net/mail"
 	"crypto/sha256"
-	"crypto/sha512"
+	"encoding/hex"
 	//"github.com/codahale/blake2"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
-	"github.com/crooks/yamn/quickmail"
 	"github.com/luksen/maildir"
 )
 
@@ -57,98 +49,6 @@ func poolDelete(filename string) (err error) {
 	if err != nil {
 		Error.Printf("Failed to remove %s from %s\n", filename, cfg.Files.Pooldir)
 	}
-	return
-}
-
-// readdir returns a list of files in a specified directory that begin with
-// the specified prefix.
-func readDir(path, prefix string) (files []string, err error) {
-	fi, err := ioutil.ReadDir(path)
-	if err != nil {
-		return
-	}
-	for _, f := range fi {
-		if ! f.IsDir() && strings.HasPrefix(f.Name(), prefix) {
-			files = append(files, f.Name())
-		}
-	}
-	return
-}
-
-// remailerFoo responds to requests for remailer-* info
-func remailerFoo(subject, sender string) (err error) {
-	m := quickmail.NewMessage()
-	m.Set("From", "steve@stmellion.org")
-	m.Set("To", sender)
-	m.SMTP.Relay = cfg.Mail.SMTPRelay
-	m.SMTP.Port = cfg.Mail.SMTPPort
-	m.SMTP.User = cfg.Mail.SMTPUsername
-	m.SMTP.Password = cfg.Mail.SMTPPassword
-	if strings.HasPrefix(subject, "remailer-key") {
-		// remailer-key
-		Trace.Printf("remailer-key request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
-		m.Filename = cfg.Files.Pubkey
-		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
-	} else if strings.HasPrefix(subject, "remailer-conf") {
-		// remailer-conf
-		Trace.Printf("remailer-conf request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
-		m.Text(fmt.Sprintf("Remailer-Type: Mixmaster %s\n", version))
-		m.Text("Supported Formats:\n   Mixmaster\n")
-		m.Text(fmt.Sprintf("Pool size: %d\n", cfg.Pool.Size))
-		m.Text(fmt.Sprintf("Maximum message size: %d kB\n", cfg.Remailer.MaxSize))
-		m.Text("The following header lines will be filtered:\n")
-		m.Text(fmt.Sprintf("\n$remailer{\"%s\"} = \"<%s>", cfg.Remailer.Name, cfg.Remailer.Address))
-		if ! cfg.Remailer.Exit {
-			m.Text(" middle")
-		}
-		m.Text("\";\n")
-		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS")
-		var pubList []string
-		pubList, err := keymgr.Headers(cfg.Files.Pubring)
-		if err != nil {
-			Info.Printf("Could not read %s", cfg.Files.Pubring)
-		} else {
-			m.List(pubList)
-		}
-	} else if strings.HasPrefix(subject, "remailer-adminkey") {
-		// remailer-adminkey
-		Trace.Printf("remailer-adminkey request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
-		m.Filename = cfg.Files.Adminkey
-	} else if strings.HasPrefix(subject, "remailer-help") {
-		// remailer-help
-		Trace.Printf("remailer-help request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Your help request for the %s Anonymous Remailer", cfg.Remailer.Name))
-		m.Filename = cfg.Files.Help
-	} else {
-		if len(subject) > 20 {
-			// Truncate long subject headers before logging them
-			subject = subject[:20]
-		}
-		err = fmt.Errorf("Ignoring request for %s", subject)
-		return
-	}
-	var msg []byte
-	msg, err = m.Compile()
-	if err != nil {
-		Info.Printf("Unable to send %s", subject)
-		return
-	}
-	if cfg.Mail.Sendmail {
-    err = sendmail(msg, sender)
-    if err != nil {
-      Warn.Println("Sendmail failed during remailer-* request")
-      return
-    }
-  } else {
-    err = SMTPRelay(msg, sender)
-    if err != nil {
-      Warn.Println("SMTP relay failed during remailer-* request")
-      return
-    }
-  }
 	return
 }
 
@@ -243,123 +143,6 @@ func processInpool(prefix string, secret *keymgr.Secring, id idlog.IDLog) {
 	}
 	Trace.Printf("Inbound pool processing complete. Read=%d, Decoded=%d",
 		poolSize, processed)
-}
-
-// stripArmor takes a Mixmaster formatted message from an ioreader and
-// returns its payload as a byte slice
-func stripArmor(reader io.Reader) (payload []byte, err error) {
-	scanner := bufio.NewScanner(reader)
-	scanPhase := 0
-	var b64 string
-	var payloadLen int
-	var payloadDigest []byte
-	var msgFrom string
-	var msgSubject string
-	var remailerFooRequest bool
-	/* Scan phases are:
-	0	Expecting ::
-	1 Expecting Begin cutmarks
-	2 Expecting size
-	3	Expecting hash
-	4 In payload and checking for End cutmark
-	5 Got End cutmark
-	255 Ignore and return
-	*/
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch scanPhase {
-		case 0:
-			// Expecting ::\n (or maybe a Mail header)
-			if line == "::" {
-				scanPhase = 1
-				continue
-			}
-			if flag_stdin {
-				if strings.HasPrefix(line, "Subject: ") {
-					// We have a Subject header.  This is probably a mail message.
-					msgSubject = strings.ToLower(line[9:])
-					if strings.HasPrefix(msgSubject, "remailer-") {
-						remailerFooRequest = true
-					}
-				} else if strings.HasPrefix(line, "From: ") {
-					// A From header might be useful if this is a remailer-foo request.
-					msgFrom = line[6:]
-				}
-				if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
-					// Do remailer-foo processing
-					err = remailerFoo(msgSubject, msgFrom)
-					if err != nil {
-						Info.Println(err)
-						err = nil
-					}
-					// Don't bother to read any further
-					scanPhase = 255
-					break
-				}
-			} // End of STDIN flag test
-		case 1:
-			// Expecting Begin cutmarks
-			if line == "-----BEGIN REMAILER MESSAGE-----" {
-				scanPhase = 2
-			}
-		case 2:
-			// Expecting size
-			payloadLen, err = strconv.Atoi(line)
-			if err != nil {
-				err = fmt.Errorf("Unable to extract payload size from %s", line)
-				return
-			}
-			scanPhase = 3
-		case 3:
-			if len(line) != 24 {
-				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
-				return
-			} else {
-				payloadDigest, err = base64.StdEncoding.DecodeString(line)
-				if err != nil {
-					err = fmt.Errorf("Unable to decode Base64 hash on payload")
-					return
-				}
-			}
-			scanPhase = 4
-		case 4:
-			if line == "-----END REMAILER MESSAGE-----" {
-				scanPhase = 5
-				break
-			}
-			b64 += line
-		} // End of switch
-	} // End of file scan
-	switch scanPhase {
-	case 0:
-		err = errors.New("No :: found on message")
-		return
-	case 1:
-		err = errors.New("No Begin cutmarks found on message")
-		return
-	case 4:
-		err = errors.New("No End cutmarks found on message")
-		return
-	case 255:
-		return
-	}
-	payload, err = base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		Info.Printf("Unable to decode Base64 payload")
-		return
-	}
-	if len(payload) != payloadLen {
-		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
-		return
-	}
-	//digest := blake2.New(&blake2.Config{Size: 16})
-	digest := sha256.New()
-	digest.Write(payload)
-	if ! bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
-		Info.Println("Incorrect payload digest")
-		return
-	}
-	return
 }
 
 // inPoolWrite writes a raw Byte Yamn message to the Inbound pool

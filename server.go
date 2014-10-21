@@ -9,11 +9,12 @@ import (
 	"bytes"
 	"time"
 	"strings"
+	"errors"
 	"io/ioutil"
-	"encoding/hex"
-	"crypto/sha256"
+	"crypto/sha512"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/idlog"
+	"github.com/crooks/yamn/quickmail"
 	//"github.com/codahale/blake2"
 )
 
@@ -108,7 +109,7 @@ func loopServer() (err error) {
 			loop will terminate before they're ever read.
 			*/
 			processInpool("i", secret, id)
-			mailRead(public, secret, id)
+			processMail(public, secret, id)
 		}
 		// Test if it's time to do daily events
 		if generate || time.Since(today) > oneday {
@@ -181,44 +182,6 @@ func loopServer() (err error) {
 			break
 		}
 	} // End of server loop
-	return
-}
-
-func exportMessage(headers, fake, body []byte, sendto string) (err error) {
-	hlen := len(headers) + len(fake)
-	err = lenCheck(hlen, headersBytes)
-	if err != nil {
-		return
-	}
-	err = lenCheck(len(body), bodyBytes)
-	if err != nil {
-		return
-	}
-	buf := new(bytes.Buffer)
-	buf.Write(headers)
-	buf.Write(fake)
-	buf.Write(body)
-	err = bufLenCheck(buf.Len(), messageBytes)
-	if err != nil {
-		Error.Println("Incorrect outbound message size. Not sending.")
-		return
-	}
-	if sendto == cfg.Remailer.Address {
-		Info.Println("Message loops back to us. Storing in pool.")
-		//digest := blake2.New(&blake2.Config{Size: 16})
-		digest := sha256.New()
-		digest.Write(buf.Bytes())
-		filename := "m" + hex.EncodeToString(digest.Sum(nil))
-		filename = path.Join(cfg.Files.Pooldir, filename[:14])
-		err = ioutil.WriteFile(filename, buf.Bytes(), 0600)
-		if err != nil {
-			Warn.Println(err)
-			return
-		}
-	} else {
-		Trace.Printf("Forwarding message to: %s", sendto)
-		err = cutmarks(buf.Bytes(), sendto)
-	}
 	return
 }
 
@@ -368,6 +331,7 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring, id idlog.IDLog) (err error
 	return
 }
 
+/*
 // randhop is a simplified client function that does single-hop encodings
 func randhop(message []byte, public *keymgr.Pubring) (err error) {
 	msglen := len(message)
@@ -400,10 +364,11 @@ func randhop(message []byte, public *keymgr.Pubring) (err error) {
 	}
 	return
 }
+*/
 
 // dummy is a simplified client function that sends dummy messages
 func dummy(public *keymgr.Pubring) (err error) {
-	message := []byte("I hope Len approves")
+	plainMsg := []byte("I hope Len approves")
 	// Make a single hop chain with a random node
 	in_chain := []string{"*","*"}
 	final := new(slotFinal)
@@ -418,10 +383,88 @@ func dummy(public *keymgr.Pubring) (err error) {
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)
-	encmsg, sendto := mixmsg(message, packetid, chain, *final, public)
-	err = cutmarks(encmsg, sendto)
+	yamnMsg, sendTo := mixmsg(plainMsg, packetid, chain, *final, public)
+	err = outPoolWrite(armor(yamnMsg, sendTo), sendTo)
 	if err != nil {
-		Warn.Println(err)
+		Warn.Printf("Unable to write dummy to outbound pool file: %s", err)
+		return
 	}
+	return
+}
+
+// remailerFoo responds to requests for remailer-* info
+func remailerFoo(subject, sender string) (err error) {
+	m := quickmail.NewMessage()
+	m.Set("From", "steve@stmellion.org")
+	m.Set("To", sender)
+	m.SMTP.Relay = cfg.Mail.SMTPRelay
+	m.SMTP.Port = cfg.Mail.SMTPPort
+	m.SMTP.User = cfg.Mail.SMTPUsername
+	m.SMTP.Password = cfg.Mail.SMTPPassword
+	if strings.HasPrefix(subject, "remailer-key") {
+		// remailer-key
+		Trace.Printf("remailer-key request from %s", sender)
+		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
+		m.Filename = cfg.Files.Pubkey
+		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
+	} else if strings.HasPrefix(subject, "remailer-conf") {
+		// remailer-conf
+		Trace.Printf("remailer-conf request from %s", sender)
+		m.Set("Subject", fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
+		m.Text(fmt.Sprintf("Remailer-Type: Mixmaster %s\n", version))
+		m.Text("Supported Formats:\n   Mixmaster\n")
+		m.Text(fmt.Sprintf("Pool size: %d\n", cfg.Pool.Size))
+		m.Text(fmt.Sprintf("Maximum message size: %d kB\n", cfg.Remailer.MaxSize))
+		m.Text("The following header lines will be filtered:\n")
+		m.Text(fmt.Sprintf("\n$remailer{\"%s\"} = \"<%s>", cfg.Remailer.Name, cfg.Remailer.Address))
+		if ! cfg.Remailer.Exit {
+			m.Text(" middle")
+		}
+		m.Text("\";\n")
+		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS")
+		var pubList []string
+		pubList, err := keymgr.Headers(cfg.Files.Pubring)
+		if err != nil {
+			Info.Printf("Could not read %s", cfg.Files.Pubring)
+		} else {
+			m.List(pubList)
+		}
+	} else if strings.HasPrefix(subject, "remailer-adminkey") {
+		// remailer-adminkey
+		Trace.Printf("remailer-adminkey request from %s", sender)
+		m.Set("Subject", fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
+		m.Filename = cfg.Files.Adminkey
+	} else if strings.HasPrefix(subject, "remailer-help") {
+		// remailer-help
+		Trace.Printf("remailer-help request from %s", sender)
+		m.Set("Subject", fmt.Sprintf("Your help request for the %s Anonymous Remailer", cfg.Remailer.Name))
+		m.Filename = cfg.Files.Help
+	} else {
+		if len(subject) > 20 {
+			// Truncate long subject headers before logging them
+			subject = subject[:20]
+		}
+		err = fmt.Errorf("Ignoring request for %s", subject)
+		return
+	}
+	var msg []byte
+	msg, err = m.Compile()
+	if err != nil {
+		Info.Printf("Unable to send %s", subject)
+		return
+	}
+	if cfg.Mail.Sendmail {
+    err = sendmail(msg, sender)
+    if err != nil {
+      Warn.Println("Sendmail failed during remailer-* request")
+      return
+    }
+  } else {
+    err = SMTPRelay(msg, sender)
+    if err != nil {
+      Warn.Println("SMTP relay failed during remailer-* request")
+      return
+    }
+  }
 	return
 }

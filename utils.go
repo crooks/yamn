@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"strings"
 	"path"
+	"io"
+	"io/ioutil"
+	"bufio"
+	"errors"
 	"encoding/binary"
 	"encoding/hex"
 	"crypto/rand"
@@ -65,6 +69,21 @@ func randPoolFilename(prefix string) (fqfn string) {
 		if err != nil {
 			// For once we want an error (indicating the file doesn't exist)
 			break
+		}
+	}
+	return
+}
+
+// readdir returns a list of files in a specified directory that begin with
+// the specified prefix.
+func readDir(path, prefix string) (files []string, err error) {
+	fi, err := ioutil.ReadDir(path)
+	if err != nil {
+		return
+	}
+	for _, f := range fi {
+		if ! f.IsDir() && strings.HasPrefix(f.Name(), prefix) {
+			files = append(files, f.Name())
 		}
 	}
 	return
@@ -154,59 +173,6 @@ func wrap(str string) (newstr string) {
 	return
 }
 
-// cutmarks encodes a mixmsg into a Mixmaster formatted email payload
-func cutmarks(mixmsg []byte, sendto string) (err error) {
-	/*
-	With the exception of email delivery to recipients, every outbound message
-	should be wrapped by this function.
-	*/
-	buf := new(bytes.Buffer)
-	if ! cfg.Mail.Outfile {
-		// Add email headers as we're not writing output to a file
-		buf.WriteString(fmt.Sprintf("To: %s\n", sendto))
-		buf.WriteString(fmt.Sprintf("From: %s\n", cfg.Mail.EnvelopeSender))
-		buf.WriteString("\n")
-	}
-	buf.WriteString("::\n")
-	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
-	buf.WriteString(header)
-	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
-	// Write message length
-	buf.WriteString(strconv.Itoa(len(mixmsg)) + "\n")
-	//digest := blake2.New(&blake2.Config{Size: 16})
-	digest := sha256.New()
-	digest.Write(mixmsg)
-	// Write message digest
-	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)[:16]) + "\n")
-	// Write the payload
-	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(mixmsg)) + "\n")
-	buf.WriteString("-----END REMAILER MESSAGE-----\n")
-	if cfg.Mail.Outfile {
-		var f *os.File
-		filename := "outfile-" + hex.EncodeToString(digest.Sum(nil))
-		f, err = os.Create(path.Join(cfg.Files.Pooldir, filename[:16]))
-		defer f.Close()
-		_, err = f.WriteString(string(buf.Bytes()))
-		if err != nil {
-			Warn.Printf("Outfile write failed: %s\n", err)
-			return
-		}
-	} else if cfg.Mail.Sendmail {
-		err = sendmail(buf.Bytes(), sendto)
-		if err != nil {
-			Warn.Println("Sendmail failed")
-			return
-		}
-	} else {
-		err = SMTPRelay(buf.Bytes(), sendto)
-		if err != nil {
-			Warn.Println("SMTP relay failed")
-			return
-		}
-	}
-	return
-}
-
 // armor encodes a mixmsg into a Mixmaster formatted email payload
 func armor(mixmsg []byte, sendto string) []byte {
 	/*
@@ -237,3 +203,119 @@ func armor(mixmsg []byte, sendto string) []byte {
 	return buf.Bytes()
 }
 
+// stripArmor takes a Mixmaster formatted message from an ioreader and
+// returns its payload as a byte slice
+func stripArmor(reader io.Reader) (payload []byte, err error) {
+	scanner := bufio.NewScanner(reader)
+	scanPhase := 0
+	var b64 string
+	var payloadLen int
+	var payloadDigest []byte
+	var msgFrom string
+	var msgSubject string
+	var remailerFooRequest bool
+	/* Scan phases are:
+	0	Expecting ::
+	1 Expecting Begin cutmarks
+	2 Expecting size
+	3	Expecting hash
+	4 In payload and checking for End cutmark
+	5 Got End cutmark
+	255 Ignore and return
+	*/
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch scanPhase {
+		case 0:
+			// Expecting ::\n (or maybe a Mail header)
+			if line == "::" {
+				scanPhase = 1
+				continue
+			}
+			if flag_stdin {
+				if strings.HasPrefix(line, "Subject: ") {
+					// We have a Subject header.  This is probably a mail message.
+					msgSubject = strings.ToLower(line[9:])
+					if strings.HasPrefix(msgSubject, "remailer-") {
+						remailerFooRequest = true
+					}
+				} else if strings.HasPrefix(line, "From: ") {
+					// A From header might be useful if this is a remailer-foo request.
+					msgFrom = line[6:]
+				}
+				if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
+					// Do remailer-foo processing
+					err = remailerFoo(msgSubject, msgFrom)
+					if err != nil {
+						Info.Println(err)
+						err = nil
+					}
+					// Don't bother to read any further
+					scanPhase = 255
+					break
+				}
+			} // End of STDIN flag test
+		case 1:
+			// Expecting Begin cutmarks
+			if line == "-----BEGIN REMAILER MESSAGE-----" {
+				scanPhase = 2
+			}
+		case 2:
+			// Expecting size
+			payloadLen, err = strconv.Atoi(line)
+			if err != nil {
+				err = fmt.Errorf("Unable to extract payload size from %s", line)
+				return
+			}
+			scanPhase = 3
+		case 3:
+			if len(line) != 24 {
+				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
+				return
+			} else {
+				payloadDigest, err = base64.StdEncoding.DecodeString(line)
+				if err != nil {
+					err = fmt.Errorf("Unable to decode Base64 hash on payload")
+					return
+				}
+			}
+			scanPhase = 4
+		case 4:
+			if line == "-----END REMAILER MESSAGE-----" {
+				scanPhase = 5
+				break
+			}
+			b64 += line
+		} // End of switch
+	} // End of file scan
+	switch scanPhase {
+	case 0:
+		err = errors.New("No :: found on message")
+		return
+	case 1:
+		err = errors.New("No Begin cutmarks found on message")
+		return
+	case 4:
+		err = errors.New("No End cutmarks found on message")
+		return
+	case 255:
+		return
+	}
+	payload, err = base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		Info.Printf("Unable to decode Base64 payload")
+		return
+	}
+	if len(payload) != payloadLen {
+		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
+		return
+	}
+	//digest := blake2.New(&blake2.Config{Size: 16})
+	digest := sha256.New()
+	digest.Write(payload)
+	if ! bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
+		Info.Println("Incorrect payload digest")
+		return
+	}
+	return
+}
