@@ -395,7 +395,7 @@ func dummy(public *keymgr.Pubring) (err error) {
 // remailerFoo responds to requests for remailer-* info
 func remailerFoo(subject, sender string) (err error) {
 	m := quickmail.NewMessage()
-	m.Set("From", "steve@stmellion.org")
+	m.Set("From", cfg.Mail.EnvelopeSender)
 	m.Set("To", sender)
 	m.SMTP.Relay = cfg.Mail.SMTPRelay
 	m.SMTP.Port = cfg.Mail.SMTPPort
