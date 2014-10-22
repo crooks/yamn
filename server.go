@@ -52,6 +52,8 @@ func loopServer() (err error) {
 		panic(err)
 	}
 	defer id.Close()
+	// Complain about poor configs
+	nagOperator()
 	// Is a new ECC Keypair required?
 	generate := false
 	/*
@@ -85,7 +87,7 @@ func loopServer() (err error) {
 
 	// Make a note of what day it is
 	today := time.Now()
-	oneday := time.Duration(dayLength) * time.Second
+	oneDay := time.Duration(dayLength) * time.Second
 
 	// Actually start the server loop
 	if cfg.Remailer.Daemon || flag_daemon {
@@ -112,7 +114,7 @@ func loopServer() (err error) {
 			processMail(public, secret, id)
 		}
 		// Test if it's time to do daily events
-		if generate || time.Since(today) > oneday {
+		if generate || time.Since(today) > oneDay {
 			Info.Println("Performing daily events")
 			// Try to validate the advertised key on Secring
 			if ! generate {
@@ -143,18 +145,8 @@ func loopServer() (err error) {
 			//TODO Make this a flag function
 			secret.Purge("test.txt")
 
-			// Complain about excessively small loop values.
-			if cfg.Pool.Loop < 60 {
-				Warn.Println(
-					fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Pool.Loop),
-					"Will loop every 60 seconds. A higher setting is recommended.")
-			}
-			// Complain about high pool rates.
-			if cfg.Pool.Rate > 90 {
-				Warn.Println(
-					fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
-					"high. Unless testing, a lower setting is recommended.")
-			}
+			// Complain about poor configs
+			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
 			today = time.Now()
 		}
@@ -183,6 +175,29 @@ func loopServer() (err error) {
 		}
 	} // End of server loop
 	return
+}
+
+// nagOperator prompts a remailer operator about poor practices.
+func nagOperator() {
+	// Complain about excessively small loop values.
+	if cfg.Pool.Loop < 60 {
+		Warn.Println(
+			fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Pool.Loop),
+			"Will loop every 60 seconds. A higher setting is recommended.")
+	}
+	// Complain about high pool rates.
+	if cfg.Pool.Rate > 90 && ! flag_send {
+		Warn.Println(
+			fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
+			"high. Unless testing, a lower setting is recommended.")
+	}
+	// Complain about running a remailer with flag_send
+	if flag_send && flag_remailer {
+		Warn.Println(
+			"Your remailer will flush the outbound pool every",
+			fmt.Sprintf("%d seconds. Unless you're testing,", cfg.Pool.Loop),
+			"this is probably not what you want.")
+	}
 }
 
 // decodeMsg is the actual YAMN message decoder.  It's output is always a pooled

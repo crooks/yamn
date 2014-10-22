@@ -17,7 +17,9 @@ import (
 	"github.com/luksen/maildir"
 )
 
-// poolRead returns a dynamic Mix of filenames from the outbound pool
+// poolRead returns a dynamic Mix of filenames from the outbound pool.
+// If flag_send is true, all files will be returned in random order,
+// otherwise the configured pool size and rate rules will be applied.
 func poolRead() (selectedPoolFiles []string, err error) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
@@ -25,14 +27,20 @@ func poolRead() (selectedPoolFiles []string, err error) {
 		return
 	}
 	poolSize := len(poolFiles)
-	if poolSize < cfg.Pool.Size {
+	var numToSend int // Number of files to return for processing
+	if poolSize < cfg.Pool.Size && ! flag_send {
 		// Pool isn't sufficiently populated
 		Trace.Println("Pool insufficiently populated to trigger sending.",
 			fmt.Sprintf("Require=%d, Got=%d", cfg.Pool.Size, poolSize))
 		return
+	} else if flag_send {
+		Info.Println("Flushing outbound pool")
+		numToSend = poolSize
+	} else {
+		// Normal pool processing condition
+		numToSend = int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
 	}
 	keys := randInts(len(poolFiles))
-	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
 	Trace.Printf("Processing %d pool messages.\n", poolSize)
 	for n := 0; n < numToSend; n++ {
 		mykey := keys[n]
