@@ -31,7 +31,7 @@ func testMail(b []byte) (recipients []string, err error) {
 	f := bytes.NewReader(b)
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
-		Trace.Printf("Outbound read failure: %s", err)
+		Info.Printf("Outbound read failure: %s", err)
 		return
 	}
 	var exists bool
@@ -42,13 +42,31 @@ func testMail(b []byte) (recipients []string, err error) {
 		Trace.Println(err)
 		return
 	}
-	addys, err := h.AddressList("To")
+	toAddresses, err := h.AddressList("To")
 	if err != nil {
 		return
 	}
-	for _, addy := range addys {
+	// Make a list of all recipient addresses
+	for _, addy := range toAddresses {
 		recipients = append(recipients, addy.Address)
 	}
+	return
+}
+
+// splitAddress splits an email address into its component parts
+func splitAddress(addy string) (name, domain string, err error) {
+	// Email addresses must have '@' signs in them.
+	if ! strings.Contains(addy, "@") {
+		err = fmt.Errorf("%s: Email address contains no '@'", addy)
+		return
+	}
+	components := strings.Split(addy, "@")
+	if len(components) != 2 {
+		err = fmt.Errorf("%s: Malformed email address", addy)
+		return
+	}
+	name = components[0]
+	domain = components[1]
 	return
 }
 
