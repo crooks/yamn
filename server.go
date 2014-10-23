@@ -18,6 +18,7 @@ import (
 	//"github.com/codahale/blake2"
 )
 
+// Start the server process.  If run with --daemon, this will loop forever.
 func loopServer() (err error) {
 	var filenames []string
 	// Populate public and secret keyrings
@@ -120,12 +121,14 @@ func loopServer() (err error) {
 			if ! generate {
 				valid, err := secret.Validate()
 				if err != nil {
-					Warn.Printf("%s: Failed to validate key in Secring", cfg.Files.Secring)
+					Warn.Printf("%s: Failed to validate key in Secring",
+						cfg.Files.Secring)
 					generate = true
 				} else if valid {
 					Info.Printf("Advertising current keyid: %s", secret.GetMyKeyidStr())
 				} else {
-					Info.Printf("%s has expired, will generate a new key pair", secret.GetMyKeyidStr())
+					Info.Printf("%s has expired, will generate a new key pair",
+						secret.GetMyKeyidStr())
 					generate = true
 				}
 			}
@@ -257,7 +260,9 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 			}
 			sbyte := headNum * headerBytes
 			ebyte := (headNum + 1) * headerBytes
-			copy(msgEncHeaders[sbyte:ebyte], AES_CTR(msgEncHeaders[sbyte:ebyte], data.aesKey, iv))
+			copy(
+				msgEncHeaders[sbyte:ebyte],
+				AES_CTR(msgEncHeaders[sbyte:ebyte], data.aesKey, iv))
 		}
 		// The tenth IV is used to encrypt the deterministic header
 		iv, err = sPopBytes(&inter.aesIVs, 16)
@@ -275,7 +280,8 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 		copy(msgBody, AES_CTR(msgBody, data.aesKey, iv))
 		// At this point there should be zero bytes left in the inter IV pool
 		if len(inter.aesIVs) != 0 {
-			err = fmt.Errorf("IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
+			err = fmt.Errorf(
+				"IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
 			return
 		}
 		// Insert encrypted headers
@@ -430,13 +436,17 @@ func remailerFoo(subject, sender string) (err error) {
 	} else if strings.HasPrefix(subject, "remailer-conf") {
 		// remailer-conf
 		Trace.Printf("remailer-conf request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
+		m.Set(
+			"Subject",
+			fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
 		m.Text(fmt.Sprintf("Remailer-Type: Mixmaster %s\n", version))
 		m.Text("Supported Formats:\n   Mixmaster\n")
 		m.Text(fmt.Sprintf("Pool size: %d\n", cfg.Pool.Size))
 		m.Text(fmt.Sprintf("Maximum message size: %d kB\n", cfg.Remailer.MaxSize))
 		m.Text("The following header lines will be filtered:\n")
-		m.Text(fmt.Sprintf("\n$remailer{\"%s\"} = \"<%s>", cfg.Remailer.Name, cfg.Remailer.Address))
+		m.Text(
+			fmt.Sprintf("\n$remailer{\"%s\"} = \"<%s>",
+			cfg.Remailer.Name, cfg.Remailer.Address))
 		if ! cfg.Remailer.Exit {
 			m.Text(" middle")
 		}
@@ -452,12 +462,17 @@ func remailerFoo(subject, sender string) (err error) {
 	} else if strings.HasPrefix(subject, "remailer-adminkey") {
 		// remailer-adminkey
 		Trace.Printf("remailer-adminkey request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
+		m.Set(
+			"Subject",
+			fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Adminkey
 	} else if strings.HasPrefix(subject, "remailer-help") {
 		// remailer-help
 		Trace.Printf("remailer-help request from %s", sender)
-		m.Set("Subject", fmt.Sprintf("Your help request for the %s Anonymous Remailer", cfg.Remailer.Name))
+		m.Set(
+			"Subject",
+			fmt.Sprintf("Your help request for the %s Anonymous Remailer",
+			cfg.Remailer.Name))
 		m.Filename = cfg.Files.Help
 	} else {
 		if len(subject) > 20 {
