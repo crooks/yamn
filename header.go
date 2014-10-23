@@ -107,7 +107,12 @@ func decodeHead(b []byte, secret *keymgr.Secring) (data []byte, err error) {
 	var nonce [24]byte
 	copy(nonce[:], b[48:72])
 	var auth bool
-	data, auth = box.Open(nil, b[72:72+408], &nonce, &sender_pk, &recipient_sk)
+	data, auth = box.Open(
+		nil,
+		b[72:72+408],
+		&nonce,
+		&sender_pk,
+		&recipient_sk)
 	if ! auth {
 		err = errors.New("Authentication failed decrypting slot data")
 		return
@@ -246,7 +251,10 @@ Intermediate Hop
 [ 11 * AES-CTR IVs		176 Bytes ]
 [ Next hop address		 80 Bytes ]
 
-IVs are 9 * header slots, payload and deterministic
+IVs are:
+[ 9 * Header slots		144 Bytes ]
+[ 1 * Deterministic header	 16 Bytes ]
+[ 1 * Payload header		 16 Bytes ]
 */
 
 type slotIntermediate struct {
