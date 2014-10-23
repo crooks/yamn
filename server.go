@@ -351,7 +351,7 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 	} // Intermediate or exit
 
 	// Decide if we want to inject a dummy
-	if randomInt(20) < 3 {
+	if ! flag_nodummy && randomInt(20) < 3 {
 		dummy(public)
 	}
 	return

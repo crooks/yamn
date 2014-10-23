@@ -95,6 +95,8 @@ func init() {
 	// Inject dummy
 	flag.BoolVar(&flag_dummy, "dummy", false, "Inject a dummy message")
 	flag.BoolVar(&flag_dummy, "d", false, "Inject a dummy message")
+	// Disable dummy messaging
+	flag.BoolVar(&flag_nodummy, "nodummy", false, "Don't send dummies")
 	// Print Version
 	flag.BoolVar(&flag_version, "version", false, "Print version string")
 	flag.BoolVar(&flag_version, "V", false, "Print version string")
@@ -146,20 +148,24 @@ func init() {
 	if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to read %s", flag_config)
+			fmt.Fprintf(
+				os.Stderr, "Unable to read %s\n", flag_config)
 			os.Exit(1)
 		}
 	} else if os.Getenv("GOLANG") != "" {
 		err = gcfg.ReadFileInto(&cfg, os.Getenv("GOLANG"))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to read %s", flag_config)
+			fmt.Fprintf(
+				os.Stderr, "Unable to read %s\n", flag_config)
 			os.Exit(1)
 		}
 	} else {
 		fn := path.Join(dir, "yamn.cfg")
 		err = gcfg.ReadFileInto(&cfg, fn)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to read %s - %s", fn, err)
+			fmt.Fprintf(
+				os.Stderr,
+				"Unable to read %s: %s\n", fn, err)
 			os.Exit(1)
 		}
 	}
@@ -183,6 +189,7 @@ var flag_copies int
 var flag_stdin bool
 var flag_stdout bool
 var flag_dummy bool
+var flag_nodummy bool
 var flag_version bool
 var flag_meminfo bool
 var cfg Config
