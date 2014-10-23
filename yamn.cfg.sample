@@ -10,8 +10,8 @@
 ;smtpport = 25
 
 # Username and password for authentication to your SMTP server.
-;smtpusername = steve@stmellion.org
-;smtppassword = KPRaj2eeImND03q4wj4a
+;smtpusername = 
+;smtppassword = 
 
 # Sendmail determines if the server tries to use Sendmail to connect securely
 # to a (usually) remote mailserver.  If set to false, it will try to relay
