@@ -96,7 +96,5 @@ func main() {
 		}
 	} else if flag_dummy {
 		injectDummy()
-	} else {
-		fmt.Printf("Version: %s\n", version)
 	}
 }

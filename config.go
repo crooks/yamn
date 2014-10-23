@@ -20,6 +20,7 @@ type Config struct {
 		Pooldir string
 		Maildir string
 		IDlog string
+		Exedir string
 	}
 	Mail struct {
 		Sendmail bool
@@ -120,6 +121,7 @@ func init() {
 	cfg.Files.Pooldir = path.Join(dir, "pool")
 	cfg.Files.Maildir = path.Join(dir, "Maildir")
 	cfg.Files.IDlog = path.Join(dir, "idlog")
+	cfg.Files.Exedir = dir
 	cfg.Mail.Sendmail = true
 	cfg.Mail.Outfile = false
 	cfg.Mail.SMTPRelay = "127.0.0.1"
@@ -144,8 +146,16 @@ func init() {
 	cfg.Remailer.IDexp = 14
 	cfg.Remailer.Loglevel = "info"
 	cfg.Remailer.Daemon = false
+}
 
-	if flag_config != "" {
+func flags() {
+	var err error
+	flag.Parse()
+	flag_args = flag.Args()
+	if flag_version {
+		fmt.Println(version)
+		os.Exit(0)
+	} else if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)
 		if err != nil {
 			fmt.Fprintf(
@@ -160,20 +170,16 @@ func init() {
 			os.Exit(1)
 		}
 	} else {
-		fn := path.Join(dir, "yamn.cfg")
+		fn := path.Join(cfg.Files.Exedir, "yamn.cfg")
 		err = gcfg.ReadFileInto(&cfg, fn)
 		if err != nil {
 			fmt.Fprintf(
 				os.Stderr,
 				"Unable to read %s: %s\n", fn, err)
+			fmt.Println(flag_version)
 			os.Exit(1)
 		}
 	}
-}
-
-func flags() {
-	flag.Parse()
-	flag_args = flag.Args()
 }
 
 var flag_client bool
