@@ -164,7 +164,7 @@ func loopServer() (err error) {
 			Warn.Printf("Reading pool failed: %s", err)
 		}
 		for _, file := range filenames {
-			err = mailFile(path.Join(cfg.Files.Pooldir, file))
+			err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 			if err != nil {
 				Warn.Printf("Pool mailing failed: %s", err)
 			} else {
@@ -488,18 +488,10 @@ func remailerFoo(subject, sender string) (err error) {
 		Info.Printf("Unable to send %s", subject)
 		return
 	}
-	if cfg.Mail.Sendmail {
-    err = sendmail(msg, sender)
-    if err != nil {
-      Warn.Println("Sendmail failed during remailer-* request")
-      return
-    }
-  } else {
-    err = SMTPRelay(msg, sender)
-    if err != nil {
-      Warn.Println("SMTP relay failed during remailer-* request")
-      return
-    }
-  }
+	err = mailBytes(msg, sender)
+	if err != nil {
+		Warn.Println("Failed to send %s to %s", subject, sender)
+		return
+	}
 	return
 }

@@ -191,7 +191,7 @@ func mixprep() {
 		Warn.Printf("Reading pool failed: %s", err)
 	}
 	for _, file := range filenames {
-		err = mailFile(path.Join(cfg.Files.Pooldir, file))
+		err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
 		} else {

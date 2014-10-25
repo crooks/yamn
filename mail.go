@@ -71,15 +71,19 @@ func splitAddress(addy string) (name, domain string, err error) {
 	return
 }
 
-func mailFile(filename string) (err error) {
-	var payload []byte
-	payload, err = ioutil.ReadFile(filename)
+// Read a file from the outbound pool and mail it
+func mailPoolFile(filename string) error {
+	payload, err := ioutil.ReadFile(filename)
 	if err != nil {
 		Error.Printf("Failed to read file for mailing: %s", err)
-		return
+		return err
 	}
 	sendTo := strings.TrimRight(string(payload[:80]), "\x00")
-	payload = payload[80:]
+	return mailBytes(payload[80:], sendTo)
+}
+
+// Mail a byte payload to a given address
+func mailBytes(payload []byte, sendTo string) (err error) {
 	// Test if the message is destined for the local remailer
 	Trace.Printf("Message recipient is: %s", sendTo)
 	if cfg.Mail.Outfile {
