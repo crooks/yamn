@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"net/mail"
 	"bytes"
@@ -93,6 +94,8 @@ func mailFile(filename string) (err error) {
 			Warn.Printf("Outfile write failed: %s\n", err)
 			return
 		}
+	} else if cfg.Mail.Pipe != "" {
+		execSend(payload, cfg.Mail.Pipe)
 	} else if cfg.Mail.Sendmail {
 		err = sendmail(payload, sendTo)
 		if err != nil {
@@ -107,6 +110,31 @@ func mailFile(filename string) (err error) {
 		}
 	}
 	return
+}
+
+// Pipe mail to an external command (E.g. sendmail -t)
+func execSend(payload []byte, execCmd string) {
+	sendmail := new(exec.Cmd)
+	sendmail.Args = strings.Fields(execCmd)
+	sendmail.Path = sendmail.Args[0]
+
+	stdin, err := sendmail.StdinPipe()
+	if err != nil {
+		panic(err)
+	}
+	defer stdin.Close()
+	sendmail.Stdout = os.Stdout
+	sendmail.Stderr = os.Stderr
+	err = sendmail.Start()
+	if err != nil {
+		panic(err)
+	}
+	stdin.Write(payload)
+	stdin.Close()
+	err = sendmail.Wait()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func SMTPRelay(payload []byte, sendto string) (err error) {

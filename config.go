@@ -24,6 +24,7 @@ type Config struct {
 	}
 	Mail struct {
 		Sendmail bool
+		Pipe string
 		Outfile bool
 		SMTPRelay string
 		SMTPPort int
