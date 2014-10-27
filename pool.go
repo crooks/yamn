@@ -160,35 +160,13 @@ func inPoolWrite(yamnMsg []byte) (err error) {
 
 // outPoolWrite writes a raw Byte Yamn message to the Outbound pool.
 // Oubound message files are prefixed with the recipient address.
-func outPoolWrite(yamnMsg []byte, sendTo string) (err error) {
+func outPoolWrite(yamnMsg []byte) {
 	digest := sha256.New()
-	digest.Write([]byte(sendTo))
 	digest.Write(yamnMsg)
 	poolFileName := "m" + hex.EncodeToString(digest.Sum(nil))[:14]
-	var f *os.File
-	f, err = os.Create(path.Join(cfg.Files.Pooldir, poolFileName))
-	if err != nil {
-		Error.Printf("Unable to create pool file: %s", err)
-		return
-	}
-	defer f.Close()
-	// Write recipient
-	paddedSendTo := []byte(sendTo + strings.Repeat("\x00", 80 - len(sendTo)))
-	var numBytes int
-	numBytes, err = f.Write(paddedSendTo)
-	if err != nil {
-		Error.Printf("Failed to write recipient to pool file: %s", err)
-		return
-	}
-	if numBytes != 80 {
-		Error.Println("Wrong byte count writing recipient to pool.",
-			fmt.Sprintf("Expected=80, Got=%d", numBytes))
-		return
-	}
-	_, err = f.Write(yamnMsg)
+	fqfn := path.Join(cfg.Files.Pooldir, poolFileName)
+	err := ioutil.WriteFile(fqfn, yamnMsg, 0600)
 	if err != nil {
 		Error.Printf("Failed to write payload to pool file: %s", err)
-		return
 	}
-	return
 }

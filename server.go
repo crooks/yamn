@@ -53,6 +53,7 @@ func loopServer() (err error) {
 		panic(err)
 	}
 	defer id.Close()
+	idLogExpire(id)
 	// Complain about poor configs
 	nagOperator()
 	// Is a new ECC Keypair required?
@@ -148,6 +149,9 @@ func loopServer() (err error) {
 			//TODO Make this a flag function
 			secret.Purge("test.txt")
 
+			// Expire entries in the ID Log
+			idLogExpire(id)
+
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
@@ -178,6 +182,11 @@ func loopServer() (err error) {
 		}
 	} // End of server loop
 	return
+}
+
+func idLogExpire(id idlog.IDLog) {
+	count, deleted := id.Expire()
+	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)
 }
 
 // nagOperator prompts a remailer operator about poor practices.
@@ -306,11 +315,12 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 				return
 			}
 		} else {
-			err = outPoolWrite(armor(mixMsg, sendTo), sendTo)
-			if err != nil {
-				Warn.Printf("Unable to create pool file: %s", err)
-				return
-			}
+			buf := new(bytes.Buffer)
+			buf.WriteString(sendTo)
+			// Use \x00 as a seperator between recipients and payload
+			buf.WriteByte(0)
+			buf.Write(armor(mixMsg, sendTo))
+			outPoolWrite(buf.Bytes())
 		} // End of local or remote delivery
 	} else if data.packetType == 1 {
 		final := new(slotFinal)
@@ -333,21 +343,22 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 		var recipients []string
 		recipients, err = testMail(msgBody)
 		if err != nil {
+			Warn.Printf("Extracting final recipients failed: %s", err)
 			return
 		}
-		for _, sendTo := range recipients {
-			if cfg.Remailer.Exit {
-				err = outPoolWrite(msgBody, sendTo)
-				if err != nil {
-					Warn.Printf("Exit message for %s not pooled", sendTo)
-				}
-				Trace.Printf("Pooling Exit message for %s", sendTo)
-			} else { // Exit condition
-				// Need to randhop as we're not an exit remailer
-				Trace.Printf("Randhopping Exit message for %s", sendTo)
-				randhop(msgBody, public)
-			} // Randhop condition
-		} // recipients loop
+		Trace.Printf("Recipients are: %s", strings.Join(recipients, ","))
+		if cfg.Remailer.Exit {
+			buf := new(bytes.Buffer)
+			buf.WriteString(strings.Join(recipients, ","))
+			// Use \x00 as a seperator between recipients and payload
+			buf.WriteByte(0)
+			buf.Write(msgBody)
+			outPoolWrite(buf.Bytes())
+		} else { // Exit condition
+			// Need to randhop as we're not an exit remailer
+			Trace.Println("Randhopping Exit message")
+			randhop(msgBody, public)
+		} // Randhop condition
 	} // Intermediate or exit
 
 	// Decide if we want to inject a dummy
@@ -383,11 +394,12 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
-	err = outPoolWrite(armor(yamnMsg, sendTo), sendTo)
-	if err != nil {
-		Warn.Printf("Unable to write randhop to outbound pool file: %s", err)
-		return
-	}
+	buf := new(bytes.Buffer)
+	buf.WriteString(sendTo)
+	// Use \x00 as a seperator between recipients and payload
+	buf.WriteByte(0)
+	buf.Write(armor(yamnMsg, sendTo))
+	outPoolWrite(buf.Bytes())
 	return
 }
 
@@ -410,11 +422,12 @@ func dummy(public *keymgr.Pubring) {
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
-	err = outPoolWrite(armor(yamnMsg, sendTo), sendTo)
-	if err != nil {
-		Warn.Printf("Unable to write dummy to outbound pool file: %s", err)
-		return
-	}
+	buf := new(bytes.Buffer)
+	buf.WriteString(sendTo)
+	// Use \x00 as a seperator between recipients and payload
+	buf.WriteByte(0)
+	buf.Write(armor(yamnMsg, sendTo))
+	outPoolWrite(buf.Bytes())
 	return
 }
 
@@ -488,7 +501,7 @@ func remailerFoo(subject, sender string) (err error) {
 		Info.Printf("Unable to send %s", subject)
 		return
 	}
-	err = mailBytes(msg, sender)
+	err = mailBytes(msg, []string{sender})
 	if err != nil {
 		Warn.Println("Failed to send %s to %s", subject, sender)
 		return

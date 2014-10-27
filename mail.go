@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	"net/smtp"
 	"io/ioutil"
-	"errors"
 	"crypto/sha256"
 )
 
@@ -28,28 +27,30 @@ func assemble(msg mail.Message) []byte {
 }
 
 // testMail vets outbound messages to final recipients
-func testMail(b []byte) (recipients []string, err error) {
+func testMail(b []byte) (sendTo []string, err error) {
 	f := bytes.NewReader(b)
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
 		Info.Printf("Outbound read failure: %s", err)
 		return
 	}
-	var exists bool
-	h := msg.Header
-	_, exists = h["To"]
+	sendTo = append(sendTo, headToAddy(msg.Header, "To")...)
+	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
+	return
+}
+
+// headToAddy parses a header containing email addresses
+func headToAddy(h mail.Header, header string) (addys []string) {
+	_, exists := h[header]
 	if ! exists {
-		err = errors.New("No recipient specified in final delivery")
-		Trace.Println(err)
 		return
 	}
-	toAddresses, err := h.AddressList("To")
+	addyList, err := h.AddressList(header)
 	if err != nil {
-		return
+		Warn.Printf("Failed to parse header: %s", header)
 	}
-	// Make a list of all recipient addresses
-	for _, addy := range toAddresses {
-		recipients = append(recipients, addy.Address)
+	for _, addy := range addyList {
+		addys = append(addys, addy.Address)
 	}
 	return
 }
@@ -73,17 +74,25 @@ func splitAddress(addy string) (name, domain string, err error) {
 
 // Read a file from the outbound pool and mail it
 func mailPoolFile(filename string) error {
-	payload, err := ioutil.ReadFile(filename)
+	var err error
+	var payload []byte
+	payload, err = ioutil.ReadFile(filename)
 	if err != nil {
 		Error.Printf("Failed to read file for mailing: %s", err)
 		return err
 	}
-	sendTo := strings.TrimRight(string(payload[:80]), "\x00")
-	return mailBytes(payload[80:], sendTo)
+	// Split recipients from payload
+	unjoined := bytes.SplitN(payload, []byte{0}, 2)
+	if len(unjoined) != 2 {
+		Warn.Println("Failed to split recipients from payload")
+		return nil
+	}
+	sendTo := strings.Split(string(unjoined[0]), ",")
+	return mailBytes(unjoined[1], sendTo)
 }
 
 // Mail a byte payload to a given address
-func mailBytes(payload []byte, sendTo string) (err error) {
+func mailBytes(payload []byte, sendTo []string) (err error) {
 	// Test if the message is destined for the local remailer
 	Trace.Printf("Message recipient is: %s", sendTo)
 	if cfg.Mail.Outfile {
@@ -137,12 +146,13 @@ func execSend(payload []byte, execCmd string) {
 	stdin.Close()
 	err = sendmail.Wait()
 	if err != nil {
-		panic(err)
+		Warn.Printf("%s: %s", execCmd, err)
 	}
 }
 
-func SMTPRelay(payload []byte, sendto string) (err error) {
-	c, err := smtp.Dial(fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort))
+func SMTPRelay(payload []byte, sendTo []string) (err error) {
+	c, err := smtp.Dial(
+		fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort))
 	if err != nil {
 		Warn.Println(err)
 		return
@@ -152,25 +162,27 @@ func SMTPRelay(payload []byte, sendto string) (err error) {
 		Warn.Println(err)
 		return
 	}
-	err = c.Rcpt(sendto)
-	if err != nil {
-		Warn.Println(err)
-		return
-	}
-	wc, err := c.Data()
-	if err != nil {
-		Warn.Println(err)
-		return
-	}
-	_, err = fmt.Fprintf(wc, string(payload))
-	if err != nil {
-		Warn.Println(err)
-		return
-	}
-	err = wc.Close()
-	if err != nil {
-		Warn.Println(err)
-		return
+	for _, s := range sendTo {
+		err = c.Rcpt(s)
+		if err != nil {
+			Warn.Println(err)
+			continue
+		}
+		wc, err := c.Data()
+		if err != nil {
+			Warn.Println(err)
+			continue
+		}
+		_, err = fmt.Fprintf(wc, string(payload))
+		if err != nil {
+			Warn.Println(err)
+			continue
+		}
+		err = wc.Close()
+		if err != nil {
+			Warn.Println(err)
+			continue
+		}
 	}
 	err = c.Quit()
 	if err != nil {
@@ -181,10 +193,14 @@ func SMTPRelay(payload []byte, sendto string) (err error) {
 }
 
 // sendmail invokes go's sendmail method
-func sendmail(payload []byte, sendto string) (err error) {
-	auth := smtp.PlainAuth("", cfg.Mail.SMTPUsername, cfg.Mail.SMTPPassword, cfg.Mail.SMTPRelay)
+func sendmail(payload []byte, sendTo []string) (err error) {
+	auth := smtp.PlainAuth(
+		"",
+		cfg.Mail.SMTPUsername,
+		cfg.Mail.SMTPPassword,
+		cfg.Mail.SMTPRelay)
 	relay := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
-	err = smtp.SendMail(relay, auth, cfg.Mail.EnvelopeSender, []string{sendto}, payload)
+	err = smtp.SendMail(relay, auth, cfg.Mail.EnvelopeSender, sendTo, payload)
 	if err != nil {
 		Warn.Println(err)
 		return
