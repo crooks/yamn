@@ -10,10 +10,8 @@ import (
 	"bytes"
 	"fmt"
 	"path"
-	"encoding/hex"
 	"net/smtp"
 	"io/ioutil"
-	"crypto/sha256"
 )
 
 func assemble(msg mail.Message) []byte {
@@ -94,12 +92,10 @@ func mailPoolFile(filename string) error {
 // Mail a byte payload to a given address
 func mailBytes(payload []byte, sendTo []string) (err error) {
 	// Test if the message is destined for the local remailer
-	Trace.Printf("Message recipient is: %s", sendTo)
+	Trace.Printf("Message recipients are: %s", strings.Join(sendTo, ","))
 	if cfg.Mail.Outfile {
 		var f *os.File
-		digest := sha256.New()
-		digest.Write(payload)
-		filename := "outfile-" + hex.EncodeToString(digest.Sum(nil)[:16])
+		filename := randPoolFilename("outfile-")
 		f, err = os.Create(path.Join(cfg.Files.Pooldir, filename))
 		defer f.Close()
 		_, err = f.WriteString(string(payload))
