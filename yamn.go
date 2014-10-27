@@ -59,6 +59,7 @@ func logInit(
 
 func main() {
 	var err error
+	flags()
 	switch strings.ToLower(cfg.Remailer.Loglevel) {
 	case "trace":
 		logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
@@ -71,7 +72,6 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown loglevel: %s\n", cfg.Remailer.Loglevel)
 	}
-	flags()
 	if flag_client {
 		mixprep()
 	} else if flag_stdin {
