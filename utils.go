@@ -179,6 +179,11 @@ func armor(yamnMsg []byte, sendto string) []byte {
 	With the exception of email delivery to recipients, every outbound message
 	should be wrapped by this function.
 	*/
+	var err error
+	err = lenCheck(len(yamnMsg), messageBytes)
+	if err != nil {
+		panic(err)
+	}
 	buf := new(bytes.Buffer)
 	if ! cfg.Mail.Outfile {
 		// Add email headers as we're not writing output to a file
