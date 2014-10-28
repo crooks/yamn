@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"fmt"
+	"errors"
 	"github.com/crooks/yamn/keymgr"
 )
 
@@ -35,8 +36,8 @@ func candidates(addresses, dist []string) (c []string) {
 	return
 }
 
-// chain_build takes a chain string and constructs a valid remailer chain
-func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string, err error) {
+// makeChain takes a chain string and constructs a valid remailer chain
+func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, err error) {
 	dist := cfg.Stats.Distance
 	if dist > maxChainLength {
 		dist = maxChainLength
@@ -61,7 +62,14 @@ func chain_build(inChain []string, pubring *keymgr.Pubring) (outChain []string, 
 		hop = popstr(&inChain)
 		if hop == "*" {
 			// Check modification timestamp on stats file
-			if pubring.StatRefresh() {
+			var statRefresh bool
+			statRefresh, err =  pubring.StatRefresh()
+			if err != nil {
+				Info.Println(err)
+				err = errors.New("Cannot use random remailers without stats")
+				return
+			}
+			if statRefresh {
 				err = pubring.ImportStats()
 				if err != nil {
 					Warn.Printf("Unable to read stats: %s", err)

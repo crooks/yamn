@@ -76,17 +76,17 @@ func (p *Pubring) KeyRefresh() bool {
 }
 
 // StatRefresh returns True if the mlist2.txt file has been modified
-func (p *Pubring) StatRefresh() bool {
+func (p *Pubring) StatRefresh() (refresh bool, err error) {
 	stat, err := os.Stat(p.statsFile)
 	if err != nil {
-		// mlist2 isn't vital to server or client functions so live with it
-		p.Stats = false
-		return false
+		// Cannot read the stats file
+		err = fmt.Errorf("%s: File not found", p.statsFile)
+		return
 	}
 	if stat.ModTime().After(p.statsImported) {
-		return true
+		refresh = true
 	}
-	return false
+	return
 }
 
 

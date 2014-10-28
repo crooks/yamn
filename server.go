@@ -383,9 +383,10 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	final.chunkNum = uint8(1)
 	final.numChunks = uint8(1)
 	var chain []string
-	chain, err = chain_build(in_chain, public)
+	chain, err = makeChain(in_chain, public)
 	if err != nil {
-		panic(err)
+		Warn.Println(err)
+		return
 	}
 	if len(chain) != 1 {
 		err = fmt.Errorf("Randhop chain must be single hop.  Got=%d", len(chain))
@@ -415,9 +416,10 @@ func dummy(public *keymgr.Pubring) {
 	final.chunkNum = uint8(1)
 	final.numChunks = uint8(1)
 	var chain []string
-	chain, err = chain_build(in_chain, public)
+	chain, err = makeChain(in_chain, public)
 	if err != nil {
-		panic(err)
+		Warn.Println(err)
+		return
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)

@@ -159,9 +159,10 @@ func mixprep() {
 				in_chain[len(in_chain) - 1] = exitnode
 			}
 			var chain []string
-			chain, err = chain_build(in_chain, pubring)
+			chain, err = makeChain(in_chain, pubring)
 			if err != nil {
-				panic(err)
+				Error.Println(err)
+				os.Exit(0)
 			}
 			if len(chain) != len(in_chain) {
 				err = fmt.Errorf("Chain length mismatch.  In=%d, Out=%d", len(in_chain), len(chain))
@@ -183,7 +184,7 @@ func mixprep() {
 	} // End of fragments loop
 
 	// Decide if we want to inject a dummy
-	if ! flag_nodummy && randomInt(7) < 3 {
+	if ! flag_nodummy && pubring.Stats && randomInt(7) < 3 {
 		dummy(pubring)
 	}
 
