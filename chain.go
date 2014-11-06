@@ -19,19 +19,14 @@ func str_contains(s string, slice []string) bool {
 	return false
 }
 
-// candidates returns a slice of remailer addresses suitable for a given hop
-func candidates(addresses, dist []string) (c []string) {
-	c = make([]string, 0, len(addresses))
+// distanceCriteria returns a slice of remailer addresses suitable for a given hop
+func distanceCriteria(addresses, dist []string) (c []string) {
   for _, addy := range addresses {
 		if str_contains(addy, dist) {
 			// Excluded due to distance
 			continue
 		}
 		c = append(c, addy)
-	}
-	if len(c) == 0 {
-		fmt.Fprintln(os.Stderr, "Insufficient remailers meet chain criteria")
-		os.Exit(1)
 	}
 	return
 }
@@ -42,7 +37,7 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 	if dist > maxChainLength {
 		dist = maxChainLength
 	}
-	var addresses []string // Candidate remailers for each hop
+	var candidates []string // Candidate remailers for each hop
 	if len(inChain) > maxChainLength {
 		fmt.Fprintf(os.Stderr, "%d hops exceeds maximum of %d\n", len(inChain), maxChainLength)
 		os.Exit(1)
@@ -84,13 +79,47 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 			// Random remailer selection
 			if len(outChain) == 0 {
 				// Construct a list of suitable exit remailers
-				addresses = pubring.Candidates(cfg.Stats.Minlat, cfg.Stats.Maxlat, cfg.Stats.Relfinal, true)
+				candidates = pubring.Candidates(
+					cfg.Stats.Minlat,
+					cfg.Stats.Maxlat,
+					cfg.Stats.Relfinal,
+					true)
 			} else {
 				// Construct a list of all suitable remailers
-				addresses = pubring.Candidates(cfg.Stats.Minlat, cfg.Stats.Maxlat, cfg.Stats.Minrel, false)
+				candidates = pubring.Candidates(
+					cfg.Stats.Minlat,
+					cfg.Stats.Maxlat,
+					cfg.Stats.Minrel,
+					false)
 			}
-			addresses = candidates(addresses, distance)
-			hop = addresses[randomInt(len(addresses) - 1)]
+			if len(candidates) == 0 {
+				Warn.Println("No candidate remailers match selection criteria")
+				if flag_remailer {
+					Warn.Println("Relaxing latency and uptime criteria to build chain")
+					if len(outChain) == 0 {
+						// Construct a list of suitable exit remailers
+						candidates = pubring.Candidates(0, 480, 0, true)
+					} else {
+						// Construct a list of all suitable remailers
+						candidates = pubring.Candidates(0, 480, 0, false)
+					}
+				} else {
+					// Insufficient remailers meet criteria and we're a client, so die.
+					os.Exit(1)
+				}
+			}
+			if len(candidates) == 0 {
+				err = errors.New("Insufficient remailers match selection criteria")
+				return
+			}
+			// Apply distance criteria
+			candidates = distanceCriteria(candidates, distance)
+			if len(candidates) == 0 {
+				err = errors.New(
+					"Insufficient remailers to comply with distance criteria")
+				return
+			}
+			hop = candidates[randomInt(len(candidates) - 1)]
 		} else {
 			var remailer keymgr.Remailer
 			remailer, err = pubring.Get(hop)
