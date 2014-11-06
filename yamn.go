@@ -19,6 +19,7 @@ const (
 	maxChainLength = 10
 	maxCopies = 5
 	base64LineWrap = 40
+	rfc2822date = "Mon, 2 Jan 2006 15:04:05 -0700"
 	headerBytes = 512
 	headersBytes = headerBytes * maxChainLength
 	encHeadBytes = headersBytes - headerBytes

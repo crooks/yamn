@@ -184,6 +184,7 @@ func loopServer() (err error) {
 	return
 }
 
+// idLogExpire deletes old entries in the ID Log
 func idLogExpire(id idlog.IDLog) {
 	count, deleted := id.Expire()
 	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)

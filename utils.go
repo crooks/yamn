@@ -189,6 +189,7 @@ func armor(yamnMsg []byte, sendto string) []byte {
 		// Add email headers as we're not writing output to a file
 		buf.WriteString(fmt.Sprintf("To: %s\n", sendto))
 		buf.WriteString(fmt.Sprintf("From: %s\n", cfg.Mail.EnvelopeSender))
+		buf.WriteString(fmt.Sprintf("Subject: yamn-%s\n", version))
 		buf.WriteString("\n")
 	}
 	buf.WriteString("::\n")
