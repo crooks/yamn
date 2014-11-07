@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"fmt"
 	"path"
+	"time"
 	"net/smtp"
-	"io/ioutil"
 )
 
 func assemble(msg mail.Message) []byte {
@@ -22,19 +22,6 @@ func assemble(msg mail.Message) []byte {
 	buf.WriteString("\n")
 	buf.ReadFrom(msg.Body)
 	return buf.Bytes()
-}
-
-// testMail vets outbound messages to final recipients
-func testMail(b []byte) (sendTo []string, err error) {
-	f := bytes.NewReader(b)
-	msg, err := mail.ReadMessage(f)
-	if err != nil {
-		Info.Printf("Outbound read failure: %s", err)
-		return
-	}
-	sendTo = append(sendTo, headToAddy(msg.Header, "To")...)
-	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
-	return
 }
 
 // headToAddy parses a header containing email addresses
@@ -73,20 +60,25 @@ func splitAddress(addy string) (name, domain string, err error) {
 // Read a file from the outbound pool and mail it
 func mailPoolFile(filename string) error {
 	var err error
-	var payload []byte
-	payload, err = ioutil.ReadFile(filename)
+	f, err := os.Open(filename)
 	if err != nil {
 		Error.Printf("Failed to read file for mailing: %s", err)
 		return err
 	}
-	// Split recipients from payload
-	unjoined := bytes.SplitN(payload, []byte{0}, 2)
-	if len(unjoined) != 2 {
-		Warn.Println("Failed to split recipients from payload")
-		return nil
+	defer f.Close()
+	msg, err := mail.ReadMessage(f)
+	if err != nil {
+		Error.Printf("Failed to process mail file: %s", err)
+		return err
 	}
-	sendTo := strings.Split(string(unjoined[0]), ",")
-	return mailBytes(unjoined[1], sendTo)
+	msg.Header["Date"] = []string{time.Now().Format(rfc5322date)}
+	sendTo := headToAddy(msg.Header, "To")
+	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
+	if len(sendTo) == 0 {
+		err = fmt.Errorf("%s: No email recipients found", filename)
+		return err
+	}
+	return mailBytes(assemble(*msg), sendTo)
 }
 
 // Mail a byte payload to a given address
@@ -142,7 +134,8 @@ func execSend(payload []byte, execCmd string) {
 	stdin.Close()
 	err = sendmail.Wait()
 	if err != nil {
-		Warn.Printf("%s: %s", execCmd, err)
+		//Warn.Printf("%s: %s", execCmd, err)
+		panic(err)
 	}
 }
 

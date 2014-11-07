@@ -27,14 +27,8 @@ func loopServer() (err error) {
 	public.ImportPubring()
 	secret.ImportSecring()
 	// Tell the secret keyring some basic info about this remailer
-	err = secret.SetName(cfg.Remailer.Name)
-	if err != nil {
-		return
-	}
-	err = secret.SetAddress(cfg.Remailer.Address)
-	if err != nil {
-		return
-	}
+	secret.SetName(cfg.Remailer.Name)
+	secret.SetAddress(cfg.Remailer.Address)
 	secret.SetExit(cfg.Remailer.Exit)
 	secret.SetVersion(version)
 	// Create some dirs if it doesn't already exist
@@ -53,11 +47,10 @@ func loopServer() (err error) {
 		panic(err)
 	}
 	defer id.Close()
+	// Expire old entries in the ID Log
 	idLogExpire(id)
 	// Complain about poor configs
 	nagOperator()
-	// Is a new ECC Keypair required?
-	generate := false
 	/*
 	Ascertain the Keyid we're advertising.  This only needs to be done once at
 	server startup as the act of new key publication sets the keyid to the newly
@@ -65,8 +58,8 @@ func loopServer() (err error) {
 	*/
 	err = secret.SetMyKeyid()
 	if err != nil {
-		Info.Println("No valid Public key, will generate a new pair")
-		generate = true
+		Info.Printf("Error setting Keyid: %s", err)
+		generateKeypair(secret)
 	} else {
 		Info.Printf("Advertising existing keyid: %s", secret.GetMyKeyidStr())
 		// Write a tmp pub.key using current config
@@ -82,6 +75,7 @@ func loopServer() (err error) {
 			}
 		}
 	}
+	Info.Printf("Secret keyring contains %d keys", secret.Count())
 
 	// Maintain time of last pool process
 	poolProcessTime := time.Now()
@@ -115,48 +109,35 @@ func loopServer() (err error) {
 			processInpool("i", public, secret, id)
 			processMail(public, secret, id)
 		}
+
 		// Test if it's time to do daily events
-		if generate || time.Since(today) > oneDay {
+		if time.Since(today) > oneDay {
 			Info.Println("Performing daily events")
 			// Try to validate the advertised key on Secring
-			if ! generate {
-				valid, err := secret.Validate()
-				if err != nil {
-					Warn.Printf("%s: Failed to validate key in Secring",
-						cfg.Files.Secring)
-					generate = true
-				} else if valid {
-					Info.Printf("Advertising current keyid: %s", secret.GetMyKeyidStr())
-				} else {
-					Info.Printf("%s has expired, will generate a new key pair",
-						secret.GetMyKeyidStr())
-					generate = true
-				}
+			valid, err := secret.Validate()
+			if err != nil {
+				Warn.Printf("%s: Failed to validate key in Secring",
+					cfg.Files.Secring)
+				generateKeypair(secret)
+			} else if valid {
+				Info.Printf("Advertising current keyid: %s", secret.GetMyKeyidStr())
+			} else {
+				Info.Printf("%s has expired, will generate a new key pair",
+					secret.GetMyKeyidStr())
+				generateKeypair(secret)
 			}
-			// Create a new key pair
-			if generate {
-				Info.Println("Generating and advertising a new key pair")
-				pub, sec := eccGenerate()
-				err = secret.Publish(pub, sec, keyValidityDays)
-				if err != nil {
-					Error.Printf("Aborting! Key generation failure: %s", err)
-					return
-				}
-				Info.Printf("Advertising new Keyid: %s", secret.GetMyKeyidStr())
-				generate = false
-			}
+			Info.Printf("Secret keyring contains %d keys", secret.Count())
 
 			//TODO Make this a flag function
 			secret.Purge("test.txt")
-
 			// Expire entries in the ID Log
 			idLogExpire(id)
-
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
 			today = time.Now()
 		}
+
 		// Test if in-memory pubring is current
 		if public.KeyRefresh() {
 			// Time to re-read the pubring file
@@ -182,6 +163,14 @@ func loopServer() (err error) {
 		}
 	} // End of server loop
 	return
+}
+
+// generateKeypair creates a new keypair and publishes it
+func generateKeypair(secret *keymgr.Secring) {
+	Info.Println("Generating and advertising a new key pair")
+	pub, sec := eccGenerate()
+	secret.Publish(pub, sec, keyValidityDays)
+	Info.Printf("Advertising new Keyid: %s", secret.GetMyKeyidStr())
 }
 
 // idLogExpire deletes old entries in the ID Log
@@ -316,12 +305,7 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 				return
 			}
 		} else {
-			buf := new(bytes.Buffer)
-			buf.WriteString(sendTo)
-			// Use \x00 as a seperator between recipients and payload
-			buf.WriteByte(0)
-			buf.Write(armor(mixMsg, sendTo))
-			outPoolWrite(buf.Bytes())
+			outPoolWrite(armor(mixMsg, sendTo))
 		} // End of local or remote delivery
 	} else if data.packetType == 1 {
 		final := new(slotFinal)
@@ -341,23 +325,10 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
 			return
 		}
-		var recipients []string
-		recipients, err = testMail(msgBody)
-		if err != nil {
-			Warn.Printf("Extracting final recipients failed: %s", err)
-			return
-		}
-		Trace.Printf("Recipients are: %s", strings.Join(recipients, ","))
 		if cfg.Remailer.Exit {
-			buf := new(bytes.Buffer)
-			buf.WriteString(strings.Join(recipients, ","))
-			// Use \x00 as a seperator between recipients and payload
-			buf.WriteByte(0)
-			buf.Write(msgBody)
-			outPoolWrite(buf.Bytes())
-		} else { // Exit condition
+			outPoolWrite(msgBody)
+		} else {
 			// Need to randhop as we're not an exit remailer
-			Trace.Println("Randhopping Exit message")
 			randhop(msgBody, public)
 		} // Randhop condition
 	} // Intermediate or exit
@@ -396,12 +367,7 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
-	buf := new(bytes.Buffer)
-	buf.WriteString(sendTo)
-	// Use \x00 as a seperator between recipients and payload
-	buf.WriteByte(0)
-	buf.Write(armor(yamnMsg, sendTo))
-	outPoolWrite(buf.Bytes())
+	outPoolWrite(armor(yamnMsg, sendTo))
 	return
 }
 
@@ -419,18 +385,13 @@ func dummy(public *keymgr.Pubring) {
 	var chain []string
 	chain, err = makeChain(in_chain, public)
 	if err != nil {
-		Warn.Println(err)
+		Warn.Printf("Dummy creation failed: %s", err)
 		return
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
-	buf := new(bytes.Buffer)
-	buf.WriteString(sendTo)
-	// Use \x00 as a seperator between recipients and payload
-	buf.WriteByte(0)
-	buf.Write(armor(yamnMsg, sendTo))
-	outPoolWrite(buf.Bytes())
+	outPoolWrite(armor(yamnMsg, sendTo))
 	return
 }
 

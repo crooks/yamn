@@ -92,31 +92,31 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 					cfg.Stats.Minrel,
 					false)
 			}
-			if len(candidates) == 0 {
-				Warn.Println("No candidate remailers match selection criteria")
-				if flag_remailer {
-					Warn.Println("Relaxing latency and uptime criteria to build chain")
-					if len(outChain) == 0 {
-						// Construct a list of suitable exit remailers
-						candidates = pubring.Candidates(0, 480, 0, true)
-					} else {
-						// Construct a list of all suitable remailers
-						candidates = pubring.Candidates(0, 480, 0, false)
-					}
-				} else {
-					// Insufficient remailers meet criteria and we're a client, so die.
-					os.Exit(1)
+			if len(candidates) > 0 {
+				// Apply distance criteria
+				candidates = distanceCriteria(candidates, distance)
+				if len(candidates) == 0 {
+				Warn.Println("Insufficient remailers to comply with distance criteria")
 				}
+			} else {
+				Warn.Println("No candidate remailers match selection criteria")
+			}
+
+			if len(candidates) == 0 && flag_remailer {
+				Warn.Println("Relaxing latency and uptime criteria to build chain")
+				if len(outChain) == 0 {
+					// Construct a list of suitable exit remailers
+					candidates = pubring.Candidates(0, 480, 0, true)
+				} else {
+					// Construct a list of all suitable remailers
+					candidates = pubring.Candidates(0, 480, 0, false)
+				}
+			} else if len(candidates) == 0 {
+				// Insufficient remailers meet criteria and we're a client, so die.
+				os.Exit(1)
 			}
 			if len(candidates) == 0 {
-				err = errors.New("Insufficient remailers match selection criteria")
-				return
-			}
-			// Apply distance criteria
-			candidates = distanceCriteria(candidates, distance)
-			if len(candidates) == 0 {
-				err = errors.New(
-					"Insufficient remailers to comply with distance criteria")
+				errors.New("No remailers available to build random chain link")
 				return
 			}
 			hop = candidates[randomInt(len(candidates) - 1)]

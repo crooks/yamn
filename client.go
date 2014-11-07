@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"bytes"
 	"io/ioutil"
 	"net/mail"
 	"strings"
@@ -174,12 +173,7 @@ func mixprep() {
 				got_exit = true
 			}
 			yamnMsg, sendTo := encodeMsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
-			buf := new(bytes.Buffer)
-			buf.WriteString(sendTo)
-			// Use \x00 as a seperator between recipients and payload
-			buf.WriteByte(0)
-			buf.Write(armor(yamnMsg, sendTo))
-			outPoolWrite(buf.Bytes())
+			outPoolWrite(armor(yamnMsg, sendTo))
 		} // End of copies loop
 	} // End of fragments loop
 

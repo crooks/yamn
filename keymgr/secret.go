@@ -40,33 +40,34 @@ func NewSecring(secfile, pubkey string) *Secring {
 }
 
 // SetName validates and sets the remailer name
-func (s *Secring) SetName(name string) (err error) {
+func (s *Secring) SetName(name string) {
+	var err error
 	l := len(name)
 	if l < 2 || l > 12 {
 		err = fmt.Errorf("Remailer name must be between 2 and 12 chars, not %d.", l)
-		return
+		panic(err)
 	}
 	s.name = strings.ToLower(name)
-	return
 }
 
 // SetAddress validates and sets the remailer address
-func (s *Secring) SetAddress(addy string) (err error) {
+func (s *Secring) SetAddress(addy string) {
+	var err error
 	l := len(addy)
 	if l < 3 || l > 80 {
-		err = fmt.Errorf("Remailer address must be between 2 and 80 chars, not %d.", l)
-		return
+		err = fmt.Errorf(
+			"Remailer address must be between 2 and 80 chars, not %d.", l)
+		panic(err)
 	}
 	index := strings.Index(addy, "@")
 	if index == -1 {
 		err = fmt.Errorf("%s: Remailer address doesn't contain an @.", addy)
-		return
+		panic(err)
 	} else if index == 0 || l - index < 3 {
 		err = fmt.Errorf("%s: Invalid remailer address.", addy)
-		return
+		panic(err)
 	}
 	s.address = strings.ToLower(addy)
-	return
 }
 
 // SetExit defines if this is a Middle or Exit remailer
@@ -79,23 +80,28 @@ func (s *Secring) SetVersion(v string) {
 	s.version = "4:" + v
 }
 
+// Count returns the number of secret keys in memory
+func (s *Secring) Count() int {
+	return len(s.sec)
+}
+
 // Publish takes a key pair, does some basic validation and writes
 // public/private keys to their respective files.
-func (s *Secring) Publish(pub, sec []byte, valid int) (err error) {
+func (s *Secring) Publish(pub, sec []byte, valid int) {
 	/*
 	Each time this function is called, the passed public key is written to
 	key.txt.  This implies that the most recently created key is always
 	advertised, without consideration of validity dates.  The private key
 	is appended to the secring.mix file.
 	*/
-
+	var err error
 	if len(pub) != 32 {
 		err = fmt.Errorf("Invalid pubkey length. Wanted=32, Got=%d", len(pub))
-		return
+		panic(err)
 	}
 	if len(sec) != 32 {
 		err = fmt.Errorf("Invalid seckey length. Wanted=32, Got=%d", len(pub))
-		return
+		panic(err)
 	}
 	key := new(secret)
 	key.sk = sec
@@ -112,7 +118,7 @@ func (s *Secring) Publish(pub, sec []byte, valid int) (err error) {
 	// Public Key first
 	f, err := os.Create(s.pubkeyFile)
 	if err != nil {
-		return
+		panic(err)
 	}
 	w := bufio.NewWriter(f)
 	var capstring string
@@ -138,13 +144,13 @@ func (s *Secring) Publish(pub, sec []byte, valid int) (err error) {
 	fmt.Fprintln(w, "-----End Mix Key-----")
 	err = w.Flush()
 	if err != nil {
-		return
+		panic(err)
 	}
 
 	// Secret Keyring next
 	f, err = os.OpenFile(s.secringFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		return
+		panic(err)
 	}
 	defer f.Close()
 	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
@@ -155,13 +161,12 @@ func (s *Secring) Publish(pub, sec []byte, valid int) (err error) {
 	keydata += "-----End Mixmaster Secret Key-----\n"
 	_, err = f.WriteString(keydata)
 	if err != nil {
-		return
+		panic(err)
 	}
 	// Add the new key to the in memory secret keyring
 	s.sec[keyidstr] = *key
 	// Advertise the new keyid
 	s.myKeyid = key.keyid
-	return
 }
 
 // WriteMyKey writes the local public key to filename with current
@@ -278,7 +283,9 @@ func (s *Secring) Validate() (valid bool, err error) {
 	keyid := hex.EncodeToString(s.myKeyid)
 	sec, exists := s.sec[keyid]
 	if ! exists {
-		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
+		err = fmt.Errorf(
+			"%s: Validation failed: Keyid not found in secret keyring",
+			keyid)
 		return
 	}
 	days7 := time.Now().Add(time.Duration(24 * 7) * time.Hour)
