@@ -127,9 +127,9 @@ func loopServer() (err error) {
 				generateKeypair(secret)
 			}
 			Info.Printf("Secret keyring contains %d keys", secret.Count())
-
-			//TODO Make this a flag function
-			secret.Purge("test.txt")
+			// Remove expired keys from memory and rewrite a secring file without
+			// expired keys.
+			secret.Purge("secring.new")
 			// Expire entries in the ID Log
 			idLogExpire(id)
 			// Complain about poor configs
@@ -161,6 +161,10 @@ func loopServer() (err error) {
 		if ! flag_daemon && ! cfg.Remailer.Daemon {
 			break
 		}
+		// Just for debugging
+		//for _, k := range secret.ListKeyids() {
+		//	Trace.Printf("Known secret key: %s", k)
+		//}
 	} // End of server loop
 	return
 }

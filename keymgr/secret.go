@@ -39,6 +39,14 @@ func NewSecring(secfile, pubkey string) *Secring {
 	}
 }
 
+func (s *Secring) ListKeyids() (keyids []string) {
+	keyids = make([]string, 0, len(s.sec))
+	for k := range s.sec {
+		keyids = append(keyids, k)
+	}
+	return
+}
+
 // SetName validates and sets the remailer name
 func (s *Secring) SetName(name string) {
 	var err error
@@ -299,30 +307,29 @@ func (s *Secring) Validate() (valid bool, err error) {
 
 // Purge writes the in-memory Secring to a file, excluding keys that expired
 // more than 28 days ago.
-func (s *Secring) Purge(filename string) (err error) {
+func (s *Secring) Purge(filename string) {
 	f, err := os.Create(filename)
   if err != nil {
-		err = fmt.Errorf("%s: Cannot create file")
+		panic(err)
 		return
 	}
 	defer f.Close()
-	days28 := time.Hour * 24 * 28
-	plus28Days := time.Now().Add(days28)
+	plus28Days := time.Now().Add(time.Hour * time.Duration(24 * 28))
 	// Iterate key and value of Secring
 	for k, m := range s.sec {
-		if m.until.Before(plus28Days) {
+		if m.until.After(plus28Days) {
 			delete(s.sec, k)
-			continue
-		}
-		keydata := "-----Begin Mixmaster Secret Key-----\n"
-		keydata += fmt.Sprintf("Created: %s\n", m.from.Format(date_format))
-		keydata += fmt.Sprintf("Expires: %s\n", m.until.Format(date_format))
-		keydata += hex.EncodeToString(m.keyid)  + "\n"
-		keydata += hex.EncodeToString(m.sk) + "\n"
-		keydata += "-----End Mixmaster Secret Key-----\n\n"
-		_, err = f.WriteString(keydata)
-		if err != nil {
-			return
+		} else {
+			keydata := "-----Begin Mixmaster Secret Key-----\n"
+			keydata += fmt.Sprintf("Created: %s\n", m.from.Format(date_format))
+			keydata += fmt.Sprintf("Expires: %s\n", m.until.Format(date_format))
+			keydata += hex.EncodeToString(m.keyid)  + "\n"
+			keydata += hex.EncodeToString(m.sk) + "\n"
+			keydata += "-----End Mixmaster Secret Key-----\n\n"
+			_, err = f.WriteString(keydata)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 	return
@@ -335,6 +342,7 @@ func (s *Secring) ImportSecring() (err error) {
 	if err != nil {
 		return
 	}
+	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	var line string //Each line within secring.mix
 	var skdata []byte // Decoded secret key
