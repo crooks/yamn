@@ -31,7 +31,7 @@ func loopServer() (err error) {
 	secret.SetAddress(cfg.Remailer.Address)
 	secret.SetExit(cfg.Remailer.Exit)
 	secret.SetVersion(version)
-	// Create some dirs if it doesn't already exist
+	// Create some dirs if they don't already exist
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
 	if err != nil {
 		return

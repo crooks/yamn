@@ -83,6 +83,10 @@ func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int
 // mixprep fetches the plaintext and prepares it for mix encoding
 func mixprep() {
 	var err error
+	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
+	if err != nil {
+		panic(err)
+	}
 	var message []byte
 	final := new(slotFinal)
 	if len(flag_args) == 0  {
