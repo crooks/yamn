@@ -152,9 +152,8 @@ func loopServer() (err error) {
 			err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 			if err != nil {
 				Warn.Printf("Pool mailing failed: %s", err)
-			} else {
-				poolDelete(file)
 			}
+			poolDelete(file)
 		}
 		poolProcessTime = time.Now().Add(poolProcessDelay)
 		// Break out of the loop if we're not running as a daemon
