@@ -27,6 +27,7 @@ type Secring struct {
 	name string // Local remailer's name
 	address string // Local remailer's email address
 	myKeyid []byte // Keyid this remailer is advertising
+	validity time.Duration // Period of key validity
 	exit bool // Is this an Exit type remailer?
 	version string // Yamn version string
 }
@@ -38,6 +39,7 @@ func NewSecring(secfile, pubkey string) *Secring {
 		sec: make(map[string]secret),
 	}
 }
+
 
 func (s *Secring) ListKeyids() (keyids []string) {
 	keyids = make([]string, 0, len(s.sec))
@@ -83,6 +85,11 @@ func (s *Secring) SetExit(exit bool) {
 	s.exit = exit
 }
 
+// SetValidity defines the time duration over which a key is deemed valid
+func (s *Secring) SetValidity(days int) {
+	s.validity = time.Duration(24 * days) * time.Hour
+}
+
 // SetVersion sets the version string used on keys
 func (s *Secring) SetVersion(v string) {
 	s.version = "4:" + v
@@ -93,15 +100,8 @@ func (s *Secring) Count() int {
 	return len(s.sec)
 }
 
-// Publish takes a key pair, does some basic validation and writes
-// public/private keys to their respective files.
-func (s *Secring) Publish(pub, sec []byte, valid int) {
-	/*
-	Each time this function is called, the passed public key is written to
-	key.txt.  This implies that the most recently created key is always
-	advertised, without consideration of validity dates.  The private key
-	is appended to the secring.mix file.
-	*/
+// Insert puts a new secret key into memory and returns its keyid
+func (s *Secring) Insert(pub, sec []byte) (keyidstr string) {
 	var err error
 	if len(pub) != 32 {
 		err = fmt.Errorf("Invalid pubkey length. Wanted=32, Got=%d", len(pub))
@@ -112,23 +112,26 @@ func (s *Secring) Publish(pub, sec []byte, valid int) {
 		panic(err)
 	}
 	key := new(secret)
-	key.sk = sec
-	// Create Keyid
-	//digest := blake2.New(&blake2.Config{Size: 16})
 	digest := sha256.New()
 	digest.Write(pub)
 	key.keyid = digest.Sum(nil)[:16]
-	keyidstr := hex.EncodeToString(key.keyid)
+	keyidstr = hex.EncodeToString(key.keyid)
 	// Validity dates
 	key.from = time.Now()
-	key.until = time.Now().Add(time.Duration(24 * valid) * time.Hour)
+	key.until = time.Now().Add(s.validity)
+	// The secret key itself
+	key.sk = sec
+	s.sec[keyidstr] = *key
+	return
+}
 
-	// Public Key first
-	f, err := os.Create(s.pubkeyFile)
-	if err != nil {
+func (s *Secring) WritePublic(pub []byte, keyidstr string) {
+	var err error
+	if len(pub) != 32 {
+		err = fmt.Errorf("Invalid pubkey length. Wanted=32, Got=%d", len(pub))
 		panic(err)
 	}
-	w := bufio.NewWriter(f)
+
 	var capstring string
 	// M = Middle, E = Exit
 	if s.exit {
@@ -136,6 +139,13 @@ func (s *Secring) Publish(pub, sec []byte, valid int) {
 	} else {
 		capstring += "M"
 	}
+
+	key, exists := s.sec[keyidstr]
+	if ! exists {
+		err = fmt.Errorf("%s: Keyid does not exist", keyidstr)
+		panic(err)
+	}
+
 	header := s.name + " "
 	header += s.address + " "
 	header += keyidstr + " "
@@ -144,6 +154,13 @@ func (s *Secring) Publish(pub, sec []byte, valid int) {
 	header += key.from.UTC().Format(date_format) + " "
 	header += key.until.UTC().Format(date_format)
 
+	// Open the file for writing
+	f, err := os.Create(s.pubkeyFile)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
 	fmt.Fprintln(w, header)
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "-----Begin Mix Key-----")
@@ -154,9 +171,19 @@ func (s *Secring) Publish(pub, sec []byte, valid int) {
 	if err != nil {
 		panic(err)
 	}
+}
 
-	// Secret Keyring next
-	f, err = os.OpenFile(s.secringFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+// WriteSecret adds the selected secret key to the secret keyring file
+func (s *Secring) WriteSecret(keyidstr string) {
+	var err error
+	key, exists := s.sec[keyidstr]
+	if ! exists {
+		err = fmt.Errorf("%s: Keyid does not exist", keyidstr)
+		panic(err)
+	}
+	f, err := os.OpenFile(
+		s.secringFile,
+		os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -171,10 +198,6 @@ func (s *Secring) Publish(pub, sec []byte, valid int) {
 	if err != nil {
 		panic(err)
 	}
-	// Add the new key to the in memory secret keyring
-	s.sec[keyidstr] = *key
-	// Advertise the new keyid
-	s.myKeyid = key.keyid
 }
 
 // WriteMyKey writes the local public key to filename with current

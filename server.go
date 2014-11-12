@@ -30,6 +30,7 @@ func loopServer() (err error) {
 	secret.SetName(cfg.Remailer.Name)
 	secret.SetAddress(cfg.Remailer.Address)
 	secret.SetExit(cfg.Remailer.Exit)
+	secret.SetValidity(keyValidityDays)
 	secret.SetVersion(version)
 	// Create some dirs if they don't already exist
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
@@ -172,8 +173,10 @@ func loopServer() (err error) {
 func generateKeypair(secret *keymgr.Secring) {
 	Info.Println("Generating and advertising a new key pair")
 	pub, sec := eccGenerate()
-	secret.Publish(pub, sec, keyValidityDays)
-	Info.Printf("Advertising new Keyid: %s", secret.GetMyKeyidStr())
+	keyidstr := secret.Insert(pub, sec)
+	secret.WritePublic(pub, keyidstr)
+	secret.WriteSecret(keyidstr)
+	Info.Printf("Advertising new Keyid: %s", keyidstr)
 }
 
 // idLogExpire deletes old entries in the ID Log
