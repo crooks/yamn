@@ -30,7 +30,7 @@ func loopServer() (err error) {
 	secret.SetName(cfg.Remailer.Name)
 	secret.SetAddress(cfg.Remailer.Address)
 	secret.SetExit(cfg.Remailer.Exit)
-	secret.SetValidity(keyValidityDays)
+	secret.SetValidity(cfg.Remailer.Keylife, cfg.Remailer.Keygrace)
 	secret.SetVersion(version)
 	// Create some dirs if they don't already exist
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
@@ -52,30 +52,20 @@ func loopServer() (err error) {
 	idLogExpire(id)
 	// Complain about poor configs
 	nagOperator()
-	/*
-	Ascertain the Keyid we're advertising.  This only needs to be done once at
-	server startup as the act of new key publication sets the keyid to the newly
-	generated key.
-	*/
-	err = secret.SetMyKeyid()
-	if err != nil {
-		Info.Printf("Error setting Keyid: %s", err)
+	// Run a key purge
+	if purgeSecring(secret) == 0 {
 		generateKeypair(secret)
 	} else {
-		Info.Printf("Advertising existing keyid: %s", secret.GetMyKeyidStr())
-		// Write a tmp pub.key using current config
-		tmpKey := cfg.Files.Pubkey + ".tmp"
-		err = secret.WriteMyKey(tmpKey)
-		if err != nil {
-			Warn.Println(err)
-		} else {
-			// Overwrite the published key with the refreshed version
-			err = os.Rename(tmpKey, cfg.Files.Pubkey)
-			if err != nil {
-				Warn.Println(err)
-			}
-		}
+		/*
+		If the operator changes his configuration, (such as upgrading to a new
+		version or switching from exit to middleman), the published key will not
+		match the configuration.  This element of code writes a new key.txt file
+		with current settings.  This only needs to be done if we haven't generated
+		a new key.
+		*/
+		refreshPubkey(secret)
 	}
+
 	Info.Printf("Secret keyring contains %d keys", secret.Count())
 
 	// Maintain time of last pool process
@@ -114,23 +104,11 @@ func loopServer() (err error) {
 		// Test if it's time to do daily events
 		if time.Since(today) > oneDay {
 			Info.Println("Performing daily events")
-			// Try to validate the advertised key on Secring
-			valid, err := secret.Validate()
-			if err != nil {
-				Warn.Printf("%s: Failed to validate key in Secring",
-					cfg.Files.Secring)
-				generateKeypair(secret)
-			} else if valid {
-				Info.Printf("Advertising current keyid: %s", secret.GetMyKeyidStr())
-			} else {
-				Info.Printf("%s has expired, will generate a new key pair",
-					secret.GetMyKeyidStr())
-				generateKeypair(secret)
-			}
-			Info.Printf("Secret keyring contains %d keys", secret.Count())
 			// Remove expired keys from memory and rewrite a secring file without
 			// expired keys.
-			secret.Purge("secring.new")
+			if purgeSecring(secret) == 0 {
+				generateKeypair(secret)
+			}
 			// Expire entries in the ID Log
 			idLogExpire(id)
 			// Complain about poor configs
@@ -166,6 +144,30 @@ func loopServer() (err error) {
 		//	Trace.Printf("Known secret key: %s", k)
 		//}
 	} // End of server loop
+	return
+}
+
+// refreshPubkey updates an existing Public key file
+func refreshPubkey(secret *keymgr.Secring) {
+	tmpKey := cfg.Files.Pubkey + ".tmp"
+	keyidstr := secret.WriteMyKey(tmpKey)
+	Info.Printf("Advertising keyid: %s", keyidstr)
+	Trace.Printf("Writing current public key to %s", tmpKey)
+	// Overwrite the published key with the refreshed version
+	Trace.Printf("Renaming %s to %s", tmpKey, cfg.Files.Pubkey)
+	err := os.Rename(tmpKey, cfg.Files.Pubkey)
+	if err != nil {
+		Warn.Println(err)
+	}
+}
+
+// purgeSecring deletes old keys and counts active ones.  If no active keys
+// are found, it triggers a generation.
+func purgeSecring(secret *keymgr.Secring) (active int) {
+	active, expired, purged := secret.Purge(cfg.Files.Secnew)
+	Info.Printf(
+		"Key purge complete. Active=%d, Expired=%d, Purged=%d",
+		active, expired, purged)
 	return
 }
 

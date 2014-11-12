@@ -15,6 +15,7 @@ type Config struct {
 		Mlist2 string
 		Pubkey string
 		Secring string
+		Secnew string
 		Adminkey string
 		Help string
 		Pooldir string
@@ -52,6 +53,8 @@ type Config struct {
 		Exit bool
 		MaxSize int
 		IDexp int
+		Keylife int
+		Keygrace int
 		Loglevel string
 		Daemon bool
 	}
@@ -116,6 +119,7 @@ func init() {
 	cfg.Files.Pubkey = path.Join(dir, "key.txt")
 	cfg.Files.Pubring = path.Join(dir, "pubring.mix")
 	cfg.Files.Secring = path.Join(dir, "secring.mix")
+	cfg.Files.Secnew = path.Join(dir, "secring.new")
 	cfg.Files.Mlist2 = path.Join(dir, "mlist2.txt")
 	cfg.Files.Adminkey = path.Join(dir, "adminkey.txt")
 	cfg.Files.Help = path.Join(dir, "help.txt")
@@ -145,6 +149,8 @@ func init() {
 	cfg.Remailer.Exit = false
 	cfg.Remailer.MaxSize = 12
 	cfg.Remailer.IDexp = 14
+	cfg.Remailer.Keylife = 60
+	cfg.Remailer.Keygrace = 28
 	cfg.Remailer.Loglevel = "info"
 	cfg.Remailer.Daemon = false
 }

@@ -28,6 +28,7 @@ type Secring struct {
 	address string // Local remailer's email address
 	myKeyid []byte // Keyid this remailer is advertising
 	validity time.Duration // Period of key validity
+	grace time.Duration // Period of grace after key expiry
 	exit bool // Is this an Exit type remailer?
 	version string // Yamn version string
 }
@@ -86,8 +87,9 @@ func (s *Secring) SetExit(exit bool) {
 }
 
 // SetValidity defines the time duration over which a key is deemed valid
-func (s *Secring) SetValidity(days int) {
-	s.validity = time.Duration(24 * days) * time.Hour
+func (s *Secring) SetValidity(valid, grace int) {
+	s.validity = time.Duration(24 * valid) * time.Hour
+	s.grace = time.Duration(24 * grace) * time.Hour
 }
 
 // SetVersion sets the version string used on keys
@@ -202,10 +204,10 @@ func (s *Secring) WriteSecret(keyidstr string) {
 
 // WriteMyKey writes the local public key to filename with current
 // configurtaion settings.
-func (s *Secring) WriteMyKey(filename string) (err error) {
+func (s *Secring) WriteMyKey(filename string) (keyidstr string) {
 	infile, err := os.Open(s.pubkeyFile)
 	if err != nil {
-		return
+		panic(err)
 	}
 	defer infile.Close()
 	// Create a tmp file rather than overwriting directly
@@ -228,9 +230,17 @@ func (s *Secring) WriteMyKey(filename string) (err error) {
 			} else {
 				capstring += "M"
 			}
+			// Extract the keyid so we can return it
+			keyidstr = elements[2]
+			if len(keyidstr) != 32 {
+				err = fmt.Errorf(
+					"Invalid public keyid length.  Expected=32, Got=%d.",
+					len(keyidstr))
+				panic(err)
+			}
 			header := s.name + " "
 			header += s.address + " "
-			header += hex.EncodeToString(s.myKeyid) + " "
+			header += keyidstr + " "
 			header += s.version + " "
 			header += capstring + " "
 			header += elements[5] + " "
@@ -242,7 +252,7 @@ func (s *Secring) WriteMyKey(filename string) (err error) {
 	}
 	err = out.Flush()
 	if err != nil {
-		return
+		panic(err)
 	}
 	return
 }
@@ -269,79 +279,25 @@ func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 	return
 }
 
-// GetMyKeyidStr returns the string version of the advertised keyid
-func (s *Secring) GetMyKeyidStr() string {
-	return hex.EncodeToString(s.myKeyid)
-}
-
-// SetMyKeyid imports keyid currently being advertised
-func (s *Secring) SetMyKeyid() (err error) {
-	f, err := os.Open(s.pubkeyFile)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	found := false
-	var elements []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		elements = strings.Split(line, " ")
-		if len(elements) == 7 {
-			found = true
-			break
-		}
-	}
-	if ! found {
-		err = fmt.Errorf("%s: No key header found", s.pubkeyFile)
-		return
-	}
-	keyidstr := elements[2]
-	if len(keyidstr) != 32 {
-		err = fmt.Errorf("%s: Corrupted keyid. Not 32 chars.", s.pubkeyFile)
-		return
-	}
-	s.myKeyid, err = hex.DecodeString(keyidstr)
-	if err != nil {
-		err = fmt.Errorf("%s: Corrupted keyid. Not valid hexadecimal", s.pubkeyFile)
-		return
-	}
-	return
-}
-
-// Validate tests if the advertised keyid has minimum of 7 days validity
-func (s *Secring) Validate() (valid bool, err error) {
-	keyid := hex.EncodeToString(s.myKeyid)
-	sec, exists := s.sec[keyid]
-	if ! exists {
-		err = fmt.Errorf(
-			"%s: Validation failed: Keyid not found in secret keyring",
-			keyid)
-		return
-	}
-	days7 := time.Now().Add(time.Duration(24 * 7) * time.Hour)
-	if sec.until.Before(days7) {
-		valid = false
-	} else {
-		valid = true
-	}
-	return
-}
-
-// Purge writes the in-memory Secring to a file, excluding keys that expired
-// more than 28 days ago.
-func (s *Secring) Purge(filename string) {
+// Purge deletes expired keys and writes current ones to a backup secring
+func (s *Secring) Purge(filename string) (active, expired, purged int) {
+	/*
+	active - Keys that have not yet expired
+	expired - Keys that have expired but not yet exceeded their grace period
+	purged - Keys that are beyond their grace period
+	*/
 	f, err := os.Create(filename)
   if err != nil {
 		panic(err)
 		return
 	}
 	defer f.Close()
-	plus28Days := time.Now().Add(time.Hour * time.Duration(24 * 28))
 	// Iterate key and value of Secring
 	for k, m := range s.sec {
-		if m.until.After(plus28Days) {
+		purgeDate := m.until.Add(s.grace * time.Hour)
+		if time.Now().After(purgeDate) {
 			delete(s.sec, k)
+			purged++
 		} else {
 			keydata := "-----Begin Mixmaster Secret Key-----\n"
 			keydata += fmt.Sprintf("Created: %s\n", m.from.Format(date_format))
@@ -352,6 +308,11 @@ func (s *Secring) Purge(filename string) {
 			_, err = f.WriteString(keydata)
 			if err != nil {
 				panic(err)
+			}
+			if time.Now().After(m.until) {
+				expired++
+			} else {
+				active++
 			}
 		}
 	}
