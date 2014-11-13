@@ -33,6 +33,7 @@ type Secring struct {
 	version string // Yamn version string
 }
 
+// NewSecring is a constructor for the Secret Keyring
 func NewSecring(secfile, pubkey string) *Secring {
 	return &Secring{
 		secringFile: secfile,
@@ -41,7 +42,7 @@ func NewSecring(secfile, pubkey string) *Secring {
 	}
 }
 
-
+// ListKeyids returns a string slice of all in-memory secret keyids
 func (s *Secring) ListKeyids() (keyids []string) {
 	keyids = make([]string, 0, len(s.sec))
 	for k := range s.sec {
@@ -213,7 +214,7 @@ func (s *Secring) WriteMyKey(filename string) (keyidstr string) {
 	// Create a tmp file rather than overwriting directly
 	outfile, err := os.Create(filename)
 	if err != nil {
-		return
+		panic(err)
 	}
 	defer outfile.Close()
 	in := bufio.NewScanner(infile)
@@ -435,7 +436,7 @@ func (s *Secring) ImportSecring() (err error) {
 				s.sec[keyidMapKey] = *sec
 				key_phase = 0
 			}
-		}
-	}
+		} // End of switch
+	} // End of file lines loop
 	return
 }
