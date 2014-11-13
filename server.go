@@ -54,6 +54,7 @@ func loopServer() (err error) {
 	nagOperator()
 	// Run a key purge
 	if purgeSecring(secret) == 0 {
+		// If there are zero active keys, generate a new one.
 		generateKeypair(secret)
 	} else {
 		/*
@@ -117,6 +118,10 @@ func loopServer() (err error) {
 			today = time.Now()
 		}
 
+		/*
+		TODO Check if this is really required.  We do it on random chain
+		contruction and that's the only time it's used.
+		*/
 		// Test if in-memory pubring is current
 		if public.KeyRefresh() {
 			// Time to re-read the pubring file
@@ -210,8 +215,8 @@ func nagOperator() {
 	}
 }
 
-// decodeMsg is the actual YAMN message decoder.  It's output is always a pooled
-// file, either in the Inbound or Outbound queue.
+// decodeMsg is the actual YAMN message decoder.  It's output is always a
+// pooled file, either in the Inbound or Outbound queue.
 func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (err error) {
 	// Split the message into its component parts
 	msgHeader := rawMsg[:headerBytes]
@@ -304,7 +309,8 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 		// Create a string from the nextHop, for populating a To header
 		sendTo := inter.getNextHop()
 		if sendTo == cfg.Remailer.Address {
-			Info.Println("Message loops back to us.",
+			Info.Println(
+				"Message loops back to us.",
 				"Storing in pool instead of sending it.")
 			outfileName := randPoolFilename("i")
 			err = ioutil.WriteFile(outfileName, mixMsg, 0600)
