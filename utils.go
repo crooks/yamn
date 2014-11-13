@@ -12,6 +12,8 @@ import (
 	"io/ioutil"
 	"bufio"
 	"errors"
+	"time"
+	"net/http"
 	"encoding/binary"
 	"encoding/hex"
 	"crypto/rand"
@@ -115,6 +117,37 @@ func bufLenCheck(buflen, length int) (err error) {
 		Info.Println(err)
 	}
 	return
+}
+
+// Return the time when filename was last modified
+func fileTime(filename string) (t time.Time, err error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return
+	}
+	t = info.ModTime()
+	return
+}
+
+// httpGet retrieves url and stores it in filename
+func httpGet(url, filename string) (err error) {
+  res, err := http.Get(url)
+  if err != nil {
+    return
+  }
+  if res.StatusCode < 200 || res.StatusCode > 299 {
+    err = fmt.Errorf("%s: %s", url, res.Status)
+    return err
+  }
+  content, err := ioutil.ReadAll(res.Body)
+  if err != nil {
+    return
+  }
+  err = ioutil.WriteFile(filename, content, 0644)
+  if err != nil {
+    return
+  }
+  return
 }
 
 func exists(path string) (bool, error) {

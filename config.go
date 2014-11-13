@@ -23,6 +23,10 @@ type Config struct {
 		IDlog string
 		Exedir string
 	}
+	Urls struct {
+		PubringURL string
+		Mlist2URL string
+	}
 	Mail struct {
 		Sendmail bool
 		Pipe string
@@ -127,6 +131,8 @@ func init() {
 	cfg.Files.Maildir = path.Join(dir, "Maildir")
 	cfg.Files.IDlog = path.Join(dir, "idlog")
 	cfg.Files.Exedir = dir
+	//cfg.Urls.PubringURL = "http://www.mixmin.net/yamn/pubring.mix"
+	//cfg.Urls.Mlist2URL = "http://www.mixmin.net/yamn/mlist2.txt"
 	cfg.Mail.Sendmail = true
 	cfg.Mail.Outfile = false
 	cfg.Mail.SMTPRelay = "127.0.0.1"

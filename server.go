@@ -73,8 +73,10 @@ func loopServer() (err error) {
 	poolProcessTime := time.Now()
 	poolProcessDelay := time.Duration(cfg.Pool.Loop) * time.Second
 
-	// Make a note of what day it is
-	today := time.Now()
+	// Define triggers for timed events
+	daily := time.Now()
+	hourly := time.Now()
+
 	oneDay := time.Duration(dayLength) * time.Second
 
 	// Actually start the server loop
@@ -103,7 +105,7 @@ func loopServer() (err error) {
 		}
 
 		// Test if it's time to do daily events
-		if time.Since(today) > oneDay {
+		if time.Since(daily) > oneDay {
 			Info.Println("Performing daily events")
 			// Remove expired keys from memory and rewrite a secring file without
 			// expired keys.
@@ -115,7 +117,23 @@ func loopServer() (err error) {
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
-			today = time.Now()
+			daily = time.Now()
+		}
+		// Hourly events
+		if time.Since(hourly) > time.Hour {
+			if cfg.Urls.PubringURL != "" {
+				err = httpGet(cfg.Urls.PubringURL, cfg.Files.Pubring)
+				if err != nil {
+					Warn.Println(err)
+				}
+			}
+			if cfg.Urls.Mlist2URL != "" {
+				err = httpGet(cfg.Urls.Mlist2URL, cfg.Files.Mlist2)
+				if err != nil {
+					Warn.Println(err)
+				}
+			}
+			hourly = time.Now()
 		}
 
 		// Read dynamic mix of outbound files from the Pool and mail them

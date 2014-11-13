@@ -10,6 +10,7 @@ import (
 	"strings"
 	"path"
 	"math"
+	"time"
 	"errors"
 	"crypto/sha512"
 	"github.com/crooks/yamn/keymgr"
@@ -108,6 +109,35 @@ func mixprep() {
 	if msglen == 0 {
 		fmt.Fprintln(os.Stderr, "No bytes in message")
 		os.Exit(1)
+	}
+	// Retrieve Pubring URL
+	var stamp time.Time
+	if cfg.Urls.PubringURL != "" {
+		stamp, err = fileTime(cfg.Files.Pubring)
+		if err != nil {
+			Warn.Println(err)
+		}
+		if time.Since(stamp) > time.Hour {
+			Info.Printf("Fetching %s", cfg.Urls.PubringURL)
+			err = httpGet(cfg.Urls.PubringURL, cfg.Files.Pubring)
+			if err != nil {
+				Warn.Println(err)
+			}
+		}
+	}
+	// Retrieve Mlist2 URL
+	if cfg.Urls.Mlist2URL != "" {
+		stamp, err = fileTime(cfg.Files.Mlist2)
+		if err != nil {
+			Warn.Println(err)
+		}
+		if time.Since(stamp) > time.Hour {
+			Info.Printf("Fetching %s", cfg.Urls.Mlist2URL)
+			err = httpGet(cfg.Urls.Mlist2URL, cfg.Files.Mlist2)
+			if err != nil {
+				Warn.Println(err)
+			}
+		}
 	}
 	// Create the Public Keyring
 	pubring := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
