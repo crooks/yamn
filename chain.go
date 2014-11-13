@@ -9,20 +9,10 @@ import (
 	"github.com/crooks/yamn/keymgr"
 )
 
-// str_contains tests for the membership of a string in a slice
-func str_contains(s string, slice []string) bool {
-	for _, n := range slice {
-		if n == s {
-			return true
-		}
-	}
-	return false
-}
-
 // distanceCriteria returns a slice of remailer addresses suitable for a given hop
 func distanceCriteria(addresses, dist []string) (c []string) {
   for _, addy := range addresses {
-		if str_contains(addy, dist) {
+		if IsMemberStr(addy, dist) {
 			// Excluded due to distance
 			continue
 		}
@@ -34,7 +24,7 @@ func distanceCriteria(addresses, dist []string) (c []string) {
 // makeChain takes a chain string and constructs a valid remailer chain
 func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, err error) {
 	// If the chain contains a random remailer, we're going to need stats
-	if str_contains("*", inChain) {
+	if IsMemberStr("*", inChain) {
 		// Check modification timestamp on stats file
 		var statRefresh bool
 		statRefresh, err =  pubring.StatRefresh()

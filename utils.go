@@ -60,6 +60,16 @@ func randInts(n int) (m []int) {
 	return
 }
 
+// IsMemberStr tests for the membership of a string in a slice
+func IsMemberStr(s string, slice []string) bool {
+	for _, n := range slice {
+		if n == s {
+			return true
+		}
+	}
+	return false
+}
+
 // randPoolFilename returns a random filename with a given prefix
 func randPoolFilename(prefix string) (fqfn string) {
 	for {
