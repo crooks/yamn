@@ -41,7 +41,9 @@ func poolRead() (selectedPoolFiles []string, err error) {
 		numToSend = int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
 	}
 	keys := randInts(len(poolFiles))
-	Trace.Printf("Processing %d pool messages.\n", poolSize)
+	if poolSize > 0 {
+		Trace.Printf("Processing %d pool messages.\n", poolSize)
+	}
 	for n := 0; n < numToSend; n++ {
 		mykey := keys[n]
 		selectedPoolFiles = append(selectedPoolFiles, poolFiles[mykey])
