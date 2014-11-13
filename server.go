@@ -118,16 +118,7 @@ func loopServer() (err error) {
 			today = time.Now()
 		}
 
-		/*
-		TODO Check if this is really required.  We do it on random chain
-		contruction and that's the only time it's used.
-		*/
-		// Test if in-memory pubring is current
-		if public.KeyRefresh() {
-			// Time to re-read the pubring file
-			Info.Printf("Reimporting keyring: %s", cfg.Files.Pubring)
-			public.ImportPubring()
-		}
+		// Read dynamic mix of outbound files from the Pool and mail them
 		filenames, err = poolRead()
 		if err != nil {
 			Warn.Printf("Reading pool failed: %s", err)
@@ -139,15 +130,13 @@ func loopServer() (err error) {
 			}
 			poolDelete(file)
 		}
+
+		// Reset the process time for the next pool read
 		poolProcessTime = time.Now().Add(poolProcessDelay)
 		// Break out of the loop if we're not running as a daemon
 		if ! flag_daemon && ! cfg.Remailer.Daemon {
 			break
 		}
-		// Just for debugging
-		//for _, k := range secret.ListKeyids() {
-		//	Trace.Printf("Known secret key: %s", k)
-		//}
 	} // End of server loop
 	return
 }

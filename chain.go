@@ -9,7 +9,7 @@ import (
 	"github.com/crooks/yamn/keymgr"
 )
 
-// distanceCriteria returns a slice of remailer addresses suitable for a given hop
+// distanceCriteria enforces user-defined minimal distance criteria
 func distanceCriteria(addresses, dist []string) (c []string) {
   for _, addy := range addresses {
 		if IsMemberStr(addy, dist) {
