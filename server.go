@@ -369,8 +369,11 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 			} else {
 				chunkFilename := poolWrite(msgBody, "p")
 				Trace.Printf(
-					"Pooled partial chunk. Num=%d, Parts=%d, Filename=%s",
-					final.chunkNum, final.numChunks, chunkFilename)
+					"Pooled partial chunk. MsgID=%x, Num=%d, Parts=%d, Filename=%s",
+					final.messageID,
+					final.chunkNum,
+					final.numChunks,
+					chunkFilename)
 				return
 			}
 		} else {
