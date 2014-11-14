@@ -207,7 +207,7 @@ func mixprep() {
 				got_exit = true
 			}
 			yamnMsg, sendTo := encodeMsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
-			outPoolWrite(armor(yamnMsg, sendTo))
+			poolWrite(armor(yamnMsg, sendTo), "m")
 		} // End of copies loop
 	} // End of fragments loop
 
