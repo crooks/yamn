@@ -149,26 +149,22 @@ func processInpool(prefix string, public *keymgr.Pubring, secret *keymgr.Secring
 	}
 }
 
-// inPoolWrite writes a raw Byte Yamn message to the Inbound pool
-func inPoolWrite(yamnMsg []byte) (err error) {
-	outfileName := randPoolFilename("i")
-	err = ioutil.WriteFile(outfileName, yamnMsg, 0600)
-	if err != nil {
-	Warn.Printf("Failed to write raw message to inbound pool: %s", err)
-		return
-	}
-	return
-}
-
-// outPoolWrite writes a raw Byte Yamn message to the Outbound pool.
-// Oubound message files are prefixed with the recipient address.
-func outPoolWrite(yamnMsg []byte) {
+// PoolWrite writes a raw Byte Yamn message to the Outbound pool with a prefix
+// string.
+func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
+	/*
+	Currently supported prefixs are:-
+	[ m              Oubound message (final or intermediate) ]
+	[ i          Inbound message (destined for this remailer ]
+	[ p               Partial message chunk needing assembly ]
+	*/
 	digest := sha256.New()
 	digest.Write(yamnMsg)
-	poolFileName := "m" + hex.EncodeToString(digest.Sum(nil))[:14]
+	poolFileName = prefix + hex.EncodeToString(digest.Sum(nil))[:14]
 	fqfn := path.Join(cfg.Files.Pooldir, poolFileName)
 	err := ioutil.WriteFile(fqfn, yamnMsg, 0600)
 	if err != nil {
 		Error.Printf("Failed to write payload to pool file: %s", err)
 	}
+	return
 }

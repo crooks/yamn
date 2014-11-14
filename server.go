@@ -121,6 +121,11 @@ func loopServer() (err error) {
 		}
 		// Hourly events
 		if time.Since(hourly) > time.Hour {
+			/*
+			The following two conditions try to import new pubring and mlist2 URLs.
+			If they fail, a warning is logged but no further action is taken.  It's
+			better to have old keys/stats than none.
+			*/
 			if cfg.Urls.PubringURL != "" {
 				err = httpGet(cfg.Urls.PubringURL, cfg.Files.Pubring)
 				if err != nil {
@@ -315,6 +320,11 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 		copy(mixMsg[msgLen:], msgBody)
 		// Create a string from the nextHop, for populating a To header
 		sendTo := inter.getNextHop()
+		/*
+		The following conditional tests if we are the next hop in addition to being
+		the current hop.  If we are, then it's better to store the message in the
+		inbound pool.  This prevents it being emailed back to us.
+		*/
 		if sendTo == cfg.Remailer.Address {
 			Info.Println(
 				"Message loops back to us.",
@@ -326,9 +336,16 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 				return
 			}
 		} else {
-			outPoolWrite(armor(mixMsg, sendTo))
+			poolWrite(armor(mixMsg, sendTo), "m")
 		} // End of local or remote delivery
+
 	} else if data.packetType == 1 {
+		/*
+		This section is concerned with final hop messages. i.e. Delivery to final
+		recipients.  Currently two methods of delivery are defined:-
+		[   0                           SMTP ]
+		[ 255         Dummmy (Don't deliver) ]
+		*/
 		final := new(slotFinal)
 		err = final.decodeFinal(data.packetInfo)
 		if err != nil {
@@ -347,10 +364,25 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 			return
 		}
 		if cfg.Remailer.Exit {
-			outPoolWrite(msgBody)
+			if final.numChunks == 1 {
+				poolWrite(msgBody, "m")
+			} else {
+				chunkFilename := poolWrite(msgBody, "p")
+				Trace.Printf(
+					"Pooled partial chunk. Num=%d, Parts=%d, Filename=%s",
+					final.chunkNum, final.numChunks, chunkFilename)
+				return
+			}
 		} else {
-			// Need to randhop as we're not an exit remailer
-			randhop(msgBody, public)
+			if final.numChunks == 1 {
+				// Need to randhop as we're not an exit remailer
+				randhop(msgBody, public)
+			} else {
+				Warn.Println(
+					"Randhopping doesn't support multi-chunk messages. ",
+					"As per Mixmaster, this message will be dropped.")
+				return
+			}
 		} // Randhop condition
 	} // Intermediate or exit
 
@@ -388,7 +420,7 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
-	outPoolWrite(armor(yamnMsg, sendTo))
+	poolWrite(armor(yamnMsg, sendTo), "m")
 	return
 }
 
@@ -412,7 +444,7 @@ func dummy(public *keymgr.Pubring) {
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
-	outPoolWrite(armor(yamnMsg, sendTo))
+	poolWrite(armor(yamnMsg, sendTo), "m")
 	return
 }
 

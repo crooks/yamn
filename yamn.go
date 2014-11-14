@@ -84,10 +84,7 @@ func main() {
 		// remailer-foo requests will have nil payloads.
 		// We don't want to pool them!
 		if msg != nil {
-			err = inPoolWrite(msg)
-  	  if err != nil {
-				Warn.Println(err)
-	    }
+			poolWrite(msg, "i")
 		}
 	} else if flag_remailer {
 		err = loopServer()
