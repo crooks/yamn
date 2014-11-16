@@ -21,6 +21,7 @@ type Config struct {
 		Pooldir string
 		Maildir string
 		IDlog string
+		ChunkDB string
 		Exedir string
 	}
 	Urls struct {
@@ -57,6 +58,7 @@ type Config struct {
 		Exit bool
 		MaxSize int
 		IDexp int
+		ChunkExpire int
 		Keylife int
 		Keygrace int
 		Loglevel string
@@ -130,6 +132,7 @@ func init() {
 	cfg.Files.Pooldir = path.Join(dir, "pool")
 	cfg.Files.Maildir = path.Join(dir, "Maildir")
 	cfg.Files.IDlog = path.Join(dir, "idlog")
+	cfg.Files.ChunkDB = path.Join(dir, "chunkdb")
 	cfg.Files.Exedir = dir
 	//cfg.Urls.PubringURL = "http://www.mixmin.net/yamn/pubring.mix"
 	//cfg.Urls.Mlist2URL = "http://www.mixmin.net/yamn/mlist2.txt"
@@ -155,6 +158,7 @@ func init() {
 	cfg.Remailer.Exit = false
 	cfg.Remailer.MaxSize = 12
 	cfg.Remailer.IDexp = 14
+	cfg.Remailer.ChunkExpire = 60
 	cfg.Remailer.Keylife = 60
 	cfg.Remailer.Keygrace = 28
 	cfg.Remailer.Loglevel = "info"

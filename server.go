@@ -15,6 +15,7 @@ import (
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/quickmail"
+	"github.com/crooks/yamn/chunker"
 	//"github.com/codahale/blake2"
 )
 
@@ -41,6 +42,11 @@ func loopServer() (err error) {
 	if err != nil {
 		return
 	}
+	err = os.MkdirAll(cfg.Files.ChunkDB, 0700)
+	if err != nil {
+		return
+	}
+
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
 	id, err := idlog.NewInstance(cfg.Files.IDlog)
@@ -48,6 +54,12 @@ func loopServer() (err error) {
 		panic(err)
 	}
 	defer id.Close()
+	// Open the chunk DB
+	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
+	chunkDB := chunker.New(cfg.Files.ChunkDB)
+	chunkDB.SetExpire(cfg.Remailer.ChunkExpire)
+	chunkDB.SetDir(cfg.Files.Pooldir)
+
 	// Expire old entries in the ID Log
 	idLogExpire(id)
 	// Complain about poor configs
@@ -89,9 +101,9 @@ func loopServer() (err error) {
 	for {
 		if flag_daemon && time.Now().Before(poolProcessTime) {
 			// Process the inbound Pool
-			processInpool("i", public, secret, id)
+			processInpool("i", public, secret, id, *chunkDB)
 			// Process the Maildir
-			processMail(public, secret, id)
+			processMail(public, secret, id, *chunkDB)
 			// Don't do anything beyond this point until poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
@@ -100,8 +112,8 @@ func loopServer() (err error) {
 			When not running as a Daemon, always read sources first. Otherwise, the
 			loop will terminate before they're ever read.
 			*/
-			processInpool("i", public, secret, id)
-			processMail(public, secret, id)
+			processInpool("i", public, secret, id, *chunkDB)
+			processMail(public, secret, id, *chunkDB)
 		}
 
 		// Test if it's time to do daily events
@@ -114,6 +126,9 @@ func loopServer() (err error) {
 			}
 			// Expire entries in the ID Log
 			idLogExpire(id)
+			// Expire entries in the chunker
+			cret, cexp := chunkDB.Expire()
+			fmt.Printf("Chunk expiry complete. Retained=%d, Expired=%d\n", cret, cexp)
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
@@ -229,7 +244,12 @@ func nagOperator() {
 
 // decodeMsg is the actual YAMN message decoder.  It's output is always a
 // pooled file, either in the Inbound or Outbound queue.
-func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id idlog.IDLog) (err error) {
+func decodeMsg(
+	rawMsg []byte,
+	public *keymgr.Pubring,
+	secret *keymgr.Secring,
+	id idlog.IDLog,
+	chunkDB chunker.Chunk) (err error) {
 	// Split the message into its component parts
 	msgHeader := rawMsg[:headerBytes]
 	msgEncHeaders := rawMsg[headerBytes:headersBytes]
@@ -374,6 +394,33 @@ func decodeMsg(rawMsg []byte, public *keymgr.Pubring, secret *keymgr.Secring, id
 					final.chunkNum,
 					final.numChunks,
 					chunkFilename)
+				// Fetch the chunks info from the DB for the given message ID
+				chunks := chunkDB.Get(final.messageID, int(final.numChunks))
+				// This saves losts of -1's as slices start at 0 and chunks at 1
+				cslot := final.chunkNum - 1
+				// Test that the slot for this chunk is empty
+				if chunks[cslot] != "" {
+					Warn.Printf(
+						"Duplicate chunk %d in MsgID: %x",
+						final.chunkNum, final.messageID)
+				}
+				// Insert the new chunk into the slice
+				chunks[cslot] = chunkFilename
+				Trace.Printf("Chunk state: %s", strings.Join(chunks, ","))
+				// Test if all chunk slots are populated
+				if chunker.IsPopulated(chunks) {
+					newPoolFile := randPoolFilename("m")
+					Trace.Printf("Assembling chunked message into %s", newPoolFile)
+					err = chunkDB.Assemble(newPoolFile, chunks)
+					if err != nil {
+						Warn.Printf("Chunk assembly failed: %s", err)
+					}
+					// Now the message is assembled into the Pool, the DB record can be deleted
+					chunkDB.Delete(final.messageID)
+				} else {
+					// Write the updated chunk status to the DB
+					chunkDB.Insert(final.messageID, chunks)
+				}
 				return
 			}
 		} else {
