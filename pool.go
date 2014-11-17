@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	//"github.com/codahale/blake2"
 	"github.com/crooks/yamn/idlog"
-	"github.com/crooks/yamn/chunker"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
 )
@@ -67,7 +66,7 @@ func processMail(
 	public *keymgr.Pubring,
 	secret *keymgr.Secring,
 	id idlog.IDLog,
-	chunkDB chunker.Chunk) (err error) {
+	chunkDB Chunk) (err error) {
 	dir := maildir.Dir(cfg.Files.Maildir)
 	// Get a list of Maildir keys from the directory
 	keys, err := dir.Unseen()
@@ -130,7 +129,7 @@ func processInpool(
 	public *keymgr.Pubring,
 	secret *keymgr.Secring,
 	id idlog.IDLog,
-	chunkDB chunker.Chunk) {
+	chunkDB Chunk) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, prefix)
 	if err != nil {
 		Warn.Printf("Unable to access inbound pool: %s", err)

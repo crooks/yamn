@@ -1,4 +1,4 @@
-package chunker
+package main
 
 import (
 	"fmt"
@@ -10,17 +10,13 @@ import (
 	"io/ioutil"
 )
 
-const (
-	dateFmt string = "20060102"
-)
-
 type Chunk struct {
 	db *leveldb.DB // A level DB instance
 	expireDays time.Duration // How long to retain keys
-	poolDir string // Directory where chunks are stored
+	deleteDays time.Duration // Age of partial files before deletion
 }
 
-func New(filename string) *Chunk {
+func OpenChunk(filename string) *Chunk {
 	levelDB, err := leveldb.OpenFile(filename, nil)
 	if err != nil {
 		panic(err)
@@ -36,11 +32,7 @@ func (chunk *Chunk) Close() {
 // SetExpire defines how long keys should be retained in the DB
 func (chunk *Chunk) SetExpire(days int) {
 	chunk.expireDays = time.Duration(days * 24) * time.Hour
-}
-
-//SetDir defines which directory contains the chunk files
-func (chunk *Chunk) SetDir(dir string) {
-	chunk.poolDir = dir
+	chunk.deleteDays = time.Duration(days * 24 * 2) * time.Hour
 }
 
 // Get returns the content associated with messageID.  If messageID is
@@ -73,7 +65,7 @@ func (chunk *Chunk) Insert(messageid []byte, items []string) {
 		messageid,
 		[]byte(fmt.Sprintf(
 			"%s,%s",
-			t.Format(dateFmt),
+			t.Format("20060102"),
 			strings.Join(items, ","),
 		)),
 		nil,
@@ -90,10 +82,33 @@ func IsPopulated(items []string) bool {
 	return true
 }
 
+// Housekeep deletes files over a given age
+func (chunk *Chunk) Housekeep() (ret, del int) {
+	files, err := ioutil.ReadDir(cfg.Files.Pooldir)
+	if err != nil {
+		Warn.Printf("Chunk housekeeping failed: %s", err)
+		return
+	}
+	expire := time.Now().Add(-chunk.deleteDays)
+	for _, file := range files {
+		if ! strings.HasPrefix(file.Name(), "p") {
+			// Don't do anything unless the file begins with "p"
+			continue
+		}
+		if file.ModTime().Before(expire) {
+			os.Remove(path.Join(cfg.Files.Pooldir, file.Name()))
+			del++
+		} else {
+			ret++
+		}
+	}
+	return
+}
+
+
 // Assemble takes all the file chunks, assembles them in order and stores the
 // result back into the pool.
 func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
-	//outfile := path.Join(chunk.poolDir, filename)
 	f, err := os.Create(filename)
 	if err != nil {
 		return
@@ -101,15 +116,17 @@ func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
 	defer f.Close()
 	var content []byte
 	for _, c := range(items) {
-		infile := path.Join(chunk.poolDir, c)
+		infile := path.Join(cfg.Files.Pooldir, c)
 		content, err = ioutil.ReadFile(infile)
 		if err != nil {
-			return
+			Warn.Printf("Chunk assembler says: %s", err)
+			continue
 		}
 		f.Write(content)
 		err = os.Remove(infile)
 		if err != nil {
-			return
+			Warn.Printf("Assembler chunk delete failed: %s", err)
+			continue
 		}
 	}
 	return
@@ -119,14 +136,14 @@ func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
 func (chunk *Chunk) Delete(messageid []byte) {
 	err := chunk.db.Delete(messageid, nil)
 	if err != nil {
-		panic(err)
+		Warn.Printf("Could not delete MsgID: %s. %s", messageid, err)
 	}
 }
 
 // DeleteItems removes all the filename defined in items
 func (chunk *Chunk) DeleteItems(items []string) (deleted, failed int) {
 	for _, file := range items {
-		fqfn := path.Join(chunk.poolDir, file)
+		fqfn := path.Join(cfg.Files.Pooldir, file)
 		err := os.Remove(fqfn)
 		if err != nil {
 			failed++
@@ -137,6 +154,8 @@ func (chunk *Chunk) DeleteItems(items []string) (deleted, failed int) {
 	return
 }
 
+// Expire iterates the DB and deletes entries (and files) that exceed the
+// defined age.
 func (chunk *Chunk) Expire() (retained, deleted int) {
 	now := time.Now()
 	iter := chunk.db.NewIterator(nil, nil)
@@ -146,8 +165,9 @@ func (chunk *Chunk) Expire() (retained, deleted int) {
 		stamp := items[0]
 		// Now we have the timestamp, strip it from the slice
 		copy(items, items[1:])
-		expire, err := time.Parse(dateFmt, stamp)
+		expire, err := time.Parse("20060102", stamp)
 		if err != nil {
+			Warn.Printf("Could not parse timestamp: %s", err)
 			// If the timestamp is invalid, delete the record
 			chunk.DeleteItems(items)
 			chunk.Delete(key)

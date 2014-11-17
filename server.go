@@ -15,7 +15,6 @@ import (
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/quickmail"
-	"github.com/crooks/yamn/chunker"
 	//"github.com/codahale/blake2"
 )
 
@@ -56,12 +55,13 @@ func loopServer() (err error) {
 	defer id.Close()
 	// Open the chunk DB
 	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
-	chunkDB := chunker.New(cfg.Files.ChunkDB)
+	chunkDB := OpenChunk(cfg.Files.ChunkDB)
 	chunkDB.SetExpire(cfg.Remailer.ChunkExpire)
-	chunkDB.SetDir(cfg.Files.Pooldir)
 
 	// Expire old entries in the ID Log
 	idLogExpire(id)
+	// Clean the chunk DB
+	chunkClean(*chunkDB)
 	// Complain about poor configs
 	nagOperator()
 	// Run a key purge
@@ -127,8 +127,7 @@ func loopServer() (err error) {
 			// Expire entries in the ID Log
 			idLogExpire(id)
 			// Expire entries in the chunker
-			cret, cexp := chunkDB.Expire()
-			fmt.Printf("Chunk expiry complete. Retained=%d, Expired=%d\n", cret, cexp)
+			chunkClean(*chunkDB)
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
@@ -219,6 +218,18 @@ func idLogExpire(id idlog.IDLog) {
 	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)
 }
 
+// chunkClean expires entries from the chunk DB and deletes any stranded files
+func chunkClean(chunkDB Chunk) {
+	cret, cexp := chunkDB.Expire()
+	if cexp > 0 {
+		Info.Printf("Chunk expiry complete. Retained=%d, Expired=%d\n", cret, cexp)
+	}
+	fret, fdel := chunkDB.Housekeep()
+	if fdel > 0 {
+		Info.Printf("Stranded chunk deletion: Retained=%d, Deleted=%d",	fret, fdel)
+	}
+}
+
 // nagOperator prompts a remailer operator about poor practices.
 func nagOperator() {
 	// Complain about excessively small loop values.
@@ -249,7 +260,7 @@ func decodeMsg(
 	public *keymgr.Pubring,
 	secret *keymgr.Secring,
 	id idlog.IDLog,
-	chunkDB chunker.Chunk) (err error) {
+	chunkDB Chunk) (err error) {
 	// Split the message into its component parts
 	msgHeader := rawMsg[:headerBytes]
 	msgEncHeaders := rawMsg[headerBytes:headersBytes]
@@ -408,7 +419,7 @@ func decodeMsg(
 				chunks[cslot] = chunkFilename
 				Trace.Printf("Chunk state: %s", strings.Join(chunks, ","))
 				// Test if all chunk slots are populated
-				if chunker.IsPopulated(chunks) {
+				if IsPopulated(chunks) {
 					newPoolFile := randPoolFilename("m")
 					Trace.Printf("Assembling chunked message into %s", newPoolFile)
 					err = chunkDB.Assemble(newPoolFile, chunks)
