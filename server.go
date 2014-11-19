@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path"
 	"bytes"
 	"time"
 	"strings"
@@ -20,7 +19,6 @@ import (
 
 // Start the server process.  If run with --daemon, this will loop forever.
 func loopServer() (err error) {
-	var filenames []string
 	// Populate public and secret keyrings
 	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
 	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
@@ -155,18 +153,8 @@ func loopServer() (err error) {
 			hourly = time.Now()
 		}
 
-		// Read dynamic mix of outbound files from the Pool and mail them
-		filenames, err = poolRead()
-		if err != nil {
-			Warn.Printf("Reading pool failed: %s", err)
-		}
-		for _, file := range filenames {
-			err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
-			if err != nil {
-				Warn.Printf("Pool mailing failed: %s", err)
-			}
-			poolDelete(file)
-		}
+		// Select outbound pool files and mail them
+		poolOutboundSend()
 
 		// Reset the process time for the next pool read
 		poolProcessTime = time.Now().Add(poolProcessDelay)

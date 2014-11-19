@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/mail"
 	"strings"
-	"path"
 	"math"
 	"time"
 	"errors"
@@ -198,7 +197,9 @@ func mixprep() {
 				os.Exit(0)
 			}
 			if len(chain) != len(in_chain) {
-				err = fmt.Errorf("Chain length mismatch.  In=%d, Out=%d", len(in_chain), len(chain))
+				err = fmt.Errorf(
+					"Chain length mismatch.  In=%d, Out=%d",
+					len(in_chain), len(chain))
 				panic(err)
 			}
 			//fmt.Println(chain)
@@ -206,7 +207,12 @@ func mixprep() {
 				exitnode = chain[len(chain) - 1]
 				got_exit = true
 			}
-			yamnMsg, sendTo := encodeMsg(message[first_byte:last_byte], packetid, chain, *final, pubring)
+			yamnMsg, sendTo := encodeMsg(
+				message[first_byte:last_byte],
+				packetid,
+				chain,
+				*final,
+				pubring)
 			poolWrite(armor(yamnMsg, sendTo), "m")
 		} // End of copies loop
 	} // End of fragments loop
@@ -214,21 +220,6 @@ func mixprep() {
 	// Decide if we want to inject a dummy
 	if ! flag_nodummy && pubring.Stats && randomInt(7) < 3 {
 		dummy(pubring)
-	}
-
-	// Process the outbound pool
-	var filenames []string
-	filenames, err = poolRead()
-	if err != nil {
-		Warn.Printf("Reading pool failed: %s", err)
-	}
-	for _, file := range filenames {
-		err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
-		if err != nil {
-			Warn.Printf("Pool mailing failed: %s", err)
-		} else {
-			poolDelete(file)
-		}
 	}
 }
 

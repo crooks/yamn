@@ -74,6 +74,7 @@ func main() {
 	}
 	if flag_client {
 		mixprep()
+		poolOutboundSend()
 	} else if flag_stdin {
 		// Expecting a remailer message on Stdin
 		var msg []byte
@@ -93,5 +94,7 @@ func main() {
 		}
 	} else if flag_dummy {
 		injectDummy()
+	} else if flag_send {
+		poolOutboundSend()
 	}
 }

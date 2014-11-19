@@ -17,9 +17,30 @@ import (
 	"github.com/luksen/maildir"
 )
 
+func poolOutboundSend() {
+	var err error
+	var filenames []string
+	if flag_send {
+		// Read all the pool files
+		filenames, err = readDir(cfg.Files.Pooldir, "m")
+	} else {
+		// Read dynamic mix of outbound files from the Pool
+		filenames, err = poolRead()
+	}
+	if err != nil {
+		Warn.Printf("Reading pool failed: %s", err)
+		return
+	}
+	for _, file := range filenames {
+		err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
+		if err != nil {
+			Warn.Printf("Pool mailing failed: %s", err)
+		}
+		poolDelete(file)
+	}
+}
+
 // poolRead returns a dynamic Mix of filenames from the outbound pool.
-// If flag_send is true, all files will be returned in random order,
-// otherwise the configured pool size and rate rules will be applied.
 func poolRead() (selectedPoolFiles []string, err error) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
@@ -28,14 +49,11 @@ func poolRead() (selectedPoolFiles []string, err error) {
 	}
 	poolSize := len(poolFiles)
 	var numToSend int // Number of files to return for processing
-	if poolSize < cfg.Pool.Size && ! flag_send {
+	if poolSize < cfg.Pool.Size {
 		// Pool isn't sufficiently populated
 		Trace.Println("Pool insufficiently populated to trigger sending.",
 			fmt.Sprintf("Require=%d, Got=%d", cfg.Pool.Size, poolSize))
 		return
-	} else if flag_send {
-		Info.Println("Flushing outbound pool")
-		numToSend = poolSize
 	} else {
 		// Normal pool processing condition
 		numToSend = int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
