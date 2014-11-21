@@ -145,7 +145,13 @@ func mixprep() {
 		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
 		return
 	}
-	in_chain := strings.Split(flag_chain, ",")
+	// Read the chain from flag or config
+	var in_chain []string
+	if flag_chain == "" {
+		in_chain = strings.Split(cfg.Stats.Chain, ",")
+	} else {
+		in_chain = strings.Split(flag_chain, ",")
+	}
 	if len(in_chain) == 0 {
 		err = errors.New("Empty input chain")
 		return

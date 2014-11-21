@@ -43,6 +43,7 @@ type Config struct {
 		Maxlat int
 		Minrel float32
 		Relfinal float32
+		Chain string
 		Numcopies int
 		Distance int
 		StaleHrs int
@@ -85,7 +86,7 @@ func init() {
 	flag.BoolVar(&flag_daemon, "D", false,
 		"Start remailer as a daemon. (Requires -M")
 	// Remailer chain
-	flag.StringVar(&flag_chain, "chain", "*,*,*", "Remailer chain")
+	flag.StringVar(&flag_chain, "chain", "", "Remailer chain")
 	flag.StringVar(&flag_chain, "l", "*,*,*", "Remailer chain")
 	// Recipient address
 	flag.StringVar(&flag_to, "to", "", "Recipient email address")
@@ -147,6 +148,7 @@ func init() {
 	cfg.Stats.Relfinal = 99.0
 	cfg.Stats.Minlat = 2
 	cfg.Stats.Maxlat = 60
+	cfg.Stats.Chain = "*,*,*"
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
@@ -179,8 +181,8 @@ func flags() {
 				os.Stderr, "Unable to read %s\n", flag_config)
 			os.Exit(1)
 		}
-	} else if os.Getenv("GOLANG") != "" {
-		err = gcfg.ReadFileInto(&cfg, os.Getenv("GOLANG"))
+	} else if os.Getenv("YAMNCFG") != "" {
+		err = gcfg.ReadFileInto(&cfg, os.Getenv("YAMNCFG"))
 		if err != nil {
 			fmt.Fprintf(
 				os.Stderr, "Unable to read %s\n", flag_config)
