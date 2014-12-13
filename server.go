@@ -195,9 +195,11 @@ func generateKeypair(secret *keymgr.Secring) {
 	Info.Println("Generating and advertising a new key pair")
 	pub, sec := eccGenerate()
 	keyidstr := secret.Insert(pub, sec)
+	Info.Printf("Generated new keypair with keyid: %s", keyidstr)
+	Info.Println("Writing new Public Key to disc")
 	secret.WritePublic(pub, keyidstr)
+	Info.Println("Inserting Secret Key into Secring")
 	secret.WriteSecret(keyidstr)
-	Info.Printf("Advertising new Keyid: %s", keyidstr)
 }
 
 // idLogExpire deletes old entries in the ID Log

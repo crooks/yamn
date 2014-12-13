@@ -295,7 +295,7 @@ func (s *Secring) Purge(filename string) (active, expired, purged int) {
 	defer f.Close()
 	// Iterate key and value of Secring
 	for k, m := range s.sec {
-		purgeDate := m.until.Add(s.grace * time.Hour)
+		purgeDate := m.until.Add(s.grace)
 		if time.Now().After(purgeDate) {
 			delete(s.sec, k)
 			purged++
