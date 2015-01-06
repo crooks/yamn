@@ -11,7 +11,8 @@ import (
 	"time"
 	"crypto/rand"
 	"github.com/crooks/yamn/keymgr"
-	"code.google.com/p/go.crypto/nacl/box"
+	"golang.org/x/crypto/nacl/box"
+	//"code.google.com/p/go.crypto/nacl/box"
 )
 
 // timestamp creates a Mixmaster formatted timestamp, consisting of an intro
