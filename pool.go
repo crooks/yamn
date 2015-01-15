@@ -85,6 +85,26 @@ func processMail(
 	secret *keymgr.Secring,
 	id idlog.IDLog,
 	chunkDB Chunk) (err error) {
+	/*
+	This initial section of code tests if the Pooldir exists.  It always should,
+	but if it doesn't, we need to panic before reading the Maildir or messages
+	will be lost.
+	*/
+	var gotPoolDir bool
+	gotPoolDir, err = exists(cfg.Files.Pooldir)
+	if err != nil {
+		// Some error occurred other than the Dir not existing
+		panic(err)
+	}
+	if ! gotPoolDir {
+		// Arghh, the Pooldir doesn't exist!
+		err = fmt.Errorf(
+			"Aborting before mail read.  Pooldir(%s) does not exist.",
+			cfg.Files.Pooldir,
+		)
+		panic(err)
+	}
+
 	dir := maildir.Dir(cfg.Files.Maildir)
 	// Get a list of Maildir keys from the directory
 	keys, err := dir.Unseen()

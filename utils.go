@@ -150,6 +150,7 @@ func httpGet(url, filename string) (err error) {
   return
 }
 
+// exists returns True if a given file or directory exists
 func exists(path string) (bool, error) {
 	var err error
 	_, err = os.Stat(path)
