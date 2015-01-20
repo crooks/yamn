@@ -97,6 +97,8 @@ func loopServer() (err error) {
 			cfg.Remailer.Name)
 	}
 	for {
+		// Panic is the pooldir doesn't exist
+		assertExists(cfg.Files.Pooldir)
 		if flag_daemon && time.Now().Before(poolProcessTime) {
 			// Process the inbound Pool
 			processInpool("i", public, secret, id, *chunkDB)

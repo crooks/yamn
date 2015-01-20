@@ -157,12 +157,28 @@ func exists(path string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if os.IsNotExist(err) {
+		if os.IsNotExist(err) {
 		return false, nil
 	}
 	return false, err
 }
 
+// assertExists panics if a given file or dir doesn't exist
+func assertExists(path string) {
+	gotPoolDir, err := exists(cfg.Files.Pooldir)
+	if err != nil {
+		// Some error occurred other than the path not existing
+		panic(err)
+	}
+	if ! gotPoolDir {
+		// Arghh, the path doesn't exist!
+		err = fmt.Errorf(
+			"Assertion failure.  Path %s does not exist.",
+			path,
+		)
+		panic(err)
+	}
+}
 
 // sPopBytes returns n bytes from the start of a slice
 func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
