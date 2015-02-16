@@ -281,19 +281,27 @@ func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 }
 
 // Purge deletes expired keys and writes current ones to a backup secring
-func (s *Secring) Purge(filename string) (active, expired, purged int) {
+func (s *Secring) Purge() (active, expired, purged int) {
 	/*
 	active - Keys that have not yet expired
 	expired - Keys that have expired but not yet exceeded their grace period
 	purged - Keys that are beyond their grace period
 	*/
-	f, err := os.Create(filename)
+	// Rename the secring file to a tmp name, just in case this screws up.
+	err := os.Rename(s.secringFile, s.secringFile + ".tmp")
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a new secring file
+	f, err := os.Create(s.secringFile)
   if err != nil {
 		panic(err)
 		return
 	}
 	defer f.Close()
-	// Iterate key and value of Secring
+
+	// Iterate key and value of Secring in memory
 	for k, m := range s.sec {
 		purgeDate := m.until.Add(s.grace)
 		if time.Now().After(purgeDate) {
