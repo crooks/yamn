@@ -90,7 +90,7 @@ func mixprep() {
 	var message []byte
 	final := new(slotFinal)
 	if len(flag_args) == 0  {
-		fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
+		//fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
 		message, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
