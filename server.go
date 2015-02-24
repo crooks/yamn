@@ -86,6 +86,7 @@ func loopServer() (err error) {
 	// Define triggers for timed events
 	daily := time.Now()
 	hourly := time.Now()
+	dayOfMonth := time.Now().Day()
 
 	oneDay := time.Duration(dayLength) * time.Second
 
@@ -116,9 +117,9 @@ func loopServer() (err error) {
 			processMail(public, secret, id, *chunkDB)
 		}
 
-		// Test if it's time to do daily events
-		if time.Since(daily) > oneDay {
-			Info.Println("Performing daily events")
+		// Midnight events
+		if time.Now().Day() != dayOfMonth {
+			Info.Println("Performing midnight events")
 			// Remove expired keys from memory and rewrite a secring file without
 			// expired keys.
 			if purgeSecring(secret) == 0 {
@@ -128,6 +129,12 @@ func loopServer() (err error) {
 			idLogExpire(id)
 			// Expire entries in the chunker
 			chunkClean(*chunkDB)
+			// Reset dayOfMonth to today
+			dayOfMonth = time.Now().Day()
+		}
+		// Daily events
+		if time.Since(daily) > oneDay {
+			Info.Println("Performing daily events")
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next 24 hours.
