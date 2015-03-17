@@ -3,16 +3,16 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"io/ioutil"
-	"net/mail"
-	"strings"
-	"math"
-	"time"
-	"errors"
 	"crypto/sha512"
+	"errors"
+	"fmt"
 	"github.com/crooks/yamn/keymgr"
+	"io/ioutil"
+	"math"
+	"net/mail"
+	"os"
+	"strings"
+	"time"
 	//"github.com/codahale/blake2"
 )
 
@@ -40,7 +40,7 @@ func readMessage(filename string) []byte {
 	}
 	if flag_to != "" {
 		msg.Header["To"] = []string{flag_to}
-		if ! strings.Contains(flag_to, "@") {
+		if !strings.Contains(flag_to, "@") {
 			fmt.Fprintf(os.Stderr, "%s: Recipient doesn't appear to be an email address\n", flag_to)
 		}
 	}
@@ -53,10 +53,10 @@ func readMessage(filename string) []byte {
 // deterministic precalculates the header content for fake headers inserted at
 // each remailer hop.
 func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int) (pos int, content []byte) {
-	bottomSlotNum := maxChainLength - 1  // (9 for 10 hops)
-	numDslots := chainLength - 1 - hopNum // (2 for exit of 10 hops)
+	bottomSlotNum := maxChainLength - 1          // (9 for 10 hops)
+	numDslots := chainLength - 1 - hopNum        // (2 for exit of 10 hops)
 	topDslotNum := bottomSlotNum - numDslots + 1 // (8 for exit of 10 hops)
-	content = make([]byte, 0, numDslots * headerBytes)
+	content = make([]byte, 0, numDslots*headerBytes)
 	//fmt.Printf("Chain=%d, Hop=%d\n", chainLength, hopNum)
 	for slot := topDslotNum; slot <= bottomSlotNum; slot++ {
 		fakehead := make([]byte, headerBytes)
@@ -65,15 +65,15 @@ func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int
 		startSlot := bottomSlotNum
 		for iterLeft := startHop; iterLeft > hopNum; iterLeft-- {
 			// Minus one because we don't use these keys/iv on the exit hop
-			hopkey := keys[iterLeft - 1]
-			hopivs := ivs[iterLeft - 1]
-			hopiv := hopivs[startSlot * 16:(startSlot + 1) * 16]
+			hopkey := keys[iterLeft-1]
+			hopivs := ivs[iterLeft-1]
+			hopiv := hopivs[startSlot*16 : (startSlot+1)*16]
 			//fmt.Printf("Fake: Hop=%d, Slot=%d, Key=%x, IV=%x\n", iterLeft, startSlot, hopkey[:10], hopiv[:10])
 			fakehead = AES_CTR(fakehead, hopkey, hopiv)
 			startSlot--
 		}
 		clen := len(content)
-		content = content[0:clen + headerBytes]
+		content = content[0 : clen+headerBytes]
 		copy(content[clen:], fakehead)
 	}
 	pos = topDslotNum * headerBytes
@@ -89,7 +89,7 @@ func mixprep() {
 	}
 	var message []byte
 	final := new(slotFinal)
-	if len(flag_args) == 0  {
+	if len(flag_args) == 0 {
 		//fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
 		message, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
@@ -114,7 +114,7 @@ func mixprep() {
 	if cfg.Urls.PubringURL != "" {
 		stamp, err = fileTime(cfg.Files.Pubring)
 		if err != nil {
-			Warn.Println(err)
+			Trace.Println(err)
 		}
 		if time.Since(stamp) > time.Hour {
 			Info.Printf("Fetching %s", cfg.Urls.PubringURL)
@@ -128,7 +128,7 @@ func mixprep() {
 	if cfg.Urls.Mlist2URL != "" {
 		stamp, err = fileTime(cfg.Files.Mlist2)
 		if err != nil {
-			Warn.Println(err)
+			Trace.Println(err)
 		}
 		if time.Since(stamp) > time.Hour {
 			Info.Printf("Fetching %s", cfg.Urls.Mlist2URL)
@@ -166,10 +166,10 @@ func mixprep() {
 	final.numChunks = uint8(numc)
 	cnum = 1
 	var exitnode string // Address of exit node (for multiple copy chains)
-	var got_exit bool // Flag to indicate an exit node has been selected
+	var got_exit bool   // Flag to indicate an exit node has been selected
 	var packetid []byte // Final hop Packet ID
-	var first_byte int // First byte of message slice
-	var last_byte int // Last byte of message slice
+	var first_byte int  // First byte of message slice
+	var last_byte int   // Last byte of message slice
 	// Fragments loop begins here
 	for cnum = 1; cnum <= numc; cnum++ {
 		final.chunkNum = uint8(cnum)
@@ -194,7 +194,7 @@ func mixprep() {
 		for n := 0; n < flag_copies; n++ {
 			if got_exit {
 				// Set the last node in the chain to the previously select exitnode
-				in_chain[len(in_chain) - 1] = exitnode
+				in_chain[len(in_chain)-1] = exitnode
 			}
 			var chain []string
 			chain, err = makeChain(in_chain, pubring)
@@ -209,8 +209,8 @@ func mixprep() {
 				panic(err)
 			}
 			//fmt.Println(chain)
-			if ! got_exit {
-				exitnode = chain[len(chain) - 1]
+			if !got_exit {
+				exitnode = chain[len(chain)-1]
 				got_exit = true
 			}
 			yamnMsg, sendTo := encodeMsg(
@@ -224,7 +224,7 @@ func mixprep() {
 	} // End of fragments loop
 
 	// Decide if we want to inject a dummy
-	if ! flag_nodummy && pubring.Stats && randomInt(7) < 3 {
+	if !flag_nodummy && pubring.Stats && randomInt(7) < 3 {
 		dummy(pubring)
 	}
 }
@@ -244,12 +244,12 @@ func encodeMsg(
 	body := make([]byte, bodyBytes)
 	headers := make([]byte, headersBytes)
 	numRandHeads := maxChainLength - chainLength
-	copy(headers, randbytes(numRandHeads * headerBytes))
+	copy(headers, randbytes(numRandHeads*headerBytes))
 	// Generate all the intermediate hop Keys and IVs
 	var keys [maxChainLength - 1][]byte
-  var ivs [maxChainLength - 1][]byte
+	var ivs [maxChainLength - 1][]byte
 	// One key required per intermediate hop
-	for n := 0; n < chainLength - 1; n++ {
+	for n := 0; n < chainLength-1; n++ {
 		keys[n] = randbytes(32)
 		ivs[n] = randbytes((maxChainLength + 1) * 16)
 	}
@@ -282,27 +282,27 @@ func encodeMsg(
 			inter := new(slotIntermediate)
 			data.packetType = 0
 			// Grab a Key and block of IVs from the pool for this header
-			data.aesKey = keys[hopNum - 1]
-			inter.aesIVs = ivs[hopNum - 1]
+			data.aesKey = keys[hopNum-1]
+			inter.aesIVs = ivs[hopNum-1]
 			// The chain hasn't been popped yet so hop still contains the last node name.
 			inter.setNextHop(hop)
 			data.packetInfo = inter.encodeIntermediate()
 			data.packetID = randbytes(16)
 			// Encrypt the current header slots
-			for slot := 0; slot < maxChainLength - 1; slot++ {
+			for slot := 0; slot < maxChainLength-1; slot++ {
 				sbyte := slot * headerBytes
 				ebyte := (slot + 1) * headerBytes
-				iv := inter.aesIVs[slot * 16:(slot + 1) * 16]
+				iv := inter.aesIVs[slot*16 : (slot+1)*16]
 				//fmt.Printf("Real: Hop=%d, Slot=%d, Key=%x, IV=%x\n", hopNum, slot, data.aesKey[:10], iv[:10])
 				copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
 			}
 			// The final IV is used to Encrypt the message body
-			iv := inter.aesIVs[maxChainLength * 16:]
+			iv := inter.aesIVs[maxChainLength*16:]
 			copy(body, AES_CTR(body, data.aesKey, iv))
 		} // End of Intermediate processing
 		// Move all the headers down one slot and chop the last header
-		copy(headers[headerBytes:], headers[:headersBytes - headerBytes])
-		if hopNum < chainLength - 1 {
+		copy(headers[headerBytes:], headers[:headersBytes-headerBytes])
+		if hopNum < chainLength-1 {
 			pos, fakes := deterministic(keys, ivs, chainLength, hopNum)
 			if err != nil {
 				panic(err)
@@ -324,14 +324,14 @@ func encodeMsg(
 		if err != nil {
 			Error.Printf("%s: Remailer unknown in public keyring\n")
 		}
-	  head.recipientKeyid = rem.Keyid
-	  head.recipientPK = rem.PK
+		head.recipientKeyid = rem.Keyid
+		head.recipientPK = rem.PK
 		copy(headers[:headerBytes], head.encodeHead())
 	}
 	if len(chain) != 0 {
 		panic("After encoding, chain was not empty.")
 	}
-	payload = make([]byte, headersBytes + bodyBytes)
+	payload = make([]byte, headersBytes+bodyBytes)
 	copy(payload, headers)
 	copy(payload[headersBytes:], body)
 	return
