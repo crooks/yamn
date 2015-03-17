@@ -3,14 +3,14 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"strings"
-	"path"
-	"io/ioutil"
-	"net/mail"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"io/ioutil"
+	"net/mail"
+	"os"
+	"path"
+	"strings"
 	//"github.com/codahale/blake2"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -20,7 +20,7 @@ import (
 func poolOutboundSend() {
 	var err error
 	var filenames []string
-	if flag_send {
+	if flag_send || flag_client {
 		// Read all the pool files
 		filenames, err = readDir(cfg.Files.Pooldir, "m")
 	} else {
@@ -181,10 +181,10 @@ func processInpool(
 // string.
 func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
 	/*
-	Currently supported prefixs are:-
-	[ m              Oubound message (final or intermediate) ]
-	[ i          Inbound message (destined for this remailer ]
-	[ p               Partial message chunk needing assembly ]
+		Currently supported prefixs are:-
+		[ m              Oubound message (final or intermediate) ]
+		[ i          Inbound message (destined for this remailer ]
+		[ p               Partial message chunk needing assembly ]
 	*/
 	digest := sha256.New()
 	digest.Write(yamnMsg)
