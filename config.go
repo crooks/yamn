@@ -1,51 +1,52 @@
 package main
 
 import (
+	"code.google.com/p/gcfg"
+	"flag"
 	"fmt"
 	"os"
-	"flag"
 	"path"
 	"path/filepath"
-	"code.google.com/p/gcfg"
 )
 
 type Config struct {
 	Files struct {
-		Pubring string
-		Mlist2 string
-		Pubkey string
-		Secring string
+		Pubring  string
+		Mlist2   string
+		Pubkey   string
+		Secring  string
 		Adminkey string
-		Help string
-		Pooldir string
-		Maildir string
-		IDlog string
-		ChunkDB string
-		Exedir string
+		Help     string
+		Pooldir  string
+		Maildir  string
+		IDlog    string
+		ChunkDB  string
+		Exedir   string
 	}
 	Urls struct {
-		PubringURL string
-		Mlist2URL string
+		Fetch   bool
+		Pubring string
+		Mlist2  string
 	}
 	Mail struct {
-		Sendmail bool
-		Pipe string
-		Outfile bool
-		SMTPRelay string
-		SMTPPort int
+		Sendmail       bool
+		Pipe           string
+		Outfile        bool
+		SMTPRelay      string
+		SMTPPort       int
 		EnvelopeSender string
-		SMTPUsername string
-		SMTPPassword string
+		SMTPUsername   string
+		SMTPPassword   string
 	}
 	Stats struct {
-		Minlat int
-		Maxlat int
-		Minrel float32
-		Relfinal float32
-		Chain string
+		Minlat    int
+		Maxlat    int
+		Minrel    float32
+		Relfinal  float32
+		Chain     string
 		Numcopies int
-		Distance int
-		StaleHrs int
+		Distance  int
+		StaleHrs  int
 	}
 	Pool struct {
 		Size int
@@ -53,16 +54,16 @@ type Config struct {
 		Loop int
 	}
 	Remailer struct {
-		Name string
-		Address string
-		Exit bool
-		MaxSize int
-		IDexp int
+		Name        string
+		Address     string
+		Exit        bool
+		MaxSize     int
+		IDexp       int
 		ChunkExpire int
-		Keylife int
-		Keygrace int
-		Loglevel string
-		Daemon bool
+		Keylife     int
+		Keygrace    int
+		Loglevel    string
+		Daemon      bool
 	}
 }
 
@@ -133,8 +134,9 @@ func init() {
 	cfg.Files.IDlog = path.Join(dir, "idlog")
 	cfg.Files.ChunkDB = path.Join(dir, "chunkdb")
 	cfg.Files.Exedir = dir
-	//cfg.Urls.PubringURL = "http://www.mixmin.net/yamn/pubring.mix"
-	//cfg.Urls.Mlist2URL = "http://www.mixmin.net/yamn/mlist2.txt"
+	cfg.Urls.Fetch = true
+	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
+	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
 	cfg.Mail.Sendmail = true
 	cfg.Mail.Outfile = false
 	cfg.Mail.SMTPRelay = "127.0.0.1"
