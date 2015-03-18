@@ -131,18 +131,24 @@ Path to the director hosting the Chunk Database. Default:
 .BR "chunkdb" .
 .SS Urls section:
 Yamn has the capability to pull stats and key sources from URLs published by
-pingers.  The following settings determine which source, if any, should be used.
+pingers.  The following settings determine which source, if they should be
+pulled, and if so, from what URLs.
 .TP
-.B "PubringURL"
-URL of a Public Keyring source.  If supplied, the content will be stored in
-.IR "Files/Pubring" .
-Default: None.
+.B "Fetch"
+Should Yamn attempt to retrieve stats/keys at periodic intervals? Default:
+.BR "yes"
 .TP
-.B "Mlist2URL"
-URL of an Mlist2 style stats source.  If supplied, the content will be stored
-in
-.IR "Files/Mlist2" .
-Default: None.
+.B "Pubring"
+URL of a Public Keyring source.  See also
+.IR "Files/Pubring"
+for the default save location of the downloaded file.  Default:
+.BR http://www.mixmin.net/yamn/pubring.mix .
+.TP
+.B "Mlist2"
+URL of an Mlist2 style stats source.  See also
+.IR "Files/Mlist2"
+for the default save location of the download files.  Default:
+.BR http://www.mixmin.net/yamn/mlist2.txt .
 .SS Mail section
 Special attention should be paid to this section. Without a knowledge of how
 to send outbound email, both clients and remailers cannot function.
