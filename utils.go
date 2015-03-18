@@ -3,35 +3,35 @@
 package main
 
 import (
-	"bytes"
-	"os"
-	"fmt"
-	"strings"
-	"path"
-	"io"
-	"io/ioutil"
 	"bufio"
-	"errors"
-	"time"
-	"net/http"
-	"encoding/binary"
-	"encoding/hex"
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
-	"math/big"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"math/big"
+	"net/http"
+	"os"
+	"path"
 	"strconv"
+	"strings"
+	"time"
 	//"github.com/codahale/blake2"
 )
 
 // randbytes returns n Bytes of random data
 func randbytes(n int) (b []byte) {
-  b = make([]byte, n)
-  _, err := rand.Read(b)
-  if err != nil {
-    panic(err)
-  }
-  return
+	b = make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
 
 //xrandomint is a pointlessly complicated random int generator
@@ -94,7 +94,7 @@ func readDir(path, prefix string) (files []string, err error) {
 		return
 	}
 	for _, f := range fi {
-		if ! f.IsDir() && strings.HasPrefix(f.Name(), prefix) {
+		if !f.IsDir() && strings.HasPrefix(f.Name(), prefix) {
 			files = append(files, f.Name())
 		}
 	}
@@ -131,23 +131,23 @@ func fileTime(filename string) (t time.Time, err error) {
 
 // httpGet retrieves url and stores it in filename
 func httpGet(url, filename string) (err error) {
-  res, err := http.Get(url)
-  if err != nil {
-    return
-  }
-  if res.StatusCode < 200 || res.StatusCode > 299 {
-    err = fmt.Errorf("%s: %s", url, res.Status)
-    return err
-  }
-  content, err := ioutil.ReadAll(res.Body)
-  if err != nil {
-    return
-  }
-  err = ioutil.WriteFile(filename, content, 0644)
-  if err != nil {
-    return
-  }
-  return
+	res, err := http.Get(url)
+	if err != nil {
+		return
+	}
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		err = fmt.Errorf("%s: %s", url, res.Status)
+		return err
+	}
+	content, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return
+	}
+	err = ioutil.WriteFile(filename, content, 0644)
+	if err != nil {
+		return
+	}
+	return
 }
 
 // exists returns True if a given file or directory exists
@@ -157,7 +157,7 @@ func exists(path string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-		if os.IsNotExist(err) {
+	if os.IsNotExist(err) {
 		return false, nil
 	}
 	return false, err
@@ -170,7 +170,7 @@ func assertExists(path string) {
 		// Some error occurred other than the path not existing
 		panic(err)
 	}
-	if ! gotPoolDir {
+	if !gotPoolDir {
 		// Arghh, the path doesn't exist!
 		err = fmt.Errorf(
 			"Assertion failure.  Path %s does not exist.",
@@ -200,8 +200,8 @@ func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 		err = fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
 		return
 	}
-	pop = s[len(s) - n:]
-	s = s[:len(s) - n]
+	pop = s[len(s)-n:]
+	s = s[:len(s)-n]
 	*sp = s
 	return
 }
@@ -209,7 +209,7 @@ func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 // popstr takes a pointer to a string slice and pops the last element
 func popstr(s *[]string) (element string) {
 	slice := *s
-	element, slice = slice[len(slice) - 1], slice[:len(slice) - 1]
+	element, slice = slice[len(slice)-1], slice[:len(slice)-1]
 	*s = slice
 	return
 }
@@ -236,8 +236,8 @@ func wrap(str string) (newstr string) {
 // armor base64 encodes a Yamn message for emailing
 func armor(yamnMsg []byte, sendto string) []byte {
 	/*
-	With the exception of email delivery to recipients, every outbound message
-	should be wrapped by this function.
+		With the exception of email delivery to recipients, every outbound message
+		should be wrapped by this function.
 	*/
 	var err error
 	err = lenCheck(len(yamnMsg), messageBytes)
@@ -245,7 +245,7 @@ func armor(yamnMsg []byte, sendto string) []byte {
 		panic(err)
 	}
 	buf := new(bytes.Buffer)
-	if ! cfg.Mail.Outfile {
+	if !cfg.Mail.Outfile {
 		// Add email headers as we're not writing output to a file
 		buf.WriteString(fmt.Sprintf("To: %s\n", sendto))
 		buf.WriteString(fmt.Sprintf("From: %s\n", cfg.Mail.EnvelopeSender))
@@ -379,7 +379,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	//digest := blake2.New(&blake2.Config{Size: 16})
 	digest := sha256.New()
 	digest.Write(payload)
-	if ! bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
+	if !bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
 		Info.Println("Incorrect payload digest")
 		return
 	}

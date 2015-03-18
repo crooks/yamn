@@ -2,16 +2,16 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"github.com/syndtr/goleveldb/leveldb"
-	"time"
-	"path"
-	"os"
 	"io/ioutil"
+	"os"
+	"path"
+	"strings"
+	"time"
 )
 
 type Chunk struct {
-	db *leveldb.DB // A level DB instance
+	db         *leveldb.DB   // A level DB instance
 	expireDays time.Duration // How long to retain keys
 	deleteDays time.Duration // Age of partial files before deletion
 }
@@ -31,8 +31,8 @@ func (chunk *Chunk) Close() {
 
 // SetExpire defines how long keys should be retained in the DB
 func (chunk *Chunk) SetExpire(days int) {
-	chunk.expireDays = time.Duration(days * 24) * time.Hour
-	chunk.deleteDays = time.Duration(days * 24 * 2) * time.Hour
+	chunk.expireDays = time.Duration(days*24) * time.Hour
+	chunk.deleteDays = time.Duration(days*24*2) * time.Hour
 }
 
 // Get returns the content associated with messageID.  If messageID is
@@ -74,7 +74,7 @@ func (chunk *Chunk) Insert(messageid []byte, items []string) {
 
 // IsPopulated returns true if all elements of items are populated
 func IsPopulated(items []string) bool {
-	for _, n := range(items) {
+	for _, n := range items {
 		if n == "" {
 			return false
 		}
@@ -91,7 +91,7 @@ func (chunk *Chunk) Housekeep() (ret, del int) {
 	}
 	expire := time.Now().Add(-chunk.deleteDays)
 	for _, file := range files {
-		if ! strings.HasPrefix(file.Name(), "p") {
+		if !strings.HasPrefix(file.Name(), "p") {
 			// Don't do anything unless the file begins with "p"
 			continue
 		}
@@ -105,7 +105,6 @@ func (chunk *Chunk) Housekeep() (ret, del int) {
 	return
 }
 
-
 // Assemble takes all the file chunks, assembles them in order and stores the
 // result back into the pool.
 func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
@@ -115,7 +114,7 @@ func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
 	}
 	defer f.Close()
 	var content []byte
-	for _, c := range(items) {
+	for _, c := range items {
 		infile := path.Join(cfg.Files.Pooldir, c)
 		content, err = ioutil.ReadFile(infile)
 		if err != nil {

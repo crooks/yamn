@@ -4,14 +4,14 @@ package main
 
 import (
 	"bytes"
-	"strings"
-	"errors"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
-	"time"
-	"crypto/rand"
+	"errors"
 	"github.com/crooks/yamn/keymgr"
 	"golang.org/x/crypto/nacl/box"
+	"strings"
+	"time"
 	//"code.google.com/p/go.crypto/nacl/box"
 )
 
@@ -55,7 +55,7 @@ Slot Header Format
 
 type slotHead struct {
 	recipientKeyid []byte
-	recipientPK []byte
+	recipientPK    []byte
 	//sender_pubkey []byte
 	//nonce []byte
 	data []byte
@@ -87,8 +87,8 @@ func (h *slotHead) encodeHead() []byte {
 // decodeHead decodes a slot header
 func decodeHead(b []byte, secret *keymgr.Secring) (data []byte, err error) {
 	/*
-	Decode functions should return their associated structs but, in this
-	instance, the only field of value is the decrypted data.
+		Decode functions should return their associated structs but, in this
+		instance, the only field of value is the decrypted data.
 	*/
 	err = lenCheck(len(b), headerBytes)
 	if err != nil {
@@ -114,7 +114,7 @@ func decodeHead(b []byte, secret *keymgr.Secring) (data []byte, err error) {
 		&nonce,
 		&sender_pk,
 		&recipient_sk)
-	if ! auth {
+	if !auth {
 		err = errors.New("Authentication failed decrypting slot data")
 		return
 	}
@@ -135,12 +135,12 @@ Total	392 Bytes
 */
 
 type slotData struct {
-	packetID []byte
-	aesKey []byte
+	packetID   []byte
+	aesKey     []byte
 	packetType uint8
 	packetInfo []byte
-	timestamp []byte
-	tagHash []byte
+	timestamp  []byte
+	tagHash    []byte
 }
 
 func (d slotData) encodeData() (b []byte, err error) {
@@ -171,7 +171,7 @@ func (d slotData) encodeData() (b []byte, err error) {
 	if err != nil {
 		return
 	}
-	buf.WriteString(strings.Repeat("\x00", 392 - buf.Len()))
+	buf.WriteString(strings.Repeat("\x00", 392-buf.Len()))
 	b = buf.Bytes()
 	return
 }
@@ -207,11 +207,11 @@ Currently supported delivery methods are:-
 */
 
 type slotFinal struct {
-	chunkNum uint8
-	numChunks uint8
-	messageID []byte
-	aesIV []byte
-	bodyBytes int
+	chunkNum       uint8
+	numChunks      uint8
+	messageID      []byte
+	aesIV          []byte
+	bodyBytes      int
 	deliveryMethod uint8
 }
 
@@ -229,7 +229,7 @@ func (f *slotFinal) encodeFinal() []byte {
 	if err != nil {
 		panic(err)
 	}
-	buf.WriteString(strings.Repeat("\x00", 256 - buf.Len()))
+	buf.WriteString(strings.Repeat("\x00", 256-buf.Len()))
 	return buf.Bytes()
 }
 
@@ -259,12 +259,12 @@ IVs are:
 */
 
 type slotIntermediate struct {
-	aesIVs []byte
+	aesIVs  []byte
 	nextHop []byte
 }
 
 func (i *slotIntermediate) setNextHop(nh string) {
-	i.nextHop = []byte(nh + strings.Repeat("\x00", 80 - len(nh)))
+	i.nextHop = []byte(nh + strings.Repeat("\x00", 80-len(nh)))
 }
 
 func (i *slotIntermediate) getNextHop() string {
@@ -273,7 +273,7 @@ func (i *slotIntermediate) getNextHop() string {
 
 func (i *slotIntermediate) encodeIntermediate() []byte {
 	var err error
-	err = lenCheck(len(i.aesIVs), (maxChainLength + 1) * 16)
+	err = lenCheck(len(i.aesIVs), (maxChainLength+1)*16)
 	if err != nil {
 		panic(err)
 	}

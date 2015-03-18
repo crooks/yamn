@@ -3,15 +3,15 @@
 package main
 
 import (
-	"os"
-	"os/exec"
-	"strings"
-	"net/mail"
 	"bytes"
 	"fmt"
-	"path"
-	"time"
+	"net/mail"
 	"net/smtp"
+	"os"
+	"os/exec"
+	"path"
+	"strings"
+	"time"
 )
 
 func assemble(msg mail.Message) []byte {
@@ -27,7 +27,7 @@ func assemble(msg mail.Message) []byte {
 // headToAddy parses a header containing email addresses
 func headToAddy(h mail.Header, header string) (addys []string) {
 	_, exists := h[header]
-	if ! exists {
+	if !exists {
 		return
 	}
 	addyList, err := h.AddressList(header)
@@ -43,7 +43,7 @@ func headToAddy(h mail.Header, header string) (addys []string) {
 // splitAddress splits an email address into its component parts
 func splitAddress(addy string) (name, domain string, err error) {
 	// Email addresses must have '@' signs in them.
-	if ! strings.Contains(addy, "@") {
+	if !strings.Contains(addy, "@") {
 		err = fmt.Errorf("%s: Email address contains no '@'", addy)
 		return
 	}

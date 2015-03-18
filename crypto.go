@@ -55,4 +55,3 @@ func AES_CTR(in, key, iv []byte) (out []byte) {
 	stream.XORKeyStream(out, in)
 	return
 }
-
