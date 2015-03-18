@@ -1,0 +1,6 @@
+# This file provides a minimal client configuration.
+
+[Mail]
+SMTPRelay = your.mail.server
+smtpusername = user@your.mail.server
+smtppassword = password
