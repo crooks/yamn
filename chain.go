@@ -3,15 +3,15 @@
 package main
 
 import (
-	"os"
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/crooks/yamn/keymgr"
+	"os"
 )
 
 // distanceCriteria enforces user-defined minimal distance criteria
 func distanceCriteria(addresses, dist []string) (c []string) {
-  for _, addy := range addresses {
+	for _, addy := range addresses {
 		if IsMemberStr(addy, dist) {
 			// Excluded due to distance
 			continue
@@ -27,7 +27,7 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 	if IsMemberStr("*", inChain) {
 		// Check modification timestamp on stats file
 		var statRefresh bool
-		statRefresh, err =  pubring.StatRefresh()
+		statRefresh, err = pubring.StatRefresh()
 		if err != nil {
 			Info.Println(err)
 			err = errors.New("Cannot use random remailers without stats")
@@ -60,8 +60,8 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 		dist = len(inChain)
 	}
 	var distance []string
-	in_dist := make([]string,0, dist) // n distance elements of input chain
-	out_dist := make([]string,0, dist) // n distance elements of output chain
+	in_dist := make([]string, 0, dist)  // n distance elements of input chain
+	out_dist := make([]string, 0, dist) // n distance elements of output chain
 	outChain = make([]string, 0, len(inChain))
 	// Loop until inChain contains no more remailers
 	num_hops := len(inChain)
@@ -89,7 +89,7 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 				// Apply distance criteria
 				candidates = distanceCriteria(candidates, distance)
 				if len(candidates) == 0 {
-				Warn.Println("Insufficient remailers to comply with distance criteria")
+					Warn.Println("Insufficient remailers to comply with distance criteria")
 				}
 			} else {
 				Warn.Println("No candidate remailers match selection criteria")
@@ -112,7 +112,7 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 				errors.New("No remailers available to build random chain link")
 				return
 			}
-			hop = candidates[randomInt(len(candidates) - 1)]
+			hop = candidates[randomInt(len(candidates)-1)]
 		} else {
 			var remailer keymgr.Remailer
 			remailer, err = pubring.Get(hop)
@@ -122,9 +122,9 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 			hop = remailer.Address
 		}
 		// Extend outChain by 1 element
-		outChain = outChain[0:len(outChain) + 1]
+		outChain = outChain[0 : len(outChain)+1]
 		// Shuffle existing entries to the right
-		copy(outChain[1:], outChain[:len(outChain) - 1])
+		copy(outChain[1:], outChain[:len(outChain)-1])
 		// Insert new hop at the start of the output chain
 		outChain[0] = hop
 
@@ -139,7 +139,7 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 			out_dist = outChain
 		}
 		if len(inChain) > dist {
-			in_dist = inChain[len(inChain) - dist:]
+			in_dist = inChain[len(inChain)-dist:]
 		} else {
 			in_dist = inChain
 		}

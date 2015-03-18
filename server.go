@@ -3,17 +3,17 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"bytes"
-	"time"
-	"strings"
-	"errors"
-	"io/ioutil"
 	"crypto/sha512"
-	"github.com/crooks/yamn/keymgr"
+	"errors"
+	"fmt"
 	"github.com/crooks/yamn/idlog"
+	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/quickmail"
+	"io/ioutil"
+	"os"
+	"strings"
+	"time"
 	//"github.com/codahale/blake2"
 )
 
@@ -68,11 +68,11 @@ func loopServer() (err error) {
 		generateKeypair(secret)
 	} else {
 		/*
-		If the operator changes his configuration, (such as upgrading to a new
-		version or switching from exit to middleman), the published key will not
-		match the configuration.  This element of code writes a new key.txt file
-		with current settings.  This only needs to be done if we haven't generated
-		a new key.
+			If the operator changes his configuration, (such as upgrading to a new
+			version or switching from exit to middleman), the published key will not
+			match the configuration.  This element of code writes a new key.txt file
+			with current settings.  This only needs to be done if we haven't generated
+			a new key.
 		*/
 		refreshPubkey(secret)
 	}
@@ -108,10 +108,10 @@ func loopServer() (err error) {
 			// Don't do anything beyond this point until poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
-		} else if ! flag_daemon {
+		} else if !flag_daemon {
 			/*
-			When not running as a Daemon, always read sources first. Otherwise, the
-			loop will terminate before they're ever read.
+				When not running as a Daemon, always read sources first. Otherwise, the
+				loop will terminate before they're ever read.
 			*/
 			processInpool("i", public, secret, id, *chunkDB)
 			processMail(public, secret, id, *chunkDB)
@@ -143,21 +143,14 @@ func loopServer() (err error) {
 		// Hourly events
 		if time.Since(hourly) > time.Hour {
 			/*
-			The following two conditions try to import new pubring and mlist2 URLs.
-			If they fail, a warning is logged but no further action is taken.  It's
-			better to have old keys/stats than none.
+				The following two conditions try to import new pubring and mlist2 URLs.
+				If they fail, a warning is logged but no further action is taken.  It's
+				better to have old keys/stats than none.
 			*/
-			if cfg.Urls.PubringURL != "" {
-				err = httpGet(cfg.Urls.PubringURL, cfg.Files.Pubring)
-				if err != nil {
-					Warn.Println(err)
-				}
-			}
-			if cfg.Urls.Mlist2URL != "" {
-				err = httpGet(cfg.Urls.Mlist2URL, cfg.Files.Mlist2)
-				if err != nil {
-					Warn.Println(err)
-				}
+			// Retrieve Mlist2 and Pubring URLs
+			if cfg.Urls.Fetch {
+				timedURLFetch(cfg.Urls.Pubring, cfg.Files.Pubring)
+				timedURLFetch(cfg.Urls.Mlist2, cfg.Files.Mlist2)
 			}
 			hourly = time.Now()
 		}
@@ -168,7 +161,7 @@ func loopServer() (err error) {
 		// Reset the process time for the next pool read
 		poolProcessTime = time.Now().Add(poolProcessDelay)
 		// Break out of the loop if we're not running as a daemon
-		if ! flag_daemon && ! cfg.Remailer.Daemon {
+		if !flag_daemon && !cfg.Remailer.Daemon {
 			break
 		}
 	} // End of server loop
@@ -225,7 +218,7 @@ func chunkClean(chunkDB Chunk) {
 	}
 	fret, fdel := chunkDB.Housekeep()
 	if fdel > 0 {
-		Info.Printf("Stranded chunk deletion: Retained=%d, Deleted=%d",	fret, fdel)
+		Info.Printf("Stranded chunk deletion: Retained=%d, Deleted=%d", fret, fdel)
 	}
 }
 
@@ -238,7 +231,7 @@ func nagOperator() {
 			"Will loop every 60 seconds. A higher setting is recommended.")
 	}
 	// Complain about high pool rates.
-	if cfg.Pool.Rate > 90 && ! flag_send {
+	if cfg.Pool.Rate > 90 && !flag_send {
 		Warn.Println(
 			fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
 			"high. Unless testing, a lower setting is recommended.")
@@ -271,8 +264,8 @@ func decodeMsg(
 	}
 	var iv []byte
 	/*
-	decodeHead only returns the decrypted slotData bytes.  The other fields are
-	only concerned with performing the decryption.
+		decodeHead only returns the decrypted slotData bytes.  The other fields are
+		only concerned with performing the decryption.
 	*/
 	var decodedHeader []byte
 	decodedHeader, err = decodeHead(msgHeader, secret)
@@ -286,7 +279,7 @@ func decodeMsg(
 		return
 	}
 	// Test uniqueness of packet ID
-	if ! id.Unique(data.packetID, cfg.Remailer.IDexp) {
+	if !id.Unique(data.packetID, cfg.Remailer.IDexp) {
 		err = errors.New("Packet ID collision")
 		return
 	}
@@ -294,7 +287,7 @@ func decodeMsg(
 	digest := sha512.New()
 	digest.Write(msgEncHeaders)
 	digest.Write(msgBody)
-	if ! bytes.Equal(digest.Sum(nil), data.tagHash) {
+	if !bytes.Equal(digest.Sum(nil), data.tagHash) {
 		err = fmt.Errorf("Digest mismatch on Anti-tag hash")
 		return
 	}
@@ -307,7 +300,7 @@ func decodeMsg(
 			return
 		}
 		// Number of headers to decrypt is one less than max chain length
-		for headNum := 0; headNum < maxChainLength - 1; headNum++ {
+		for headNum := 0; headNum < maxChainLength-1; headNum++ {
 			iv, err = sPopBytes(&inter.aesIVs, 16)
 			if err != nil {
 				return
@@ -342,18 +335,18 @@ func decodeMsg(
 		mixMsg := make([]byte, encHeadBytes, messageBytes)
 		copy(mixMsg, msgEncHeaders)
 		// Insert fake header
-		mixMsg = mixMsg[0:len(mixMsg) + headerBytes]
+		mixMsg = mixMsg[0 : len(mixMsg)+headerBytes]
 		copy(mixMsg[encHeadBytes:], fakeHeader)
 		// Insert body
 		msgLen := len(mixMsg)
-		mixMsg = mixMsg[0:msgLen + bodyBytes]
+		mixMsg = mixMsg[0 : msgLen+bodyBytes]
 		copy(mixMsg[msgLen:], msgBody)
 		// Create a string from the nextHop, for populating a To header
 		sendTo := inter.getNextHop()
 		/*
-		The following conditional tests if we are the next hop in addition to being
-		the current hop.  If we are, then it's better to store the message in the
-		inbound pool.  This prevents it being emailed back to us.
+			The following conditional tests if we are the next hop in addition to being
+			the current hop.  If we are, then it's better to store the message in the
+			inbound pool.  This prevents it being emailed back to us.
 		*/
 		if sendTo == cfg.Remailer.Address {
 			Info.Println(
@@ -371,10 +364,10 @@ func decodeMsg(
 
 	} else if data.packetType == 1 {
 		/*
-		This section is concerned with final hop messages. i.e. Delivery to final
-		recipients.  Currently two methods of delivery are defined:-
-		[   0                           SMTP ]
-		[ 255         Dummmy (Don't deliver) ]
+			This section is concerned with final hop messages. i.e. Delivery to final
+			recipients.  Currently two methods of delivery are defined:-
+			[   0                           SMTP ]
+			[ 255         Dummmy (Don't deliver) ]
 		*/
 		final := new(slotFinal)
 		err = final.decodeFinal(data.packetInfo)
@@ -447,7 +440,7 @@ func decodeMsg(
 	} // Intermediate or exit
 
 	// Decide if we want to inject a dummy
-	if ! flag_nodummy && randomInt(20) < 3 {
+	if !flag_nodummy && randomInt(20) < 3 {
 		dummy(public)
 	}
 	return
@@ -489,7 +482,7 @@ func dummy(public *keymgr.Pubring) {
 	var err error
 	plainMsg := []byte("I hope Len approves")
 	// Make a single hop chain with a random node
-	in_chain := []string{"*","*"}
+	in_chain := []string{"*", "*"}
 	final := new(slotFinal)
 	final.deliveryMethod = 255
 	final.messageID = randbytes(16)
@@ -536,8 +529,8 @@ func remailerFoo(subject, sender string) (err error) {
 		m.Text("The following header lines will be filtered:\n")
 		m.Text(
 			fmt.Sprintf("\n$remailer{\"%s\"} = \"<%s>",
-			cfg.Remailer.Name, cfg.Remailer.Address))
-		if ! cfg.Remailer.Exit {
+				cfg.Remailer.Name, cfg.Remailer.Address))
+		if !cfg.Remailer.Exit {
 			m.Text(" middle")
 		}
 		m.Text("\";\n")
@@ -562,7 +555,7 @@ func remailerFoo(subject, sender string) (err error) {
 		m.Set(
 			"Subject",
 			fmt.Sprintf("Your help request for the %s Anonymous Remailer",
-			cfg.Remailer.Name))
+				cfg.Remailer.Name))
 		m.Filename = cfg.Files.Help
 	} else {
 		if len(subject) > 20 {

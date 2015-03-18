@@ -109,35 +109,14 @@ func mixprep() {
 		fmt.Fprintln(os.Stderr, "No bytes in message")
 		os.Exit(1)
 	}
-	// Retrieve Pubring URL
-	var stamp time.Time
-	if cfg.Urls.PubringURL != "" {
-		stamp, err = fileTime(cfg.Files.Pubring)
-		if err != nil {
-			Trace.Println(err)
-		}
-		if time.Since(stamp) > time.Hour {
-			Info.Printf("Fetching %s", cfg.Urls.PubringURL)
-			err = httpGet(cfg.Urls.PubringURL, cfg.Files.Pubring)
-			if err != nil {
-				Warn.Println(err)
-			}
-		}
+
+	// Download stats URLs if the time is right
+	if cfg.Urls.Fetch {
+		// Retrieve Mlist2 and Pubring URLs
+		timedURLFetch(cfg.Urls.Pubring, cfg.Files.Pubring)
+		timedURLFetch(cfg.Urls.Mlist2, cfg.Files.Mlist2)
 	}
-	// Retrieve Mlist2 URL
-	if cfg.Urls.Mlist2URL != "" {
-		stamp, err = fileTime(cfg.Files.Mlist2)
-		if err != nil {
-			Trace.Println(err)
-		}
-		if time.Since(stamp) > time.Hour {
-			Info.Printf("Fetching %s", cfg.Urls.Mlist2URL)
-			err = httpGet(cfg.Urls.Mlist2URL, cfg.Files.Mlist2)
-			if err != nil {
-				Warn.Println(err)
-			}
-		}
-	}
+
 	// Create the Public Keyring
 	pubring := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
 	err = pubring.ImportPubring()
@@ -342,4 +321,29 @@ func injectDummy() {
 	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
 	public.ImportPubring()
 	dummy(public)
+}
+
+// TimedURLFetch attempts to read a url into a file if the file is more
+// than an hour old or doesn't exist.
+func timedURLFetch(url, filename string) {
+	var err error
+	var stamp time.Time
+	var doFetch bool
+	if cfg.Urls.Fetch {
+		stamp, err = fileTime(filename)
+		if err != nil {
+			doFetch = true
+		} else if time.Since(stamp) > time.Hour {
+			doFetch = true
+		} else {
+			doFetch = false
+		}
+		if doFetch {
+			Info.Printf("Fetching %s and storing in %s", url, filename)
+			err = httpGet(url, filename)
+			if err != nil {
+				Warn.Println(err)
+			}
+		}
+	}
 }

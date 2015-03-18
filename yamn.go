@@ -12,25 +12,25 @@ import (
 )
 
 const (
-	version string = "0.1d"
-	dayLength int = 24 * 60 * 60 // Day in seconds
-	maxFragLength = 10230
-	maxChainLength = 10
-	maxCopies = 5
-	base64LineWrap = 40
-	rfc5322date = "Mon, 2 Jan 2006 15:04:05 -0700"
-	headerBytes = 512
-	headersBytes = headerBytes * maxChainLength
-	encHeadBytes = headersBytes - headerBytes
-	bodyBytes = 10240
-	messageBytes = headersBytes + bodyBytes
+	version        string = "0.1d"
+	dayLength      int    = 24 * 60 * 60 // Day in seconds
+	maxFragLength         = 10230
+	maxChainLength        = 10
+	maxCopies             = 5
+	base64LineWrap        = 40
+	rfc5322date           = "Mon, 2 Jan 2006 15:04:05 -0700"
+	headerBytes           = 512
+	headersBytes          = headerBytes * maxChainLength
+	encHeadBytes          = headersBytes - headerBytes
+	bodyBytes             = 10240
+	messageBytes          = headersBytes + bodyBytes
 )
 
 var (
-	Trace	*log.Logger
-	Info	*log.Logger
-	Warn	*log.Logger
-	Error	*log.Logger
+	Trace *log.Logger
+	Info  *log.Logger
+	Warn  *log.Logger
+	Error *log.Logger
 )
 
 func logInit(
@@ -56,7 +56,6 @@ func logInit(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-
 func main() {
 	var err error
 	flags()
@@ -79,9 +78,9 @@ func main() {
 		// Expecting a remailer message on Stdin
 		var msg []byte
 		msg, err = stripArmor(os.Stdin)
-    if err != nil {
+		if err != nil {
 			Warn.Println(err)
-    }
+		}
 		// remailer-foo requests will have nil payloads.
 		// We don't want to pool them!
 		if msg != nil {
