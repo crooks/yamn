@@ -1,0 +1,216 @@
+.TH yamn 1 "21 Nov 2014" "version 0.1d"
+
+.SH NAME
+yamn - An anonymous remailer application
+
+.SH SYNOPSIS
+.B [-m] [-s] [-l rem1,rem2,rem3,...] [-t user@host] [-s subject] [-c num] [recipient] filename
+.PP
+.B [-M] [-D] [-s]
+
+.SH DESCRIPTION
+Yamn (Yet another Mix network) is  an  anonymous  remailer.  Remailers  provide
+protection against   traffic  analysis  and  allow  sending  mail  anonymously
+or pseudonymously.
+
+In the non-interactive mode, Yamn reads a message from  its  standard  input
+or from a Maildir.  Destination address and input file can be specified in the
+command line.  If no address is given in  the  command line,  the  input  file
+is expected to contain a message complete with mail headers.
+
+.SH OPTIONS
+.TP
+.B "-c, --copies=\fInum"
+When operating in client mode, define how many copies of each message should be
+sent.  Multiple copies share the same exit-remailer which retains a list of
+processed Packet-IDs, ensuring that only a single copy is delivered.  This setting overrides the
+default config
+.B "Stats/Numcopies"
+option (default: 1).
+.TP
+.B "--config=\fIfilename"
+Specify an alternate configuration file.  This flag overrides the YAMNCFG
+environment variable which, in turn, overrides the default which expects a
+yamn.cfg file to exist in the same directory as the yamn binary.
+.TP
+.B "-D, --daemon"
+Start a remailer in an endless loop of reading, processing and sending
+messages.  This option only has meaning when used with the
+.B "-M"
+option.
+.TP
+.B "-l, --chain=\fIrem1,rem2,rem3,..."
+Use the defined chain to route the message through the Yamn network.  Random
+nodes can be selected with asterisks. E.g. --chain="*,*,*".
+If multiple copies are specified, all copies must share a common exit remailer.
+.TP
+.B "-m, --mail"
+Operate in client mode and inject a plain-text message into the Yamn pool
+.TP
+.B "-M, --remailer"
+Operate in server mode.  Normally used in combination with 
+.B "-D"
+to continuously process, otherwise only a single iteration of read, process,
+send  will be performed.
+.TP
+.B "-R, --read-mail"
+Read the message from the STDIN pipe instead of from a file or Maildir.
+.TP
+.B "-s, --subject=\fIsubject"
+Specify a Subject header for the message.  If this isn't defined, the Subject
+is expected to be defined within the message.
+.TP
+.B "-S, --send"
+Flush the outbound pool.  Useful for client mode and remailer testing but
+should not be used on an in-production remailer.
+.TP
+.B "--stdout"
+Pipe the output message to STDOUT instead of storing it in the Pool.
+.TP
+.B "-t, --to=\fIuser@host"
+Specify a recipient for the message.  If this option isn't defined, the recipient
+is expected to be included in the message itself.
+.SH CONFIGURATION
+Yamn, by default, reads its configuration from the file
+.B "yamn.cfg"
+in its working directory.  This behaviour can be overridden using the
+.I "--config"
+option defined above.  The file consists of
+.I "name=value"
+pairs, grouped into sections.
+.SS Files section:
+.TP
+.B "Pubring"
+Path to the public keyring file. Default:
+.BR pubring.mix .
+.TP
+.B "Mlist2"
+Path to the remailer statistics file. Default:
+.BR mlist2.txt .
+.TP
+.B "Pubkey"
+Path to the remailer's public key file. Default:
+.BR key.txt .
+.TP
+.B "Secring"
+Path to the remailer's secret keyring file. Default:
+.BR secring.mix .
+.TP
+.B "Secnew"
+Path to the remailer-generate secret keyring file. This file is updated as new
+keys are generated and old keys expire. If the operator deems fit, the Secring
+file can be overwritten by this constantly revised version. Default:
+.BR "secring.new" .
+.TP
+.B "Adminkey"
+Path to the operator's personal PGP Public Key. If this file exists, it will be
+sent in response to client remailer-adminkey requests. Default:
+.BR adminkey.txt .
+.TP
+.B "Help"
+Path to the remailer help file. This will be sent in response to a
+remailer-help request. Default:
+.BR "help.txt" .
+.TP
+.B "Pooldir"
+Path to the directory that will be used for storing inbound and outbound
+remailer messages. Default:
+.BR "pool" .
+.TP
+.B "Maildir"
+Path to the Maildir folder the remailer will read inbound messages from.
+Default:
+.BR "Maildir" .
+.TP
+.B "IDLog"
+Path to the directory that will host the ID Log Database. Default:
+.BR "idlog" .
+.TP
+.B "ChunkDB"
+Path to the director hosting the Chunk Database. Default:
+.BR "chunkdb" .
+.SS Urls section:
+Yamn has the capability to pull stats and key sources from URLs published by
+pingers.  The following settings determine which source, if any, should be used.
+.TP
+.B "PubringURL"
+URL of a Public Keyring source.  If supplied, the content will be stored in
+.IR "Files/Pubring" .
+Default: None.
+.TP
+.B "Mlist2URL"
+URL of an Mlist2 style stats source.  If supplied, the content will be stored
+in
+.IR "Files/Mlist2" .
+Default: None.
+.SS Mail section
+Special attention should be paid to this section. Without a knowledge of how
+to send outbound email, both clients and remailers cannot function.
+.TP
+.B "Outfile"
+If set to "yes", outbound messages will be written to the queue directory
+instead of mailing them.  This overrides all other delivery options. Default:
+.BR No .
+.TP
+.B "Sendmail"
+Boolean (yes/no) option to determine if Yamn's internal sendmail function
+should be used to deliver messages.  If set to yes, the settings
+.IR SMTPRelay ,
+.I SMTPUsername
+and
+.I SMTPPassword
+.B MUST
+be defined.
+.IP
+If set to no, the server will to use standard SMTP relay instead.  This is
+potentially a good option if delivering mail to a local MTA or any one where
+authentication is not required. The
+.I SMTPRelay
+option defines where messages should be relayed to.
+.TP
+.B SMTPRelay
+Hostname that mail should be relayed to. Default:
+.BR "127.0.0.1" .
+.TP
+.B SMTPPort
+Used in combination with
+.I SMTPRelay
+to define the port number of the SMTP service. Default:
+.BR 25 .
+.TP
+.B "Pipe"
+If this option is specified, messages will be piped to an external command
+for mail delivery.  A common example being:
+.IR "/usr/sbin/sendmail -t" .
+This overrides the
+.I Sendmail
+option described above.
+Default: None
+.TP
+.B EnvelopeSender
+The sender address the remailer will use on outbound messages.  This applies
+to all inter-remailer messages and to final-recipient messages if no
+user-defined sender is specified. Default:
+.BR "nobody@nowhere.invalid" .
+.SS Stats section
+.TP
+.B Minrel
+When constructing chains with random nodes, only those exceeding this minimum
+percentage uptime will be considered. Default:
+.BR "98.0"
+.TP
+.B Relfinal
+When constructing chains with a random exit node, only those exceeding this minimum
+percentage uptime will be considered for the final hop. Default:
+.BR "99.0"
+.TP
+.B Minlat
+The minimal latency (in minutes) the local remailer or client will consider
+when building a chain that contains one or more random nodes. Default:
+.BR "2"
+.TP
+.B Maxlat
+The highest latency (in minutes) the local remailer or client will consider
+when building a chain that contains one or more random nodes. Default:
+.BR "60"
+
