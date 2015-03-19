@@ -4,7 +4,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/mail"
 	"net/smtp"
 	"os"
@@ -103,6 +105,12 @@ func mailBytes(payload []byte, sendTo []string) (err error) {
 			Warn.Println("Sendmail failed")
 			return
 		}
+	} else if cfg.Mail.UseTLS {
+		err = tlsRelay(payload, sendTo)
+		if err != nil {
+			Warn.Println("TLS SMTP relay failed")
+			return
+		}
 	} else {
 		err = SMTPRelay(payload, sendTo)
 		if err != nil {
@@ -140,44 +148,109 @@ func execSend(payload []byte, execCmd string) {
 }
 
 func SMTPRelay(payload []byte, sendTo []string) (err error) {
-	c, err := smtp.Dial(
-		fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort))
+	serverAddr := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
+	conn, err := smtp.Dial(serverAddr)
 	if err != nil {
 		Warn.Println(err)
 		return
 	}
-	err = c.Mail(cfg.Mail.EnvelopeSender)
+	err = conn.Mail(cfg.Mail.EnvelopeSender)
 	if err != nil {
 		Warn.Println(err)
 		return
 	}
 	for _, s := range sendTo {
-		err = c.Rcpt(s)
+		err = conn.Rcpt(s)
 		if err != nil {
 			Warn.Println(err)
-			continue
-		}
-		wc, err := c.Data()
-		if err != nil {
-			Warn.Println(err)
-			continue
-		}
-		_, err = fmt.Fprintf(wc, string(payload))
-		if err != nil {
-			Warn.Println(err)
-			continue
-		}
-		err = wc.Close()
-		if err != nil {
-			Warn.Println(err)
-			continue
+			return
 		}
 	}
-	err = c.Quit()
+	wc, err := conn.Data()
+	if err != nil {
+		Warn.Println(err)
+	}
+	_, err = fmt.Fprintf(wc, string(payload))
+	if err != nil {
+		Warn.Println(err)
+	}
+	err = wc.Close()
+	if err != nil {
+		Warn.Println(err)
+	}
+	err = conn.Quit()
 	if err != nil {
 		Warn.Println(err)
 		return
 	}
+	return
+}
+
+func tlsRelay(payload []byte, sendTo []string) (err error) {
+	conf := new(tls.Config)
+	conf.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA}
+	conf.InsecureSkipVerify = true
+	conf.MinVersion = tls.VersionSSL30
+	conf.MaxVersion = tls.VersionTLS10
+	serverAddr := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
+
+	conn, err := net.Dial("tcp", serverAddr)
+	if err != nil {
+		Warn.Printf("Error Dialing %s\n", err)
+		return
+	}
+
+	client, err := smtp.NewClient(conn, cfg.Mail.SMTPRelay)
+	if err != nil {
+		Warn.Printf("Error SMTP connection: %s\n", err)
+		return
+	}
+
+	if err = client.StartTLS(conf); err != nil {
+		Warn.Printf("Error performing StartTLS: %s\n", err)
+		return
+	}
+	/*
+		if ok, _ := client.Extension("AUTH"); ok {
+			if err = client.Auth(auth); err != nil {
+				Warn.Printf("Error during AUTH %s\n", err)
+				return
+			}
+		}
+	*/
+	if err = client.Mail(cfg.Mail.EnvelopeSender); err != nil {
+		Warn.Printf("Error: %s\n", err)
+		return
+	}
+
+	for _, addr := range sendTo {
+		if err = client.Rcpt(addr); err != nil {
+			Warn.Printf("Error: %s\n", err)
+			return
+		}
+	}
+
+	w, err := client.Data()
+	if err != nil {
+		Warn.Printf("Error: %s\n", err)
+		return
+	}
+
+	_, err = w.Write(payload)
+	if err != nil {
+		Warn.Printf("Error: %s\n", err)
+		return
+
+	}
+
+	err = w.Close()
+	if err != nil {
+		Warn.Printf("Error: %s\n", err)
+		return
+
+	}
+
+	client.Quit()
 	return
 }
 
