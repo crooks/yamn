@@ -32,6 +32,7 @@ type Config struct {
 		Sendmail       bool
 		Pipe           string
 		Outfile        bool
+		UseTLS         bool
 		SMTPRelay      string
 		SMTPPort       int
 		EnvelopeSender string
@@ -87,7 +88,7 @@ func init() {
 		"Start remailer as a daemon. (Requires -M")
 	// Remailer chain
 	flag.StringVar(&flag_chain, "chain", "", "Remailer chain")
-	flag.StringVar(&flag_chain, "l", "*,*,*", "Remailer chain")
+	flag.StringVar(&flag_chain, "l", "", "Remailer chain")
 	// Recipient address
 	flag.StringVar(&flag_to, "to", "", "Recipient email address")
 	flag.StringVar(&flag_to, "t", "", "Recipient email address")
@@ -137,10 +138,11 @@ func init() {
 	cfg.Urls.Fetch = true
 	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
 	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
-	cfg.Mail.Sendmail = true
+	cfg.Mail.Sendmail = false
 	cfg.Mail.Outfile = false
-	cfg.Mail.SMTPRelay = "127.0.0.1"
-	cfg.Mail.SMTPPort = 25
+	cfg.Mail.SMTPRelay = "snorky.mixmin.net"
+	cfg.Mail.SMTPPort = 587
+	cfg.Mail.UseTLS = true
 	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
 	cfg.Mail.SMTPUsername = ""
 	cfg.Mail.SMTPPassword = ""
@@ -148,7 +150,7 @@ func init() {
 	cfg.Stats.Relfinal = 99.0
 	cfg.Stats.Minlat = 2
 	cfg.Stats.Maxlat = 60
-	cfg.Stats.Chain = "*,*,*"
+	cfg.Stats.Chain = "yamn4,*,*"
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
@@ -192,11 +194,10 @@ func flags() {
 		fn := path.Join(cfg.Files.Exedir, "yamn.cfg")
 		err = gcfg.ReadFileInto(&cfg, fn)
 		if err != nil {
-			fmt.Fprintf(
-				os.Stderr,
-				"Unable to read %s: %s\n", fn, err)
-			fmt.Println(flag_version)
-			os.Exit(1)
+			if !flag_client {
+				fmt.Println(err)
+			}
+			fmt.Println("Using internal, default config.")
 		}
 	}
 }

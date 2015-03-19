@@ -192,6 +192,10 @@ func mixprep() {
 				exitnode = chain[len(chain)-1]
 				got_exit = true
 			}
+			// Report the chain if we're running as a client
+			if flag_client {
+				fmt.Printf("Chain: %s\n", strings.Join(chain, ","))
+			}
 			yamnMsg, sendTo := encodeMsg(
 				message[first_byte:last_byte],
 				packetid,
