@@ -36,8 +36,8 @@ type Config struct {
 		SMTPRelay      string
 		SMTPPort       int
 		EnvelopeSender string
-		SMTPUsername   string
-		SMTPPassword   string
+		Username       string
+		Password       string
 	}
 	Stats struct {
 		Minlat    int
@@ -144,8 +144,8 @@ func init() {
 	cfg.Mail.SMTPPort = 587
 	cfg.Mail.UseTLS = true
 	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
-	cfg.Mail.SMTPUsername = ""
-	cfg.Mail.SMTPPassword = ""
+	cfg.Mail.Username = ""
+	cfg.Mail.Password = ""
 	cfg.Stats.Minrel = 98.0
 	cfg.Stats.Relfinal = 99.0
 	cfg.Stats.Minlat = 2

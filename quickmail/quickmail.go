@@ -3,24 +3,18 @@
 package quickmail
 
 import (
-	"fmt"
 	"bytes"
-	"os"
 	"errors"
+	"fmt"
+	"os"
 )
 
 type message struct {
-	headers map[string]string
-	Prefix string
+	headers  map[string]string
+	Prefix   string
 	Filename string
-	Items []string
-	Suffix string
-	SMTP struct {
-		User string
-		Password string
-		Relay string
-		Port int
-	}
+	Items    []string
+	Suffix   string
 }
 
 func NewMessage() *message {
@@ -31,7 +25,7 @@ func (m message) Set(head, content string) {
 	m.headers[head] = content
 }
 
-func (m message) Get(head string) (string) {
+func (m message) Get(head string) string {
 	return m.headers[head]
 }
 
@@ -50,17 +44,17 @@ func (m *message) List(l []string) {
 func (m message) Compile() (b []byte, err error) {
 	var ok bool
 	_, ok = m.headers["From"]
-	if ! ok {
+	if !ok {
 		err = errors.New("Compulsory From header not defined")
 		return
 	}
 	_, ok = m.headers["To"]
-	if ! ok {
+	if !ok {
 		err = errors.New("Compulsory To header not defined")
 		return
 	}
 	buf := new(bytes.Buffer)
-	for h := range(m.headers) {
+	for h := range m.headers {
 		buf.WriteString(fmt.Sprintf("%s: %s\n", h, m.headers[h]))
 	}
 	buf.WriteString("\n")

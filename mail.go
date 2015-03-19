@@ -160,7 +160,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 		Warn.Printf("Error SMTP connection: %s\n", err)
 		return
 	}
-
+	// Test is the remote MTA supports STARTTLS
 	ok, _ := client.Extension("STARTTLS")
 	if ok && cfg.Mail.UseTLS {
 		if err = client.StartTLS(conf); err != nil {
@@ -168,14 +168,21 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 			return
 		}
 	}
-	/*
-		if ok, _ := client.Extension("AUTH"); ok {
-			if err = client.Auth(auth); err != nil {
-				Warn.Printf("Error during AUTH %s\n", err)
-				return
-			}
+	// If AUTH is supported and a UserID and Password are configured, try to
+	// authenticate to the remote MTA.
+	ok, _ = client.Extension("AUTH")
+	if ok && cfg.Mail.Username != "" && cfg.Mail.Password != "" {
+		auth := smtp.PlainAuth(
+			"",
+			cfg.Mail.Username,
+			cfg.Mail.Password,
+			cfg.Mail.SMTPRelay,
+		)
+		if err = client.Auth(auth); err != nil {
+			Warn.Printf("Error during AUTH %s\n", err)
+			return
 		}
-	*/
+	}
 	if err = client.Mail(cfg.Mail.EnvelopeSender); err != nil {
 		Warn.Printf("Error: %s\n", err)
 		return
@@ -216,8 +223,8 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 func sendmail(payload []byte, sendTo []string) (err error) {
 	auth := smtp.PlainAuth(
 		"",
-		cfg.Mail.SMTPUsername,
-		cfg.Mail.SMTPPassword,
+		cfg.Mail.Username,
+		cfg.Mail.Password,
 		cfg.Mail.SMTPRelay)
 	relay := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
 	err = smtp.SendMail(relay, auth, cfg.Mail.EnvelopeSender, sendTo, payload)

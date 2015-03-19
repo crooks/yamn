@@ -506,10 +506,6 @@ func remailerFoo(subject, sender string) (err error) {
 	m := quickmail.NewMessage()
 	m.Set("From", cfg.Mail.EnvelopeSender)
 	m.Set("To", sender)
-	m.SMTP.Relay = cfg.Mail.SMTPRelay
-	m.SMTP.Port = cfg.Mail.SMTPPort
-	m.SMTP.User = cfg.Mail.SMTPUsername
-	m.SMTP.Password = cfg.Mail.SMTPPassword
 	if strings.HasPrefix(subject, "remailer-key") {
 		// remailer-key
 		Trace.Printf("remailer-key request from %s", sender)
