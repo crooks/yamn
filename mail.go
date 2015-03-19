@@ -105,14 +105,8 @@ func mailBytes(payload []byte, sendTo []string) (err error) {
 			Warn.Println("Sendmail failed")
 			return
 		}
-	} else if cfg.Mail.UseTLS {
-		err = tlsRelay(payload, sendTo)
-		if err != nil {
-			Warn.Println("TLS SMTP relay failed")
-			return
-		}
 	} else {
-		err = SMTPRelay(payload, sendTo)
+		err = smtpRelay(payload, sendTo)
 		if err != nil {
 			Warn.Println("SMTP relay failed")
 			return
@@ -147,46 +141,7 @@ func execSend(payload []byte, execCmd string) {
 	}
 }
 
-func SMTPRelay(payload []byte, sendTo []string) (err error) {
-	serverAddr := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
-	conn, err := smtp.Dial(serverAddr)
-	if err != nil {
-		Warn.Println(err)
-		return
-	}
-	err = conn.Mail(cfg.Mail.EnvelopeSender)
-	if err != nil {
-		Warn.Println(err)
-		return
-	}
-	for _, s := range sendTo {
-		err = conn.Rcpt(s)
-		if err != nil {
-			Warn.Println(err)
-			return
-		}
-	}
-	wc, err := conn.Data()
-	if err != nil {
-		Warn.Println(err)
-	}
-	_, err = fmt.Fprintf(wc, string(payload))
-	if err != nil {
-		Warn.Println(err)
-	}
-	err = wc.Close()
-	if err != nil {
-		Warn.Println(err)
-	}
-	err = conn.Quit()
-	if err != nil {
-		Warn.Println(err)
-		return
-	}
-	return
-}
-
-func tlsRelay(payload []byte, sendTo []string) (err error) {
+func smtpRelay(payload []byte, sendTo []string) (err error) {
 	conf := new(tls.Config)
 	conf.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA}
 	conf.InsecureSkipVerify = true
@@ -206,9 +161,12 @@ func tlsRelay(payload []byte, sendTo []string) (err error) {
 		return
 	}
 
-	if err = client.StartTLS(conf); err != nil {
-		Warn.Printf("Error performing StartTLS: %s\n", err)
-		return
+	ok, _ := client.Extension("STARTTLS")
+	if ok && cfg.Mail.UseTLS {
+		if err = client.StartTLS(conf); err != nil {
+			Warn.Printf("Error performing StartTLS: %s\n", err)
+			return
+		}
 	}
 	/*
 		if ok, _ := client.Extension("AUTH"); ok {
