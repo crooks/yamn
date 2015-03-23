@@ -74,6 +74,7 @@ func mailPoolFile(filename string) error {
 		return err
 	}
 	msg.Header["Date"] = []string{time.Now().Format(rfc5322date)}
+	msg.Header["From"] = []string{"Remailer <nobody@nowhere.invalid>"}
 	sendTo := headToAddy(msg.Header, "To")
 	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
 	if len(sendTo) == 0 {
