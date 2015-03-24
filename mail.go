@@ -59,6 +59,42 @@ func splitAddress(addy string) (name, domain string, err error) {
 	return
 }
 
+// parseFrom takes a mail address of the format Name <name@foo> and validates
+// it.  If custom From headers are not allowed, it will be tweaked to conform
+// with the Remailer's configuration.
+func parseFrom(from string) (addy string) {
+	addyList, err := mail.ParseAddressList(from)
+	if err != nil {
+		// The supplied address is invalid.  Use defaults instead.
+		addy = fmt.Sprintf(
+			"%s <%s>",
+			cfg.Mail.OutboundName,
+			cfg.Mail.OutboundAddy,
+		)
+		return
+	}
+	if cfg.Mail.CustomFrom {
+		// Accept whatever was provided (it's already been validated by
+		// ParseAddressList).
+		addy = from
+	} else {
+		if len(addyList[0].Name) == 0 {
+			addy = fmt.Sprintf(
+				"%s <%s>",
+				cfg.Mail.OutboundName,
+				cfg.Mail.OutboundAddy,
+			)
+		} else {
+			addy = fmt.Sprintf(
+				"%s <%s>",
+				addyList[0].Name,
+				cfg.Mail.OutboundAddy,
+			)
+		}
+	}
+	return
+}
+
 // Read a file from the outbound pool and mail it
 func mailPoolFile(filename string) error {
 	var err error
@@ -74,7 +110,7 @@ func mailPoolFile(filename string) error {
 		return err
 	}
 	msg.Header["Date"] = []string{time.Now().Format(rfc5322date)}
-	msg.Header["From"] = []string{"Remailer <nobody@nowhere.invalid>"}
+	msg.Header["From"] = []string{parseFrom(msg.Header["From"][0])}
 	sendTo := headToAddy(msg.Header, "To")
 	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
 	if len(sendTo) == 0 {

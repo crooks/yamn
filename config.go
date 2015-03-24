@@ -38,6 +38,9 @@ type Config struct {
 		EnvelopeSender string
 		Username       string
 		Password       string
+		OutboundName   string
+		OutboundAddy   string
+		CustomFrom     bool
 	}
 	Stats struct {
 		Minlat    int
@@ -146,6 +149,9 @@ func init() {
 	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
 	cfg.Mail.Username = ""
 	cfg.Mail.Password = ""
+	cfg.Mail.OutboundName = "Anonymous Remailer"
+	cfg.Mail.OutboundAddy = "remailer@domain.invalid"
+	cfg.Mail.CustomFrom = false
 	cfg.Stats.Minrel = 98.0
 	cfg.Stats.Relfinal = 99.0
 	cfg.Stats.Minlat = 2
