@@ -62,37 +62,45 @@ func splitAddress(addy string) (name, domain string, err error) {
 // parseFrom takes a mail address of the format Name <name@foo> and validates
 // it.  If custom From headers are not allowed, it will be tweaked to conform
 // with the Remailer's configuration.
-func parseFrom(from string) (addy string) {
-	addyList, err := mail.ParseAddressList(from)
+func parseFrom(h mail.Header) []string {
+	from, err := h.AddressList("From")
 	if err != nil {
 		// The supplied address is invalid.  Use defaults instead.
-		addy = fmt.Sprintf(
+		return []string{fmt.Sprintf(
 			"%s <%s>",
 			cfg.Mail.OutboundName,
 			cfg.Mail.OutboundAddy,
-		)
-		return
+		)}
+	}
+	if len(from) == 0 {
+		// The address list is empty so return defaults
+		return []string{fmt.Sprintf(
+			"%s <%s>",
+			cfg.Mail.OutboundName,
+			cfg.Mail.OutboundAddy,
+		)}
 	}
 	if cfg.Mail.CustomFrom {
 		// Accept whatever was provided (it's already been validated by
-		// ParseAddressList).
-		addy = from
-	} else {
-		if len(addyList[0].Name) == 0 {
-			addy = fmt.Sprintf(
-				"%s <%s>",
-				cfg.Mail.OutboundName,
-				cfg.Mail.OutboundAddy,
-			)
-		} else {
-			addy = fmt.Sprintf(
-				"%s <%s>",
-				addyList[0].Name,
-				cfg.Mail.OutboundAddy,
-			)
-		}
+		// AddressList).
+		return []string{fmt.Sprintf(
+			"%s <%s>",
+			from[0].Name,
+			from[0].Address,
+		)}
 	}
-	return
+	if len(from[0].Name) == 0 {
+		return []string{fmt.Sprintf(
+			"%s <%s>",
+			cfg.Mail.OutboundName,
+			cfg.Mail.OutboundAddy,
+		)}
+	}
+	return []string{fmt.Sprintf(
+		"%s <%s>",
+		from[0].Name,
+		cfg.Mail.OutboundAddy,
+	)}
 }
 
 // Read a file from the outbound pool and mail it
@@ -110,7 +118,7 @@ func mailPoolFile(filename string) error {
 		return err
 	}
 	msg.Header["Date"] = []string{time.Now().Format(rfc5322date)}
-	msg.Header["From"] = []string{parseFrom(msg.Header["From"][0])}
+	msg.Header["From"] = parseFrom(msg.Header)
 	sendTo := headToAddy(msg.Header, "To")
 	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
 	if len(sendTo) == 0 {
