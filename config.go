@@ -35,6 +35,7 @@ type Config struct {
 		UseTLS         bool
 		SMTPRelay      string
 		SMTPPort       int
+		MXRelay        bool
 		EnvelopeSender string
 		Username       string
 		Password       string
@@ -146,6 +147,7 @@ func init() {
 	cfg.Mail.SMTPRelay = "snorky.mixmin.net"
 	cfg.Mail.SMTPPort = 587
 	cfg.Mail.UseTLS = true
+	cfg.Mail.MXRelay = true
 	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
 	cfg.Mail.Username = ""
 	cfg.Mail.Password = ""

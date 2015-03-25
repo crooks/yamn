@@ -42,8 +42,13 @@ func headToAddy(h mail.Header, header string) (addys []string) {
 	return
 }
 
+type emailAddress struct {
+	name   string
+	domain string
+}
+
 // splitAddress splits an email address into its component parts
-func splitAddress(addy string) (name, domain string, err error) {
+func splitEmailAddress(addy string) (e emailAddress, err error) {
 	// Email addresses must have '@' signs in them.
 	if !strings.Contains(addy, "@") {
 		err = fmt.Errorf("%s: Email address contains no '@'", addy)
@@ -54,8 +59,25 @@ func splitAddress(addy string) (name, domain string, err error) {
 		err = fmt.Errorf("%s: Malformed email address", addy)
 		return
 	}
-	name = components[0]
-	domain = components[1]
+	e.name = components[0]
+	e.domain = components[1]
+	return
+}
+
+// mxLookup returns the responsible MX for a given email address
+func mxLookup(email string) (relay string, err error) {
+	emailParts, err := splitEmailAddress(email)
+	if err != nil {
+		// Failed to ascertain domain name from email address
+		return
+	}
+	mxRecords, err := net.LookupMX(emailParts.domain)
+	if err != nil {
+		relay = emailParts.domain
+		err = nil
+		return
+	}
+	relay = mxRecords[0].Host
 	return
 }
 
@@ -192,7 +214,23 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 	conf.InsecureSkipVerify = true
 	conf.MinVersion = tls.VersionSSL30
 	conf.MaxVersion = tls.VersionTLS10
-	serverAddr := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
+	relay := cfg.Mail.SMTPRelay
+	port := cfg.Mail.SMTPPort
+
+	/*
+		The following section tries to get the MX record for the recipient email
+		address, when there is only a single recipient.  If it succeeds, the email
+		will be sent directly to the recipient MX.
+	*/
+	if cfg.Mail.MXRelay && len(sendTo) == 1 {
+		mx, err := mxLookup(sendTo[0])
+		if err == nil {
+			Trace.Printf("Doing direct relay for %s to %s:25.", sendTo[0], mx)
+			relay = mx
+			port = 25
+		}
+	}
+	serverAddr := fmt.Sprintf("%s:%d", relay, port)
 
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
@@ -200,7 +238,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 		return
 	}
 
-	client, err := smtp.NewClient(conn, cfg.Mail.SMTPRelay)
+	client, err := smtp.NewClient(conn, relay)
 	if err != nil {
 		Warn.Printf("Error SMTP connection: %s\n", err)
 		return
