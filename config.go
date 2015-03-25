@@ -126,7 +126,9 @@ func init() {
 		panic(err)
 	}
 	flag.StringVar(&flag_basedir, "dir", dir, "Base directory")
+}
 
+func setDefaultConfig() {
 	// Set defaults and read config file
 	cfg.Files.Pubkey = path.Join(flag_basedir, "key.txt")
 	cfg.Files.Pubring = path.Join(flag_basedir, "pubring.mix")
@@ -180,8 +182,10 @@ func flags() {
 	var err error
 	flag.Parse()
 	flag_args = flag.Args()
+	setDefaultConfig()
 	if flag_version {
-		fmt.Println(version)
+		fmt.Printf("Version=%s\n", version)
+		fmt.Printf("Basedir=%s\n", flag_basedir)
 		os.Exit(0)
 	} else if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)
