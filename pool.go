@@ -35,9 +35,8 @@ func poolOutboundSend() {
 		err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
-		} else {
-			poolDelete(file)
 		}
+		poolDelete(file)
 	}
 }
 
