@@ -21,7 +21,6 @@ type Config struct {
 		Maildir  string
 		IDlog    string
 		ChunkDB  string
-		Exedir   string
 	}
 	Urls struct {
 		Fetch   bool
@@ -126,6 +125,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	flag.StringVar(&flag_basedir, "dir", dir, "Base directory")
 
 	// Set defaults and read config file
 	cfg.Files.Pubkey = path.Join(dir, "key.txt")
@@ -138,7 +138,6 @@ func init() {
 	cfg.Files.Maildir = path.Join(dir, "Maildir")
 	cfg.Files.IDlog = path.Join(dir, "idlog")
 	cfg.Files.ChunkDB = path.Join(dir, "chunkdb")
-	cfg.Files.Exedir = dir
 	cfg.Urls.Fetch = true
 	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
 	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
@@ -199,7 +198,7 @@ func flags() {
 			os.Exit(1)
 		}
 	} else {
-		fn := path.Join(cfg.Files.Exedir, "yamn.cfg")
+		fn := path.Join(flag_basedir, "yamn.cfg")
 		err = gcfg.ReadFileInto(&cfg, fn)
 		if err != nil {
 			if !flag_client {
@@ -210,6 +209,7 @@ func flags() {
 	}
 }
 
+var flag_basedir string
 var flag_client bool
 var flag_send bool
 var flag_remailer bool
