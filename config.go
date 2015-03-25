@@ -128,16 +128,16 @@ func init() {
 	flag.StringVar(&flag_basedir, "dir", dir, "Base directory")
 
 	// Set defaults and read config file
-	cfg.Files.Pubkey = path.Join(dir, "key.txt")
-	cfg.Files.Pubring = path.Join(dir, "pubring.mix")
-	cfg.Files.Secring = path.Join(dir, "secring.mix")
-	cfg.Files.Mlist2 = path.Join(dir, "mlist2.txt")
-	cfg.Files.Adminkey = path.Join(dir, "adminkey.txt")
-	cfg.Files.Help = path.Join(dir, "help.txt")
-	cfg.Files.Pooldir = path.Join(dir, "pool")
-	cfg.Files.Maildir = path.Join(dir, "Maildir")
-	cfg.Files.IDlog = path.Join(dir, "idlog")
-	cfg.Files.ChunkDB = path.Join(dir, "chunkdb")
+	cfg.Files.Pubkey = path.Join(flag_basedir, "key.txt")
+	cfg.Files.Pubring = path.Join(flag_basedir, "pubring.mix")
+	cfg.Files.Secring = path.Join(flag_basedir, "secring.mix")
+	cfg.Files.Mlist2 = path.Join(flag_basedir, "mlist2.txt")
+	cfg.Files.Adminkey = path.Join(flag_basedir, "adminkey.txt")
+	cfg.Files.Help = path.Join(flag_basedir, "help.txt")
+	cfg.Files.Pooldir = path.Join(flag_basedir, "pool")
+	cfg.Files.Maildir = path.Join(flag_basedir, "Maildir")
+	cfg.Files.IDlog = path.Join(flag_basedir, "idlog")
+	cfg.Files.ChunkDB = path.Join(flag_basedir, "chunkdb")
 	cfg.Urls.Fetch = true
 	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
 	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
