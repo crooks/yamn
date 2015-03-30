@@ -19,7 +19,11 @@ import (
 func assemble(msg mail.Message) []byte {
 	buf := new(bytes.Buffer)
 	for h := range msg.Header {
-		buf.WriteString(h + ": " + msg.Header.Get(h) + "\n")
+		if strings.HasPrefix(h, "Yamn-") {
+			Trace.Printf("Ignoring internal header: %s", h)
+		} else {
+			buf.WriteString(h + ": " + msg.Header.Get(h) + "\n")
+		}
 	}
 	buf.WriteString("\n")
 	buf.ReadFrom(msg.Body)
@@ -139,6 +143,40 @@ func mailPoolFile(filename string) error {
 		Error.Printf("Failed to process mail file: %s", err)
 		return err
 	}
+
+	/*
+		Test if the message contains a Yamn-Pooled-Date header.  If it does, test if
+		the message is less than an acceptable number of days old.  If it is too old,
+		return nil.  This makes poolRead assume the message was sent without error
+		and deletes it from the pool.
+	*/
+	pooledHeader := msg.Header.Get("Yamn-Pooled-Date")
+	if pooledHeader == "" {
+		Info.Println("No Yamn-Pooled-Date header in message")
+	} else {
+		pooledDate, err := time.Parse(shortdate, pooledHeader)
+		if err != nil {
+			Warn.Printf("Failed to parse Yamn-Pooled-Date: %s", err)
+			return nil
+		}
+		age := daysAgo(pooledDate)
+		if age > cfg.Pool.MaxAge {
+			// The message is too old.  Return no error so it's deleted from the
+			// pool.
+			Info.Printf(
+				"Refusing to mail pool file. Exceeds max age of %d days",
+				cfg.Pool.MaxAge,
+			)
+			return nil
+		}
+		if age > 0 {
+			Trace.Printf("Mailing pooled file that's %d days old.", age)
+		}
+		// Delete the internal header we just tested.
+		delete(msg.Header, "Yamn-Pooled-Date")
+	}
+
+	// Add some required headers to the message.
 	msg.Header["Date"] = []string{time.Now().Format(rfc5322date)}
 	msg.Header["From"] = parseFrom(msg.Header)
 	sendTo := headToAddy(msg.Header, "To")

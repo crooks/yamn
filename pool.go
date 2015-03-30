@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 	//"github.com/codahale/blake2"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -35,8 +36,9 @@ func poolOutboundSend() {
 		err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
+		} else {
+			poolDelete(file)
 		}
-		poolDelete(file)
 	}
 }
 
@@ -188,6 +190,11 @@ func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
 	*/
 	digest := sha256.New()
 	digest.Write(yamnMsg)
+	dateHeader := fmt.Sprintf(
+		"Yamn-Pooled-Date: %s\n",
+		time.Now().Format(shortdate),
+	)
+	yamnMsg = append([]byte(dateHeader), yamnMsg...)
 	poolFileName = prefix + hex.EncodeToString(digest.Sum(nil))[:14]
 	fqfn := path.Join(cfg.Files.Pooldir, poolFileName)
 	err := ioutil.WriteFile(fqfn, yamnMsg, 0600)

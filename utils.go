@@ -62,6 +62,13 @@ func randInts(n int) (m []int) {
 	return
 }
 
+// daysAgo takes a timestamp and returns it as an integer of its age in days.
+func daysAgo(date time.Time) (days int) {
+	age := time.Since(date)
+	days = int(age.Hours() / 24)
+	return
+}
+
 // IsMemberStr tests for the membership of a string in a slice
 func IsMemberStr(s string, slice []string) bool {
 	for _, n := range slice {
