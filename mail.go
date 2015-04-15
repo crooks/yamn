@@ -20,7 +20,7 @@ func assemble(msg mail.Message) []byte {
 	buf := new(bytes.Buffer)
 	for h := range msg.Header {
 		if strings.HasPrefix(h, "Yamn-") {
-			Trace.Printf("Ignoring internal header: %s", h)
+			Error.Printf("Ignoring internal mail header in assemble phase: %s", h)
 		} else {
 			buf.WriteString(h + ": " + msg.Header.Get(h) + "\n")
 		}

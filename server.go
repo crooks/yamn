@@ -253,19 +253,21 @@ func decodeMsg(
 	secret *keymgr.Secring,
 	id idlog.IDLog,
 	chunkDB Chunk) (err error) {
+	if len(rawMsg) != messageBytes {
+		Error.Printf(
+			"Incorrect byte count in binary payload. Expected=%d, Got=%d",
+			messageBytes,
+			len(rawMsg),
+		)
+		return
+	}
 	// Split the message into its component parts
 	msgHeader := rawMsg[:headerBytes]
 	msgEncHeaders := rawMsg[headerBytes:headersBytes]
 	msgBody := rawMsg[headersBytes:]
-	if len(msgBody) != bodyBytes {
-		Warn.Printf("Incorrect body size during dearmor. Expected=%d, Got=%d",
-			bodyBytes, len(msgBody))
-		return
-	}
-	var iv []byte
 	/*
-		decodeHead only returns the decrypted slotData bytes.  The other fields are
-		only concerned with performing the decryption.
+		decodeHead returns the raw Bytes of the Inner Header after it has been
+		decrypted using the Secret Key that corresponds with the provided KeyID.
 	*/
 	var decodedHeader []byte
 	decodedHeader, err = decodeHead(msgHeader, secret)
@@ -299,6 +301,7 @@ func decodeMsg(
 		if err != nil {
 			return
 		}
+		var iv []byte
 		// Number of headers to decrypt is one less than max chain length
 		for headNum := 0; headNum < maxChainLength-1; headNum++ {
 			iv, err = sPopBytes(&inter.aesIVs, 16)

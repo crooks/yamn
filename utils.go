@@ -348,7 +348,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 			} else {
 				payloadDigest, err = base64.StdEncoding.DecodeString(line)
 				if err != nil {
-					err = fmt.Errorf("Unable to decode Base64 hash on payload")
+					err = errors.New("Unable to decode Base64 hash on payload")
 					return
 				}
 			}
@@ -376,18 +376,31 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	}
 	payload, err = base64.StdEncoding.DecodeString(b64)
 	if err != nil {
-		Info.Printf("Unable to decode Base64 payload")
 		return
 	}
+	// Validate payload length against stated length.
 	if len(payload) != payloadLen {
-		Info.Printf("Unexpected payload size. Wanted=%d, Got=%d\n", payloadLen, len(payload))
+		err = fmt.Errorf(
+			"Payload size doesn't match stated size. Wanted=%d, Got=%d\n",
+			payloadLen,
+			len(payload),
+		)
+		return
+	}
+	// Validate payload length against packet format.
+	if len(payload) != messageBytes {
+		err = fmt.Errorf(
+			"Payload size doesn't match stated size. Wanted=%d, Got=%d\n",
+			payloadLen,
+			len(payload),
+		)
 		return
 	}
 	//digest := blake2.New(&blake2.Config{Size: 16})
 	digest := sha256.New()
 	digest.Write(payload)
 	if !bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
-		Info.Println("Incorrect payload digest")
+		err = errors.New("Incorrect payload digest during dearmor")
 		return
 	}
 	return

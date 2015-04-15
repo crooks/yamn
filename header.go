@@ -87,8 +87,8 @@ func (h *slotHead) encodeHead() []byte {
 // decodeHead decodes a slot header
 func decodeHead(b []byte, secret *keymgr.Secring) (data []byte, err error) {
 	/*
-		Decode functions should return their associated structs but, in this
-		instance, the only field of value is the decrypted data.
+		Decode functions should return their associated structs but, in
+		this instance, the only field of value is the decrypted data.
 	*/
 	err = lenCheck(len(b), headerBytes)
 	if err != nil {
