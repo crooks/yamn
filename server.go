@@ -507,7 +507,7 @@ func dummy(public *keymgr.Pubring) {
 // remailerFoo responds to requests for remailer-* info
 func remailerFoo(subject, sender string) (err error) {
 	m := quickmail.NewMessage()
-	m.Set("From", cfg.Mail.EnvelopeSender)
+	m.Set("From", cfg.Remailer.Address)
 	m.Set("To", sender)
 	if strings.HasPrefix(subject, "remailer-key") {
 		// remailer-key

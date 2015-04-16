@@ -304,7 +304,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 			return
 		}
 	}
-	if err = client.Mail(cfg.Mail.EnvelopeSender); err != nil {
+	if err = client.Mail(cfg.Remailer.Address); err != nil {
 		Warn.Printf("Error: %s\n", err)
 		return
 	}
@@ -348,7 +348,7 @@ func sendmail(payload []byte, sendTo []string) (err error) {
 		cfg.Mail.Password,
 		cfg.Mail.SMTPRelay)
 	relay := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
-	err = smtp.SendMail(relay, auth, cfg.Mail.EnvelopeSender, sendTo, payload)
+	err = smtp.SendMail(relay, auth, cfg.Remailer.Address, sendTo, payload)
 	if err != nil {
 		Warn.Println(err)
 		return
