@@ -188,18 +188,32 @@ func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
 		[ i          Inbound message (destined for this remailer ]
 		[ p               Partial message chunk needing assembly ]
 	*/
+
+	// Using a hash for the filename ensures that duplicate files are only
+	// written once.  The hash is truncated so their is a tiny risk of collision
+	// but it's a tiny risk!
 	digest := sha256.New()
 	digest.Write(yamnMsg)
+	poolFileName = prefix + hex.EncodeToString(digest.Sum(nil))[:14]
+	fqfn := path.Join(cfg.Files.Pooldir, poolFileName)
+
+	// Create a pool file for the message
+	f, err := os.Create(fqfn)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	// Insert a Yamn internal header containing the date pooled.
+	// This is useful for performing expiry on old messages.
 	dateHeader := fmt.Sprintf(
 		"Yamn-Pooled-Date: %s\n",
 		time.Now().Format(shortdate),
 	)
-	yamnMsg = append([]byte(dateHeader), yamnMsg...)
-	poolFileName = prefix + hex.EncodeToString(digest.Sum(nil))[:14]
-	fqfn := path.Join(cfg.Files.Pooldir, poolFileName)
-	err := ioutil.WriteFile(fqfn, yamnMsg, 0600)
-	if err != nil {
-		panic(err)
-	}
+	f.WriteString(dateHeader)
+
+	// Write the remainder of the message.
+	f.Write(yamnMsg)
+	f.Sync()
 	return
 }
