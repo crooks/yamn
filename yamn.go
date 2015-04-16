@@ -81,11 +81,14 @@ func main() {
 		msg, err = stripArmor(os.Stdin)
 		if err != nil {
 			Warn.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 		}
 		// remailer-foo requests will have nil payloads.
 		// We don't want to pool them!
 		if msg != nil {
 			poolWrite(msg, "i")
+		} else {
+			fmt.Fprintln(os.Stderr, "Nil byte message")
 		}
 	} else if flag_remailer {
 		err = loopServer()
