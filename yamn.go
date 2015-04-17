@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/luksen/maildir"
 	"io"
 	"io/ioutil"
 	"log"
@@ -76,20 +77,19 @@ func main() {
 		mixprep()
 		poolOutboundSend()
 	} else if flag_stdin {
-		// Expecting a remailer message on Stdin
-		var msg []byte
-		msg, err = stripArmor(os.Stdin)
+		dir := maildir.Dir(cfg.Files.Maildir)
+		newmsg, err := dir.NewDelivery()
 		if err != nil {
-			Warn.Println(err)
 			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
-		// remailer-foo requests will have nil payloads.
-		// We don't want to pool them!
-		if msg != nil {
-			poolWrite(msg, "i")
-		} else {
-			fmt.Fprintln(os.Stderr, "Nil byte message")
+		stdin, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
+		newmsg.Write(stdin)
+		newmsg.Close()
 	} else if flag_remailer {
 		err = loopServer()
 		if err != nil {

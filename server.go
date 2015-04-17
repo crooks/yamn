@@ -12,6 +12,7 @@ import (
 	"github.com/crooks/yamn/quickmail"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 	"time"
 	//"github.com/codahale/blake2"
@@ -31,18 +32,7 @@ func loopServer() (err error) {
 	secret.SetValidity(cfg.Remailer.Keylife, cfg.Remailer.Keygrace)
 	secret.SetVersion(version)
 	// Create some dirs if they don't already exist
-	err = os.MkdirAll(cfg.Files.IDlog, 0700)
-	if err != nil {
-		return
-	}
-	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
-	if err != nil {
-		return
-	}
-	err = os.MkdirAll(cfg.Files.ChunkDB, 0700)
-	if err != nil {
-		return
-	}
+	createDirs()
 
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
@@ -242,6 +232,48 @@ func nagOperator() {
 			"Your remailer will flush the outbound pool every",
 			fmt.Sprintf("%d seconds. Unless you're testing,", cfg.Pool.Loop),
 			"this is probably not what you want.")
+	}
+}
+
+func createDirs() {
+	var err error
+	err = os.MkdirAll(cfg.Files.IDlog, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", cfg.Files.IDlog, err)
+		os.Exit(1)
+	}
+	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", cfg.Files.Pooldir, err)
+		os.Exit(1)
+	}
+	err = os.MkdirAll(cfg.Files.ChunkDB, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", cfg.Files.ChunkDB, err)
+		os.Exit(1)
+	}
+	err = os.MkdirAll(cfg.Files.Maildir, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", cfg.Files.Maildir, err)
+		os.Exit(1)
+	}
+	mdirnew := path.Join(cfg.Files.Maildir, "new")
+	err = os.MkdirAll(mdirnew, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", mdirnew, err)
+		os.Exit(1)
+	}
+	mdircur := path.Join(cfg.Files.Maildir, "cur")
+	err = os.MkdirAll(mdircur, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", mdircur, err)
+		os.Exit(1)
+	}
+	mdirtmp := path.Join(cfg.Files.Maildir, "tmp")
+	err = os.MkdirAll(mdirtmp, 0700)
+	if err != nil {
+		Error.Println("Failed to create %s. %s", mdirtmp, err)
+		os.Exit(1)
 	}
 }
 
