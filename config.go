@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 )
 
 type Config struct {
@@ -120,9 +119,10 @@ func init() {
 	// Memory usage
 	flag.BoolVar(&flag_meminfo, "meminfo", false, "Print memory info")
 
-	// Figure out the dir of the yamn binary
+	// Define our base working directory
 	var dir string
-	dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
+	//dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
+	dir, err = os.Getwd()
 	if err != nil {
 		panic(err)
 	}
