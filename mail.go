@@ -272,20 +272,24 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
-		Warn.Printf("Error Dialing %s\n", err)
+		Warn.Printf("Dial Error: Server=%s, Error=%s", serverAddr, err)
 		return
 	}
 
 	client, err := smtp.NewClient(conn, relay)
 	if err != nil {
-		Warn.Printf("Error SMTP connection: %s\n", err)
+		Warn.Printf("SMTP Connection Error: Server=%s, Error=%s", serverAddr, err)
 		return
 	}
 	// Test is the remote MTA supports STARTTLS
 	ok, _ := client.Extension("STARTTLS")
 	if ok && cfg.Mail.UseTLS {
 		if err = client.StartTLS(conf); err != nil {
-			Warn.Printf("Error performing StartTLS: %s\n", err)
+			Warn.Printf(
+				"Error performing STARTTLS: Server=%s, Error=%s",
+				serverAddr,
+				err,
+			)
 			return
 		}
 	}
@@ -300,12 +304,12 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 			cfg.Mail.SMTPRelay,
 		)
 		if err = client.Auth(auth); err != nil {
-			Warn.Printf("Error during AUTH %s\n", err)
+			Warn.Printf("Auth Error:  Server=%s, Error=%s", serverAddr, err)
 			return
 		}
 	}
 	if err = client.Mail(cfg.Remailer.Address); err != nil {
-		Warn.Printf("Error: %s\n", err)
+		Warn.Printf("SMTP Error: Server=%s, Error=%s", serverAddr, err)
 		return
 	}
 
