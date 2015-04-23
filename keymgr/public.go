@@ -332,9 +332,16 @@ func (p *Pubring) ImportPubring() (err error) {
 					continue
 				}
 				if now.After(until) {
-					fmt.Fprintln(os.Stderr, elements[0] + ": Key expired")
-					key_phase = 0
-					continue
+					fmt.Fprintf(
+						os.Stderr,
+						"Key expired: Name=%s, Key=%s, Date=%s\n",
+						elements[0],
+						elements[2],
+						elements[6],
+					)
+					// Rejecting expired keys is likely to break Echolot so just Warn
+					//key_phase = 0
+					//continue
 				}
 				rem = new(Remailer)
 				rem.name = elements[0]
