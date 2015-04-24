@@ -108,6 +108,26 @@ func readDir(path, prefix string) (files []string, err error) {
 	return
 }
 
+// messageID returns an RFC compliant Message-ID for use in message
+// construction.
+func messageID() (datestr string) {
+	dateComponent := time.Now().Format("20060102.150405")
+	randomComponent := hex.EncodeToString(randbytes(4))
+	var domainComponent string
+	if strings.Contains(cfg.Remailer.Address, "@") {
+		domainComponent = strings.SplitN(cfg.Remailer.Address, "@", 2)[1]
+	} else {
+		domainComponent = "yamn.invalid"
+	}
+	datestr = fmt.Sprintf(
+		"<%s.%s@%s>",
+		dateComponent,
+		randomComponent,
+		domainComponent,
+	)
+	return
+}
+
 // lenCheck verifies that a slice is of a specified length
 func lenCheck(got, expected int) (err error) {
 	if got != expected {

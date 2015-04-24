@@ -23,6 +23,7 @@ func assemble(msg mail.Message) []byte {
 			Error.Printf("Ignoring internal mail header in assemble phase: %s", h)
 		} else {
 			buf.WriteString(h + ": " + msg.Header.Get(h) + "\n")
+			fmt.Printf("%s: %s\n", h, msg.Header.Get(h))
 		}
 	}
 	buf.WriteString("\n")
@@ -178,6 +179,7 @@ func mailPoolFile(filename string) error {
 
 	// Add some required headers to the message.
 	msg.Header["Date"] = []string{time.Now().Format(rfc5322date)}
+	msg.Header["Message-Id"] = []string{messageID()}
 	msg.Header["From"] = parseFrom(msg.Header)
 	sendTo := headToAddy(msg.Header, "To")
 	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
