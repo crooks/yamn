@@ -23,7 +23,7 @@ func assemble(msg mail.Message) []byte {
 			Error.Printf("Ignoring internal mail header in assemble phase: %s", h)
 		} else {
 			buf.WriteString(h + ": " + msg.Header.Get(h) + "\n")
-			fmt.Printf("%s: %s\n", h, msg.Header.Get(h))
+			//fmt.Printf("%s: %s\n", h, msg.Header.Get(h))
 		}
 	}
 	buf.WriteString("\n")
