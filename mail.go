@@ -248,7 +248,7 @@ func execSend(payload []byte, execCmd string) {
 
 func smtpRelay(payload []byte, sendTo []string) (err error) {
 	conf := new(tls.Config)
-	conf.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA}
+	//conf.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA}
 	conf.InsecureSkipVerify = true
 	conf.MinVersion = tls.VersionSSL30
 	conf.MaxVersion = tls.VersionTLS10
