@@ -1,5 +1,3 @@
-// vim: tabstop=2 shiftwidth=2
-
 package main
 
 import (
@@ -86,7 +84,8 @@ func randPoolFilename(prefix string) (fqfn string) {
 		fqfn = path.Join(cfg.Files.Pooldir, outfileName)
 		_, err := os.Stat(fqfn)
 		if err != nil {
-			// For once we want an error (indicating the file doesn't exist)
+			// For once we want an error (indicating the file
+			// doesn't exist)
 			break
 		}
 	}
@@ -115,7 +114,9 @@ func messageID() (datestr string) {
 	randomComponent := hex.EncodeToString(randbytes(4))
 	var domainComponent string
 	if strings.Contains(cfg.Remailer.Address, "@") {
-		domainComponent = strings.SplitN(cfg.Remailer.Address, "@", 2)[1]
+		domainComponent = strings.SplitN(
+			cfg.Remailer.Address, "@", 2,
+		)[1]
 	} else {
 		domainComponent = "yamn.invalid"
 	}
@@ -131,7 +132,11 @@ func messageID() (datestr string) {
 // lenCheck verifies that a slice is of a specified length
 func lenCheck(got, expected int) (err error) {
 	if got != expected {
-		err = fmt.Errorf("Incorrect length.  Expected=%d, Got=%d", expected, got)
+		err = fmt.Errorf(
+			"Incorrect length.  Expected=%d, Got=%d",
+			expected,
+			got,
+		)
 		Info.Println(err)
 	}
 	return
@@ -140,7 +145,11 @@ func lenCheck(got, expected int) (err error) {
 // bufLenCheck verifies that a given buffer length is of a specified length
 func bufLenCheck(buflen, length int) (err error) {
 	if buflen != length {
-		err = fmt.Errorf("Incorrect buffer length.  Wanted=%d, Got=%d", length, buflen)
+		err = fmt.Errorf(
+			"Incorrect buffer length.  Wanted=%d, Got=%d",
+			length,
+			buflen,
+		)
 		Info.Println(err)
 	}
 	return
@@ -211,7 +220,11 @@ func assertExists(path string) {
 func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
 	if len(s) < n {
-		err = fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
+		err = fmt.Errorf(
+			"Cannot pop %d bytes from slice of %d",
+			n,
+			len(s),
+		)
 		return
 	}
 	pop = s[:n]
@@ -224,7 +237,11 @@ func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
 	if len(s) < n {
-		err = fmt.Errorf("Cannot pop %d bytes from slice of %d", n, len(s))
+		err = fmt.Errorf(
+			"Cannot pop %d bytes from slice of %d",
+			n,
+			len(s),
+		)
 		return
 	}
 	pop = s[len(s)-n:]
@@ -263,8 +280,8 @@ func wrap(str string) (newstr string) {
 // armor base64 encodes a Yamn message for emailing
 func armor(yamnMsg []byte, sendto string) []byte {
 	/*
-		With the exception of email delivery to recipients, every outbound message
-		should be wrapped by this function.
+		With the exception of email delivery to recipients, every
+		outbound message should be wrapped by this function.
 	*/
 	var err error
 	err = lenCheck(len(yamnMsg), messageBytes)
@@ -289,7 +306,9 @@ func armor(yamnMsg []byte, sendto string) []byte {
 	digest := sha256.New()
 	digest.Write(yamnMsg)
 	// Write message digest
-	buf.WriteString(base64.StdEncoding.EncodeToString(digest.Sum(nil)[:16]) + "\n")
+	buf.WriteString(base64.StdEncoding.EncodeToString(
+		digest.Sum(nil)[:16]) + "\n",
+	)
 	// Write the payload
 	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(yamnMsg)) + "\n")
 	buf.WriteString("-----END REMAILER MESSAGE-----\n")
@@ -304,9 +323,6 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	var b64 string
 	var payloadLen int
 	var payloadDigest []byte
-	var msgFrom string
-	var msgSubject string
-	var remailerFooRequest bool
 	/* Scan phases are:
 	0	Expecting ::
 	1 Expecting Begin cutmarks
@@ -314,40 +330,16 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	3	Expecting hash
 	4 In payload and checking for End cutmark
 	5 Got End cutmark
-	255 Ignore and return
 	*/
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch scanPhase {
 		case 0:
-			// Expecting ::\n (or maybe a Mail header)
+			// Expecting ::\n
 			if line == "::" {
 				scanPhase = 1
 				continue
 			}
-			if flag_stdin {
-				if strings.HasPrefix(line, "Subject: ") {
-					// We have a Subject header.  This is probably a mail message.
-					msgSubject = strings.ToLower(line[9:])
-					if strings.HasPrefix(msgSubject, "remailer-") {
-						remailerFooRequest = true
-					}
-				} else if strings.HasPrefix(line, "From: ") {
-					// A From header might be useful if this is a remailer-foo request.
-					msgFrom = line[6:]
-				}
-				if remailerFooRequest && len(msgSubject) > 0 && len(msgFrom) > 0 {
-					// Do remailer-foo processing
-					err = remailerFoo(msgSubject, msgFrom)
-					if err != nil {
-						Info.Println(err)
-						err = nil
-					}
-					// Don't bother to read any further
-					scanPhase = 255
-					break
-				}
-			} // End of STDIN flag test
 		case 1:
 			// Expecting Begin cutmarks
 			if line == "-----BEGIN REMAILER MESSAGE-----" {
@@ -357,18 +349,26 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 			// Expecting size
 			payloadLen, err = strconv.Atoi(line)
 			if err != nil {
-				err = fmt.Errorf("Unable to extract payload size from %s", line)
+				err = fmt.Errorf(
+					"Unable to extract payload size from %s",
+					line,
+				)
 				return
 			}
 			scanPhase = 3
 		case 3:
 			if len(line) != 24 {
-				err = fmt.Errorf("Expected 24 byte Base64 Hash, got %d bytes\n", len(line))
+				err = fmt.Errorf(
+					"Expected 24 byte Base64 Hash, got %d bytes\n",
+					len(line),
+				)
 				return
 			} else {
 				payloadDigest, err = base64.StdEncoding.DecodeString(line)
 				if err != nil {
-					err = errors.New("Unable to decode Base64 hash on payload")
+					err = errors.New(
+						"Unable to decode Base64 hash on payload",
+					)
 					return
 				}
 			}
@@ -390,8 +390,6 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 		return
 	case 4:
 		err = errors.New("No End cutmarks found on message")
-		return
-	case 255:
 		return
 	}
 	payload, err = base64.StdEncoding.DecodeString(b64)
