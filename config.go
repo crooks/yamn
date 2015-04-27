@@ -34,7 +34,7 @@ type Config struct {
 		SMTPRelay      string
 		SMTPPort       int
 		MXRelay        bool
-		EnvelopeSender string
+		Sender         string
 		Username       string
 		Password       string
 		OutboundName   string
@@ -150,7 +150,7 @@ func setDefaultConfig() {
 	cfg.Mail.SMTPPort = 587
 	cfg.Mail.UseTLS = true
 	cfg.Mail.MXRelay = true
-	cfg.Mail.EnvelopeSender = "nobody@nowhere.invalid"
+	cfg.Mail.Sender = ""
 	cfg.Mail.Username = ""
 	cfg.Mail.Password = ""
 	cfg.Mail.OutboundName = "Anonymous Remailer"

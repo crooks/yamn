@@ -310,7 +310,16 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 			return
 		}
 	}
-	if err = client.Mail(cfg.Remailer.Address); err != nil {
+	// Remailer.Address is a legacy setting as clients may also need to
+	// set the sender address if their ISPs MTA demands it's valid.
+	// TODO remove cfg.Remailer.Address in a later version (27/04/2015)
+	var sender string
+	if cfg.Mail.Sender != "" {
+		sender = cfg.Mail.Sender
+	} else {
+		sender = cfg.Remailer.Address
+	}
+	if err = client.Mail(sender); err != nil {
 		Warn.Printf("SMTP Error: Server=%s, Error=%s", serverAddr, err)
 		return
 	}
