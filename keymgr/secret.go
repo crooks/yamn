@@ -401,7 +401,6 @@ func (s *Secring) ImportSecring() (err error) {
 			}
 			if expire.Before(now) {
 				// Key has expired (but we don't really care)
-				fmt.Fprintln(os.Stderr, "Expired key on secret")
 			}
 			sec.until = expire
 			key_phase = 3
