@@ -397,12 +397,18 @@ func decodeMsg(
 			poolWrite(armor(mixMsg, sendTo), "m")
 		} // End of local or remote delivery
 
+		// Decide if we want to inject a dummy
+		if !flag_nodummy && randomInt(100) < 21 {
+			dummy(public)
+		}
+		// End of Intermediate type packet handling
+
 	} else if data.packetType == 1 {
 		/*
 			This section is concerned with final hop messages. i.e. Delivery to final
 			recipients.  Currently two methods of delivery are defined:-
 			[   0                           SMTP ]
-			[ 255         Dummmy (Don't deliver) ]
+			[ 255         Dummy (Don't deliver) ]
 		*/
 		final := new(slotFinal)
 		err = final.decodeFinal(data.packetInfo)
@@ -473,11 +479,6 @@ func decodeMsg(
 			}
 		} // Randhop condition
 	} // Intermediate or exit
-
-	// Decide if we want to inject a dummy
-	if !flag_nodummy && randomInt(20) < 3 {
-		dummy(public)
-	}
 	return
 }
 
