@@ -145,6 +145,11 @@ func loopServer() (err error) {
 				timedURLFetch(cfg.Urls.Pubring, cfg.Files.Pubring)
 				timedURLFetch(cfg.Urls.Mlist2, cfg.Files.Mlist2)
 			}
+			// Test to see if the pubring.mix file has been updated
+			if public.KeyRefresh() {
+				Trace.Printf("Reimporting Public Keyring: %s", cfg.Files.Pubring)
+				public.ImportPubring()
+			}
 			// Report throughput
 			stats.report()
 			hourly = time.Now()
