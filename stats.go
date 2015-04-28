@@ -1,6 +1,8 @@
 package main
 
-import ()
+import (
+	"fmt"
+)
 
 type statistics struct {
 	inDummy    int
@@ -36,16 +38,19 @@ func (s *statistics) report() {
 		s.inEnc,
 		s.inDummy,
 	)
-	Info.Printf(
-		"MailOut=%d, YamnOut=%d, YamnLoop=%d, Randhop=%d,",
-		"FinalOut=%d, DummyOut=%d",
+	line1 := fmt.Sprintf(
+		"MailOut=%d, YamnOut=%d, YamnLoop=%d, Randhop=%d, ",
 		s.outMail,
 		s.outEnc,
 		s.outLoop,
 		s.outRandhop,
+	)
+	line2 := fmt.Sprintf(
+		"FinalOut=%d, DummyOut=%d",
 		s.outPlain,
 		s.outDummy,
 	)
+	Info.Printf(line1 + line2)
 }
 
 var stats = new(statistics)
