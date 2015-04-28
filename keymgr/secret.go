@@ -4,41 +4,41 @@ package keymgr
 
 import (
 	"bufio"
-	"os"
-	"time"
-	"fmt"
-	"strings"
-	"encoding/hex"
 	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"strings"
+	"time"
 	//"github.com/codahale/blake2"
 )
 
 type secret struct {
-	keyid []byte // keyid
-	sk []byte // Secret Key
-	from time.Time // Valid from
+	keyid []byte    // keyid
+	sk    []byte    // Secret Key
+	from  time.Time // Valid from
 	until time.Time // Valid Until
 }
 
 type Secring struct {
 	secringFile string // Filename of secret keyring
-	pubkeyFile string // Public keyfile (key.txt)
-	sec map[string]secret
-	name string // Local remailer's name
-	address string // Local remailer's email address
-	myKeyid []byte // Keyid this remailer is advertising
-	validity time.Duration // Period of key validity
-	grace time.Duration // Period of grace after key expiry
-	exit bool // Is this an Exit type remailer?
-	version string // Yamn version string
+	pubkeyFile  string // Public keyfile (key.txt)
+	sec         map[string]secret
+	name        string        // Local remailer's name
+	address     string        // Local remailer's email address
+	myKeyid     []byte        // Keyid this remailer is advertising
+	validity    time.Duration // Period of key validity
+	grace       time.Duration // Period of grace after key expiry
+	exit        bool          // Is this an Exit type remailer?
+	version     string        // Yamn version string
 }
 
 // NewSecring is a constructor for the Secret Keyring
 func NewSecring(secfile, pubkey string) *Secring {
 	return &Secring{
 		secringFile: secfile,
-		pubkeyFile: pubkey,
-		sec: make(map[string]secret),
+		pubkeyFile:  pubkey,
+		sec:         make(map[string]secret),
 	}
 }
 
@@ -75,7 +75,7 @@ func (s *Secring) SetAddress(addy string) {
 	if index == -1 {
 		err = fmt.Errorf("%s: Remailer address doesn't contain an @.", addy)
 		panic(err)
-	} else if index == 0 || l - index < 3 {
+	} else if index == 0 || l-index < 3 {
 		err = fmt.Errorf("%s: Invalid remailer address.", addy)
 		panic(err)
 	}
@@ -89,8 +89,8 @@ func (s *Secring) SetExit(exit bool) {
 
 // SetValidity defines the time duration over which a key is deemed valid
 func (s *Secring) SetValidity(valid, grace int) {
-	s.validity = time.Duration(24 * valid) * time.Hour
-	s.grace = time.Duration(24 * grace) * time.Hour
+	s.validity = time.Duration(24*valid) * time.Hour
+	s.grace = time.Duration(24*grace) * time.Hour
 }
 
 // SetVersion sets the version string used on keys
@@ -144,7 +144,7 @@ func (s *Secring) WritePublic(pub []byte, keyidstr string) {
 	}
 
 	key, exists := s.sec[keyidstr]
-	if ! exists {
+	if !exists {
 		err = fmt.Errorf("%s: Keyid does not exist", keyidstr)
 		panic(err)
 	}
@@ -180,7 +180,7 @@ func (s *Secring) WritePublic(pub []byte, keyidstr string) {
 func (s *Secring) WriteSecret(keyidstr string) {
 	var err error
 	key, exists := s.sec[keyidstr]
-	if ! exists {
+	if !exists {
 		err = fmt.Errorf("%s: Keyid does not exist", keyidstr)
 		panic(err)
 	}
@@ -194,7 +194,7 @@ func (s *Secring) WriteSecret(keyidstr string) {
 	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
 	keydata += fmt.Sprintf("Created: %s\n", key.from.UTC().Format(date_format))
 	keydata += fmt.Sprintf("Expires: %s\n", key.until.UTC().Format(date_format))
-	keydata += keyidstr  + "\n"
+	keydata += keyidstr + "\n"
 	keydata += hex.EncodeToString(key.sk) + "\n"
 	keydata += "-----End Mixmaster Secret Key-----\n"
 	_, err = f.WriteString(keydata)
@@ -220,7 +220,7 @@ func (s *Secring) WriteMyKey(filename string) (keyidstr string) {
 	in := bufio.NewScanner(infile)
 	out := bufio.NewWriter(outfile)
 	var line string
-  for in.Scan() {
+	for in.Scan() {
 		line = in.Text()
 		elements := strings.Fields(line)
 		if len(elements) == 7 {
@@ -262,7 +262,7 @@ func (s *Secring) WriteMyKey(filename string) (keyidstr string) {
 func (s *Secring) Get(keyid string) (sec secret, err error) {
 	var exists bool
 	sec, exists = s.sec[keyid]
-	if ! exists {
+	if !exists {
 		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
 		return
 	}
@@ -272,7 +272,7 @@ func (s *Secring) Get(keyid string) (sec secret, err error) {
 // Return the Secret Key that corresponds to the requested Keyid
 func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 	sec, exists := s.sec[keyid]
-	if ! exists {
+	if !exists {
 		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
 		return
 	}
@@ -283,19 +283,19 @@ func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 // Purge deletes expired keys and writes current ones to a backup secring
 func (s *Secring) Purge() (active, expired, purged int) {
 	/*
-	active - Keys that have not yet expired
-	expired - Keys that have expired but not yet exceeded their grace period
-	purged - Keys that are beyond their grace period
+		active - Keys that have not yet expired
+		expired - Keys that have expired but not yet exceeded their grace period
+		purged - Keys that are beyond their grace period
 	*/
 	// Rename the secring file to a tmp name, just in case this screws up.
-	err := os.Rename(s.secringFile, s.secringFile + ".tmp")
+	err := os.Rename(s.secringFile, s.secringFile+".tmp")
 	if err != nil {
 		panic(err)
 	}
 
 	// Create a new secring file
 	f, err := os.Create(s.secringFile)
-  if err != nil {
+	if err != nil {
 		panic(err)
 		return
 	}
@@ -311,7 +311,7 @@ func (s *Secring) Purge() (active, expired, purged int) {
 			keydata := "-----Begin Mixmaster Secret Key-----\n"
 			keydata += fmt.Sprintf("Created: %s\n", m.from.Format(date_format))
 			keydata += fmt.Sprintf("Expires: %s\n", m.until.Format(date_format))
-			keydata += hex.EncodeToString(m.keyid)  + "\n"
+			keydata += hex.EncodeToString(m.keyid) + "\n"
 			keydata += hex.EncodeToString(m.sk) + "\n"
 			keydata += "-----End Mixmaster Secret Key-----\n\n"
 			_, err = f.WriteString(keydata)
@@ -337,8 +337,8 @@ func (s *Secring) ImportSecring() (err error) {
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
-	var line string //Each line within secring.mix
-	var skdata []byte // Decoded secret key
+	var line string        //Each line within secring.mix
+	var skdata []byte      // Decoded secret key
 	var keyidMapKey string // String representation of keyid to key map with
 	var valid time.Time
 	var expire time.Time

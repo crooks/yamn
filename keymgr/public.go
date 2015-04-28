@@ -5,53 +5,53 @@ package keymgr
 import (
 	"bufio"
 	"bytes"
+	"encoding/hex"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"fmt"
-	"encoding/hex"
 	//"crypto/rand"
 	//"github.com/codahale/blake2"
 )
 
 const (
-	date_format string = "2006-01-02"
+	date_format     string = "2006-01-02"
 	generatedFormat string = "Mon 02 Jan 2006 15:04:05 GMT"
 )
 
 type Remailer struct {
-	name string // Remailer Shortname
-	Address string // Remailer Address
-	Keyid []byte // 16 Byte Mixmaster KeyID
-	version string // Mixmaster version
-	caps string // Remailer capstring
-	PK []byte // Curve25519 Public Key
-	from time.Time // Valid-from date
-	until time.Time // Valid until date
-	latent int // Latency (minutes)
-	uptime int // Uptime (10ths of a %)
+	name    string    // Remailer Shortname
+	Address string    // Remailer Address
+	Keyid   []byte    // 16 Byte Mixmaster KeyID
+	version string    // Mixmaster version
+	caps    string    // Remailer capstring
+	PK      []byte    // Curve25519 Public Key
+	from    time.Time // Valid-from date
+	until   time.Time // Valid until date
+	latent  int       // Latency (minutes)
+	uptime  int       // Uptime (10ths of a %)
 }
 
 type Pubring struct {
-	pubringFile string // Pubring filename
-	statsFile string // mlist type file
-	pub map[string]Remailer
-	xref map[string]string // A cross-reference of shortnames to addresses
-	Stats bool // Have current reliability stats been imported?
-	advertised string // The keyid a local server is currently advertising
-	keysImported time.Time // Timestamp on most recently read pubring.mix file
-	statsImported time.Time // Timestamp on most recently read mlist2.txt file
-	statsGenerated time.Time // Generated timestamp on mlist2.txt file
+	pubringFile    string // Pubring filename
+	statsFile      string // mlist type file
+	pub            map[string]Remailer
+	xref           map[string]string // A cross-reference of shortnames to addresses
+	Stats          bool              // Have current reliability stats been imported?
+	advertised     string            // The keyid a local server is currently advertising
+	keysImported   time.Time         // Timestamp on most recently read pubring.mix file
+	statsImported  time.Time         // Timestamp on most recently read mlist2.txt file
+	statsGenerated time.Time         // Generated timestamp on mlist2.txt file
 }
 
 func NewPubring(pubfile, statfile string) *Pubring {
 	return &Pubring{
 		pubringFile: pubfile,
-		statsFile: statfile,
-		pub: make(map[string]Remailer),
-		xref: make(map[string]string),
-		Stats: false,
+		statsFile:   statfile,
+		pub:         make(map[string]Remailer),
+		xref:        make(map[string]string),
+		Stats:       false,
 	}
 }
 
@@ -89,21 +89,20 @@ func (p *Pubring) StatRefresh() (refresh bool, err error) {
 	return
 }
 
-
 // Candidates provides a list of remailer addresses that match the specified criteria
 func (p Pubring) Candidates(minlat, maxlat int, minrel float32, exit bool) (c []string) {
-	for addy := range(p.pub) {
+	for addy := range p.pub {
 		stats := p.pub[addy]
 		if exit {
 			if strings.Contains(stats.caps, "M") {
-		    // Exits are required and this is a Middle
-	  	  continue
+				// Exits are required and this is a Middle
+				continue
 			}
 		}
 		if stats.latent < minlat || stats.latent > maxlat {
 			continue
 		}
-		if stats.uptime < int(minrel * 10) {
+		if stats.uptime < int(minrel*10) {
 			continue
 		}
 		c = append(c, addy)
@@ -118,7 +117,7 @@ func (p Pubring) Count() int {
 
 // Produces a list of public key headers
 func (p Pubring) KeyList() (addresses []string) {
-	for addy := range(p.pub) {
+	for addy := range p.pub {
 		key := p.pub[addy]
 		header := key.name + " "
 		header += key.Address + " "
@@ -143,14 +142,14 @@ func (p Pubring) Get(ref string) (r Remailer, err error) {
 	var exists bool
 	if strings.Contains(ref, "@") {
 		r, exists = p.pub[ref]
-		if ! exists {
+		if !exists {
 			err = fmt.Errorf("%s: Remailer address not found in public keyring", ref)
 			return
 		}
 	} else {
 		var addy string
 		addy, exists = p.xref[ref]
-		if ! exists {
+		if !exists {
 			err = fmt.Errorf("%s: Remailer name not found in public keyring", ref)
 			return
 		}
@@ -159,20 +158,20 @@ func (p Pubring) Get(ref string) (r Remailer, err error) {
 	return
 }
 
-func (p *Pubring) ImportStats()  (err error) {
+func (p *Pubring) ImportStats() (err error) {
 	f, err := os.Open(p.statsFile)
 	if err != nil {
 		return
 	}
 	scanner := bufio.NewScanner(f)
 	var elements []string
-	var line string //Each line in mlist2.txt
+	var line string     //Each line in mlist2.txt
 	var rem_name string //Remailer name in stats
 	var rem_addy string //Remailer address from xref
-	var lat []string //Latency hours:minutes
-	var lathrs int //Latent Hours
-	var latmin int //Latent Minutes
-	var exists bool //Test for presence of remailer in xref
+	var lat []string    //Latency hours:minutes
+	var lathrs int      //Latent Hours
+	var latmin int      //Latent Minutes
+	var exists bool     //Test for presence of remailer in xref
 	stat_phase := 0
 	/* Stat phases are:
 	0 Want Generated timestamp
@@ -321,7 +320,7 @@ func (p *Pubring) ImportPubring() (err error) {
 					continue
 				}
 				if now.Before(from) {
-					fmt.Fprintln(os.Stderr, elements[0] + ": Key not yet valid")
+					fmt.Fprintln(os.Stderr, elements[0]+": Key not yet valid")
 					key_phase = 0
 					continue
 				}
@@ -371,7 +370,7 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 				continue
 			}
-			if ! bytes.Equal(keyid, rem.Keyid) {
+			if !bytes.Equal(keyid, rem.Keyid) {
 				// Corrupt keyblock - header keyid doesn't match keyid in block
 				fmt.Fprintln(os.Stderr, "Keyid in header differs from keyid in pubkey")
 				key_phase = 0
@@ -401,7 +400,7 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 			}
 		} // End of phases
-	}// End of file scan loop
+	} // End of file scan loop
 
 	// Set key imported timestamp
 	stat, err := os.Stat(p.pubringFile)
