@@ -439,6 +439,7 @@ func decodeMsg(
 		if cfg.Remailer.Exit {
 			if final.numChunks == 1 {
 				poolWrite(msgBody, "m")
+				stats.outPlain += 1
 			} else {
 				chunkFilename := poolWrite(msgBody, "p")
 				Trace.Printf(
@@ -470,6 +471,7 @@ func decodeMsg(
 					}
 					// Now the message is assembled into the Pool, the DB record can be deleted
 					chunkDB.Delete(final.messageID)
+					stats.outPlain += 1
 				} else {
 					// Write the updated chunk status to the DB
 					chunkDB.Insert(final.messageID, chunks)
@@ -519,6 +521,7 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
 	poolWrite(armor(yamnMsg, sendTo), "m")
+	stats.outRandhop += 1
 	return
 }
 
