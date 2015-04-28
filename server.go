@@ -119,6 +119,9 @@ func loopServer() (err error) {
 			idLogExpire(id)
 			// Expire entries in the chunker
 			chunkClean(*chunkDB)
+			// Report daily throughput and reset to zeros
+			stats.report()
+			stats.reset()
 			// Reset dayOfMonth to today
 			dayOfMonth = time.Now().Day()
 		}
@@ -142,6 +145,8 @@ func loopServer() (err error) {
 				timedURLFetch(cfg.Urls.Pubring, cfg.Files.Pubring)
 				timedURLFetch(cfg.Urls.Mlist2, cfg.Files.Mlist2)
 			}
+			// Report throughput
+			stats.report()
 			hourly = time.Now()
 		}
 
@@ -393,13 +398,16 @@ func decodeMsg(
 				Warn.Printf("Failed to write to pool: %s", err)
 				return
 			}
+			stats.outLoop += 1
 		} else {
 			poolWrite(armor(mixMsg, sendTo), "m")
+			stats.outEnc += 1
 		} // End of local or remote delivery
 
 		// Decide if we want to inject a dummy
 		if !flag_nodummy && randomInt(100) < 21 {
 			dummy(public)
+			stats.outDummy += 1
 		}
 		// End of Intermediate type packet handling
 
@@ -418,6 +426,7 @@ func decodeMsg(
 		// Test for dummy message
 		if final.deliveryMethod == 255 {
 			Trace.Println("Discarding dummy message")
+			stats.inDummy += 1
 			return
 		}
 		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)

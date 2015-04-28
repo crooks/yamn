@@ -37,6 +37,7 @@ func poolOutboundSend() {
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
 		} else {
+			stats.outMail += 1
 			poolDelete(file)
 		}
 	}
@@ -96,6 +97,8 @@ func processMail(
 	}
 	if len(keys) > 0 {
 		Trace.Printf("Reading %d messages from %s\n", len(keys), cfg.Files.Maildir)
+		// Increment inbound Email counter
+		stats.inMail += len(keys)
 	}
 	// Fetch headers for each Maildir key
 	var head mail.Header
@@ -110,7 +113,10 @@ func processMail(
 		if strings.HasPrefix(subject, "remailer-") {
 			// It's a remailer-foo request
 			err = remailerFoo(subject, head.Get("From"))
-			if err != nil {
+			if err == nil {
+				// Increments stats counter
+				stats.inRemFoo += 1
+			} else {
 				Info.Println(err)
 			}
 		} else {
@@ -132,7 +138,9 @@ func processMail(
 				continue
 			}
 			err = decodeMsg(msg, public, secret, id, chunkDB)
-			if err != nil {
+			if err == nil {
+				stats.inEnc += 1
+			} else {
 				Info.Println(err)
 			}
 		} // End of remailer-foo or remailer message
