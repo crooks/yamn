@@ -57,10 +57,7 @@ func NewPubring(pubfile, statfile string) *Pubring {
 
 // StatsStale returns true if stats are over h hours old
 func (p *Pubring) StatsStale(h int) bool {
-	if p.Stats && int((time.Since(p.statsGenerated).Hours())) > h {
-		return true
-	}
-	return false
+	return p.Stats && int((time.Since(p.statsGenerated).Hours())) > h
 }
 
 // KeyRefresh returns True if the Pubring file has been modified
@@ -69,10 +66,7 @@ func (p *Pubring) KeyRefresh() bool {
 	if err != nil {
 		panic(err)
 	}
-	if stat.ModTime().After(p.keysImported) {
-		return true
-	}
-	return false
+	return stat.ModTime().After(p.keysImported)
 }
 
 // StatRefresh returns True if the mlist2.txt file has been modified
@@ -83,9 +77,7 @@ func (p *Pubring) StatRefresh() (refresh bool, err error) {
 		err = fmt.Errorf("%s: File not found", p.statsFile)
 		return
 	}
-	if stat.ModTime().After(p.statsImported) {
-		refresh = true
-	}
+	refresh = stat.ModTime().After(p.statsImported)
 	return
 }
 
