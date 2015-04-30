@@ -37,7 +37,7 @@ func poolOutboundSend() {
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
 		} else {
-			stats.outMail += 1
+			stats.outMail++
 			poolDelete(file)
 		}
 	}
@@ -115,7 +115,7 @@ func processMail(
 			err = remailerFoo(subject, head.Get("From"))
 			if err == nil {
 				// Increments stats counter
-				stats.inRemFoo += 1
+				stats.inRemFoo++
 			} else {
 				Info.Println(err)
 			}
@@ -138,9 +138,7 @@ func processMail(
 				continue
 			}
 			err = decodeMsg(msg, public, secret, id, chunkDB)
-			if err == nil {
-				stats.inEnc += 1
-			} else {
+			if err != nil {
 				Info.Println(err)
 			}
 		} // End of remailer-foo or remailer message

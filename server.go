@@ -135,6 +135,7 @@ func loopServer() (err error) {
 		}
 		// Hourly events
 		if time.Since(hourly) > time.Hour {
+			Trace.Println("Performing hourly events")
 			/*
 				The following two conditions try to import new pubring and mlist2 URLs.
 				If they fail, a warning is logged but no further action is taken.  It's
@@ -337,6 +338,7 @@ func decodeMsg(
 	}
 	if data.packetType == 0 {
 		Trace.Println("This is an Intermediate type message")
+		stats.inYamn++
 		// inter contains the slotIntermediate struct
 		inter := new(slotIntermediate)
 		err = inter.decodeIntermediate(data.packetInfo)
@@ -403,16 +405,16 @@ func decodeMsg(
 				Warn.Printf("Failed to write to pool: %s", err)
 				return
 			}
-			stats.outLoop += 1
+			stats.outLoop++
 		} else {
 			poolWrite(armor(mixMsg, sendTo), "m")
-			stats.outEnc += 1
+			stats.outYamn++
 		} // End of local or remote delivery
 
 		// Decide if we want to inject a dummy
 		if !flag_nodummy && randomInt(100) < 21 {
 			dummy(public)
-			stats.outDummy += 1
+			stats.outDummy++
 		}
 		// End of Intermediate type packet handling
 
@@ -431,7 +433,7 @@ func decodeMsg(
 		// Test for dummy message
 		if final.deliveryMethod == 255 {
 			Trace.Println("Discarding dummy message")
-			stats.inDummy += 1
+			stats.inDummy++
 			return
 		}
 		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)
@@ -444,7 +446,7 @@ func decodeMsg(
 		if cfg.Remailer.Exit {
 			if final.numChunks == 1 {
 				poolWrite(msgBody, "m")
-				stats.outPlain += 1
+				stats.outPlain++
 			} else {
 				chunkFilename := poolWrite(msgBody, "p")
 				Trace.Printf(
@@ -476,7 +478,7 @@ func decodeMsg(
 					}
 					// Now the message is assembled into the Pool, the DB record can be deleted
 					chunkDB.Delete(final.messageID)
-					stats.outPlain += 1
+					stats.outPlain++
 				} else {
 					// Write the updated chunk status to the DB
 					chunkDB.Insert(final.messageID, chunks)
@@ -526,7 +528,7 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	packetid := randbytes(16)
 	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
 	poolWrite(armor(yamnMsg, sendTo), "m")
-	stats.outRandhop += 1
+	stats.outRandhop++
 	return
 }
 

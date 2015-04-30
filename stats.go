@@ -7,11 +7,11 @@ import (
 type statistics struct {
 	inDummy    int
 	inMail     int
-	inEnc      int
 	inRemFoo   int
+	inYamn     int
 	outDummy   int
 	outMail    int
-	outEnc     int
+	outYamn    int
 	outLoop    int
 	outRandhop int
 	outPlain   int
@@ -20,14 +20,15 @@ type statistics struct {
 func (s *statistics) reset() {
 	s.inDummy = 0
 	s.inMail = 0
-	s.inEnc = 0
+	s.inYamn = 0
 	s.inRemFoo = 0
 	s.outDummy = 0
 	s.outMail = 0
-	s.outEnc = 0
+	s.outYamn = 0
 	s.outLoop = 0
 	s.outRandhop = 0
 	s.outPlain = 0
+	Info.Println("Daily stats reset")
 }
 
 func (s *statistics) report() {
@@ -35,13 +36,13 @@ func (s *statistics) report() {
 		"MailIn=%d, RemFoo=%d, YamnIn=%d, DummyIn=%d",
 		s.inMail,
 		s.inRemFoo,
-		s.inEnc,
+		s.inYamn,
 		s.inDummy,
 	)
 	line1 := fmt.Sprintf(
 		"MailOut=%d, YamnOut=%d, YamnLoop=%d, Randhop=%d, ",
 		s.outMail,
-		s.outEnc,
+		s.outYamn,
 		s.outLoop,
 		s.outRandhop,
 	)
