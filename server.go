@@ -436,6 +436,9 @@ func decodeMsg(
 			stats.inDummy++
 			return
 		}
+		// Now we've concluded this message is not a Dummy and its format is
+		// valid, the stats counter can be incremented.
+		stats.inYamn++
 		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)
 		// If delivery methods other than SMTP are ever supported, something needs
 		// to happen around here.
