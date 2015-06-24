@@ -1,5 +1,3 @@
-// vim: tabstop=2 shiftwidth=2
-
 package main
 
 import (
@@ -148,32 +146,28 @@ func mailPoolFile(filename string) (delFlag bool, err error) {
 		return
 	}
 
-	/*
-		Test if the message contains a Yamn-Pooled-Date header.  If it does, test if
-		the message is less than an acceptable number of days old.  If it is too old,
-		return nil.  This makes poolRead assume the message was sent without error
-		and deletes it from the pool.
-	*/
+	// Test for a Pooled Date header in the message.
 	pooledHeader := msg.Header.Get("Yamn-Pooled-Date")
 	if pooledHeader == "" {
-		Info.Println("No Yamn-Pooled-Date header in message")
+		// Legacy condition.  All current versions apply this header.
+		Warn.Println("No Yamn-Pooled-Date header in message")
 	} else {
 		var pooledDate time.Time
 		pooledDate, err = time.Parse(shortdate, pooledHeader)
 		if err != nil {
-			Warn.Printf("Failed to parse Yamn-Pooled-Date: %s", err)
-			// TODO: Bit of a kludge to support transition to internal headers.
-			err = nil
+			Error.Printf("%s: Failed to parse Yamn-Pooled-Date: %s", filename, err)
 			return
 		}
 		age := daysAgo(pooledDate)
 		if age > cfg.Pool.MaxAge {
-			// The message has expired.  Delete it.
+			// The message has expired.  Give up trying to send it.
 			Info.Printf(
-				"Refusing to mail pool file. Exceeds max age of %d days",
+				"%s: Refusing to mail pool file. Exceeds max age of %d days",
+				filename,
 				cfg.Pool.MaxAge,
 			)
-			// Set deletion flag
+			// Set deletion flag.  We don't want to retain old
+			// messages forever.
 			delFlag = true
 			return
 		}
