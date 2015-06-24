@@ -131,18 +131,21 @@ func parseFrom(h mail.Header) []string {
 }
 
 // Read a file from the outbound pool and mail it
-func mailPoolFile(filename string) error {
-	var err error
+func mailPoolFile(filename string) (delFlag bool, err error) {
+	// This flag implies that, by default, we don't delete pool messages
+	delFlag = false
+
 	f, err := os.Open(filename)
 	if err != nil {
 		Error.Printf("Failed to read file for mailing: %s", err)
-		return err
+		return
 	}
 	defer f.Close()
+
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
 		Error.Printf("Failed to process mail file: %s", err)
-		return err
+		return
 	}
 
 	/*
@@ -155,20 +158,24 @@ func mailPoolFile(filename string) error {
 	if pooledHeader == "" {
 		Info.Println("No Yamn-Pooled-Date header in message")
 	} else {
-		pooledDate, err := time.Parse(shortdate, pooledHeader)
+		var pooledDate time.Time
+		pooledDate, err = time.Parse(shortdate, pooledHeader)
 		if err != nil {
 			Warn.Printf("Failed to parse Yamn-Pooled-Date: %s", err)
-			return nil
+			// TODO: Bit of a kludge to support transition to internal headers.
+			err = nil
+			return
 		}
 		age := daysAgo(pooledDate)
 		if age > cfg.Pool.MaxAge {
-			// The message is too old.  Return no error so it's deleted from the
-			// pool.
+			// The message has expired.  Delete it.
 			Info.Printf(
 				"Refusing to mail pool file. Exceeds max age of %d days",
 				cfg.Pool.MaxAge,
 			)
-			return nil
+			// Set deletion flag
+			delFlag = true
+			return
 		}
 		if age > 0 {
 			Trace.Printf("Mailing pooled file that's %d days old.", age)
@@ -185,9 +192,14 @@ func mailPoolFile(filename string) error {
 	sendTo = append(sendTo, headToAddy(msg.Header, "Cc")...)
 	if len(sendTo) == 0 {
 		err = fmt.Errorf("%s: No email recipients found", filename)
-		return err
+		// No point in repeatedly trying to resend a malformed file.
+		delFlag = true
+		return
 	}
-	return mailBytes(assemble(*msg), sendTo)
+	// There is an assumption here that all errors from mailBytes should not
+	// delete pool files (delFlag is false by default).
+	err = mailBytes(assemble(*msg), sendTo)
+	return
 }
 
 // Mail a byte payload to a given address

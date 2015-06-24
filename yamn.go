@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	version        string = "0.1e"
+	version        string = "0.1f"
 	dayLength      int    = 24 * 60 * 60 // Day in seconds
 	maxFragLength         = 10230
 	maxChainLength        = 10

@@ -20,6 +20,7 @@ import (
 
 func poolOutboundSend() {
 	var err error
+	var delFlag bool
 	var filenames []string
 	if flag_send || flag_client {
 		// Read all the pool files
@@ -33,9 +34,14 @@ func poolOutboundSend() {
 		return
 	}
 	for _, file := range filenames {
-		err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
+		delFlag, err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
+			if delFlag {
+				// If delFlag is true, we delete the file, even though mailing
+				// failed.
+				poolDelete(file)
+			}
 		} else {
 			stats.outMail++
 			poolDelete(file)
@@ -73,13 +79,14 @@ func poolRead() (selectedPoolFiles []string, err error) {
 }
 
 // Delete a given file from the pool
-func poolDelete(filename string) (err error) {
+func poolDelete(filename string) {
 	// Delete a pool file
-	err = os.Remove(path.Join(cfg.Files.Pooldir, filename))
+	err := os.Remove(path.Join(cfg.Files.Pooldir, filename))
 	if err != nil {
 		Error.Printf("Failed to remove %s from %s\n", filename, cfg.Files.Pooldir)
+	} else {
+		Trace.Printf("Deleted %s from Pool", filename)
 	}
-	return
 }
 
 // processMail reads the Remailer's Maildir and processes the content
