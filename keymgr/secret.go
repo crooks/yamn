@@ -1,5 +1,3 @@
-// vim: tabstop=2 shiftwidth=2
-
 package keymgr
 
 import (
@@ -56,7 +54,10 @@ func (s *Secring) SetName(name string) {
 	var err error
 	l := len(name)
 	if l < 2 || l > 12 {
-		err = fmt.Errorf("Remailer name must be between 2 and 12 chars, not %d.", l)
+		err = fmt.Errorf(
+			"Remailer name must be between 2 and 12 chars, not %d.",
+			l,
+		)
 		panic(err)
 	}
 	s.name = strings.ToLower(name)
@@ -68,12 +69,17 @@ func (s *Secring) SetAddress(addy string) {
 	l := len(addy)
 	if l < 3 || l > 80 {
 		err = fmt.Errorf(
-			"Remailer address must be between 2 and 80 chars, not %d.", l)
+			"Remailer address must be between 2 and 80 chars, not %d.",
+			l,
+		)
 		panic(err)
 	}
 	index := strings.Index(addy, "@")
 	if index == -1 {
-		err = fmt.Errorf("%s: Remailer address doesn't contain an @.", addy)
+		err = fmt.Errorf(
+			"%s: Remailer address doesn't contain an @.",
+			addy,
+		)
 		panic(err)
 	} else if index == 0 || l-index < 3 {
 		err = fmt.Errorf("%s: Invalid remailer address.", addy)
@@ -107,16 +113,30 @@ func (s *Secring) Count() int {
 func (s *Secring) Insert(pub, sec []byte) (keyidstr string) {
 	var err error
 	if len(pub) != 32 {
-		err = fmt.Errorf("Invalid pubkey length. Wanted=32, Got=%d", len(pub))
+		err = fmt.Errorf(
+			"Invalid pubkey length. Wanted=32, Got=%d",
+			len(pub),
+		)
 		panic(err)
 	}
 	if len(sec) != 32 {
-		err = fmt.Errorf("Invalid seckey length. Wanted=32, Got=%d", len(pub))
+		err = fmt.Errorf(
+			"Invalid seckey length. Wanted=32, Got=%d",
+			len(sec),
+		)
 		panic(err)
 	}
 	key := new(secret)
 	digest := sha256.New()
 	digest.Write(pub)
+	/*
+		Keyids are arbitrary, they only server to link public and
+		secret keys in a manner that enables clients to know which
+		public key to encrypt to and servers to know which secret key
+		to use for decryption.  Using a truncated SHA256 of the public
+		key provides the means for some, perhaps, useful validation
+		that the client-held public key is not corrupt.
+	*/
 	key.keyid = digest.Sum(nil)[:16]
 	keyidstr = hex.EncodeToString(key.keyid)
 	// Validity dates
@@ -128,10 +148,14 @@ func (s *Secring) Insert(pub, sec []byte) (keyidstr string) {
 	return
 }
 
+// WritePublic writes the Public Key to disk.
 func (s *Secring) WritePublic(pub []byte, keyidstr string) {
 	var err error
 	if len(pub) != 32 {
-		err = fmt.Errorf("Invalid pubkey length. Wanted=32, Got=%d", len(pub))
+		err = fmt.Errorf(
+			"Invalid pubkey length. Wanted=32, Got=%d",
+			len(pub),
+		)
 		panic(err)
 	}
 
@@ -186,7 +210,9 @@ func (s *Secring) WriteSecret(keyidstr string) {
 	}
 	f, err := os.OpenFile(
 		s.secringFile,
-		os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		os.O_APPEND|os.O_WRONLY|os.O_CREATE,
+		0600,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -236,7 +262,8 @@ func (s *Secring) WriteMyKey(filename string) (keyidstr string) {
 			if len(keyidstr) != 32 {
 				err = fmt.Errorf(
 					"Invalid public keyid length.  Expected=32, Got=%d.",
-					len(keyidstr))
+					len(keyidstr),
+				)
 				panic(err)
 			}
 			header := s.name + " "
@@ -263,7 +290,10 @@ func (s *Secring) Get(keyid string) (sec secret, err error) {
 	var exists bool
 	sec, exists = s.sec[keyid]
 	if !exists {
-		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
+		err = fmt.Errorf(
+			"%s: Keyid not found in secret keyring",
+			keyid,
+		)
 		return
 	}
 	return
@@ -273,7 +303,10 @@ func (s *Secring) Get(keyid string) (sec secret, err error) {
 func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 	sec, exists := s.sec[keyid]
 	if !exists {
-		err = fmt.Errorf("%s: Keyid not found in secret keyring", keyid)
+		err = fmt.Errorf(
+			"%s: Keyid not found in secret keyring",
+			keyid,
+		)
 		return
 	}
 	sk = sec.sk
@@ -283,10 +316,12 @@ func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 // Purge deletes expired keys and writes current ones to a backup secring
 func (s *Secring) Purge() (active, expired, purged int) {
 	/*
-		active - Keys that have not yet expired
-		expired - Keys that have expired but not yet exceeded their grace period
-		purged - Keys that are beyond their grace period
+		active  - Keys that have not yet expired
+		expired - Keys that have expired but not yet exceeded their
+		          grace period
+		purged  - Keys that are beyond their grace period
 	*/
+
 	// Rename the secring file to a tmp name, just in case this screws up.
 	err := os.Rename(s.secringFile, s.secringFile+".tmp")
 	if err != nil {
