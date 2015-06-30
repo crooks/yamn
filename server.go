@@ -21,7 +21,11 @@ import (
 // Start the server process.  If run with --daemon, this will loop forever.
 func loopServer() (err error) {
 	// Populate public and secret keyrings
-	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
+	public := keymgr.NewPubring(
+		cfg.Files.Pubring,
+		cfg.Files.Mlist2,
+		cfg.Stats.UseExpired,
+	)
 	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
 	public.ImportPubring()
 	secret.ImportSecring()

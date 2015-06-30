@@ -1,5 +1,3 @@
-// vim: tabstop=2 shiftwidth=2
-
 package keymgr
 
 import (
@@ -39,19 +37,21 @@ type Pubring struct {
 	pub            map[string]Remailer
 	xref           map[string]string // A cross-reference of shortnames to addresses
 	Stats          bool              // Have current reliability stats been imported?
+	useExpired     bool              // Consider expired keys as candidates (Echolot wants this)
 	advertised     string            // The keyid a local server is currently advertising
 	keysImported   time.Time         // Timestamp on most recently read pubring.mix file
 	statsImported  time.Time         // Timestamp on most recently read mlist2.txt file
 	statsGenerated time.Time         // Generated timestamp on mlist2.txt file
 }
 
-func NewPubring(pubfile, statfile string) *Pubring {
+func NewPubring(pubfile, statfile string, useExpired bool) *Pubring {
 	return &Pubring{
 		pubringFile: pubfile,
 		statsFile:   statfile,
 		pub:         make(map[string]Remailer),
 		xref:        make(map[string]string),
 		Stats:       false,
+		useExpired:  useExpired,
 	}
 }
 
@@ -330,9 +330,13 @@ func (p *Pubring) ImportPubring() (err error) {
 						elements[2],
 						elements[6],
 					)
-					// Rejecting expired keys is likely to break Echolot so just Warn
-					//key_phase = 0
-					//continue
+					// Echolot likes to ping expired keys.
+					// This option dictates if expired keys
+					// should be included as condidates.
+					if !p.useExpired {
+						key_phase = 0
+						continue
+					}
 				}
 				rem = new(Remailer)
 				rem.name = elements[0]

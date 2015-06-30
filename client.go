@@ -118,7 +118,11 @@ func mixprep() {
 	}
 
 	// Create the Public Keyring
-	pubring := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
+	pubring := keymgr.NewPubring(
+		cfg.Files.Pubring,
+		cfg.Files.Mlist2,
+		cfg.Stats.UseExpired,
+	)
 	err = pubring.ImportPubring()
 	if err != nil {
 		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
@@ -322,7 +326,11 @@ func encodeMsg(
 
 func injectDummy() {
 	// Populate public keyring
-	public := keymgr.NewPubring(cfg.Files.Pubring, cfg.Files.Mlist2)
+	public := keymgr.NewPubring(
+		cfg.Files.Pubring,
+		cfg.Files.Mlist2,
+		cfg.Stats.UseExpired,
+	)
 	public.ImportPubring()
 	dummy(public)
 }

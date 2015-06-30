@@ -27,29 +27,30 @@ type Config struct {
 		Mlist2  string
 	}
 	Mail struct {
-		Sendmail       bool
-		Pipe           string
-		Outfile        bool
-		UseTLS         bool
-		SMTPRelay      string
-		SMTPPort       int
-		MXRelay        bool
-		Sender         string
-		Username       string
-		Password       string
-		OutboundName   string
-		OutboundAddy   string
-		CustomFrom     bool
+		Sendmail     bool
+		Pipe         string
+		Outfile      bool
+		UseTLS       bool
+		SMTPRelay    string
+		SMTPPort     int
+		MXRelay      bool
+		Sender       string
+		Username     string
+		Password     string
+		OutboundName string
+		OutboundAddy string
+		CustomFrom   bool
 	}
 	Stats struct {
-		Minlat    int
-		Maxlat    int
-		Minrel    float32
-		Relfinal  float32
-		Chain     string
-		Numcopies int
-		Distance  int
-		StaleHrs  int
+		Minlat     int
+		Maxlat     int
+		Minrel     float32
+		Relfinal   float32
+		Chain      string
+		Numcopies  int
+		Distance   int
+		StaleHrs   int
+		UseExpired bool
 	}
 	Pool struct {
 		Size   int
@@ -164,6 +165,7 @@ func setDefaultConfig() {
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
+	cfg.Stats.UseExpired = false
 	cfg.Pool.Size = 45
 	cfg.Pool.Rate = 65
 	cfg.Pool.Loop = 300
