@@ -196,8 +196,10 @@ func mixprep() {
 				exitnode = chain[len(chain)-1]
 				got_exit = true
 			}
-			// Report the chain if we're running as a client
-			if flag_client {
+			// Report the chain if we're running as a client.  UseExpired is an
+			// Echolot workaround to allow pinging of expired keys.  It's used here
+			// to prevent stdout messages in the pingd.log.
+			if flag_client && ! cfg.Stats.UseExpired {
 				fmt.Printf("Chain: %s\n", strings.Join(chain, ","))
 			}
 			yamnMsg, sendTo := encodeMsg(

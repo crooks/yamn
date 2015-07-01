@@ -123,9 +123,13 @@ func init() {
 	// Define our base working directory
 	var dir string
 	//dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
-	dir, err = os.Getwd()
-	if err != nil {
-		panic(err)
+	if os.Getenv("YAMNDIR") != "" {
+		dir = os.Getenv("YAMNDIR")
+	} else {
+		dir, err = os.Getwd()
+		if err != nil {
+			panic(err)
+		}
 	}
 	flag.StringVar(&flag_basedir, "dir", dir, "Base directory")
 }
@@ -187,11 +191,7 @@ func flags() {
 	flag.Parse()
 	flag_args = flag.Args()
 	setDefaultConfig()
-	if flag_version {
-		fmt.Printf("Version=%s\n", version)
-		fmt.Printf("Basedir=%s\n", flag_basedir)
-		os.Exit(0)
-	} else if flag_config != "" {
+	if flag_config != "" {
 		err = gcfg.ReadFileInto(&cfg, flag_config)
 		if err != nil {
 			fmt.Fprintf(
@@ -214,6 +214,20 @@ func flags() {
 			}
 			fmt.Println("Using internal, default config.")
 		}
+	}
+	if flag_version {
+		fmt.Printf("Version: %s\n", version)
+		fmt.Printf("Basedir: %s\n", flag_basedir)
+		if os.Getenv("YAMNCFG") != "" {
+			fmt.Printf("YAMNCFG: %s\n", os.Getenv("YAMNCFG"))
+		}
+		if os.Getenv("YAMNDIR") != "" {
+			fmt.Printf("YAMNDIR: %s\n", os.Getenv("YAMNDIR"))
+		}
+		if cfg.Stats.UseExpired {
+			fmt.Println("Warning: Configured to use expired keys.")
+		}
+		os.Exit(0)
 	}
 }
 
