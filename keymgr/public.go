@@ -289,10 +289,10 @@ func (p *Pubring) ImportPubring() (err error) {
 	key_phase := 0
 	/* Key phases are:
 	0	Expecting header line
-	1 Expecting Begin cutmark
-	2 Expecting Keyid line
+	1	Expecting Begin cutmark
+	2	Expecting Keyid line
 	3	Expecting public key
-	4 Got End cutmark
+	4	Got End cutmark
 	*/
 
 	for scanner.Scan() {
@@ -303,55 +303,53 @@ func (p *Pubring) ImportPubring() (err error) {
 			elements = strings.Split(line, " ")
 			num_elements = len(elements)
 			// 7 elements indicates a remailer header line in Pubring.mix
-			if num_elements == 7 {
-				//TODO Decide if validity dates should be authenticated here
-				from, err := time.Parse(date_format, elements[5])
-				if err != nil {
-					fmt.Fprintln(os.Stderr, "Malformed valid-from date")
-					key_phase = 0
-					continue
-				}
-				if now.Before(from) {
-					fmt.Fprintln(os.Stderr, elements[0]+": Key not yet valid")
-					key_phase = 0
-					continue
-				}
-				until, err := time.Parse(date_format, elements[6])
-				if err != nil {
-					fmt.Fprintln(os.Stderr, "Malformed valid-to date")
-					key_phase = 0
-					continue
-				}
-				if now.After(until) {
-					fmt.Fprintf(
-						os.Stderr,
-						"Key expired: Name=%s, Key=%s, Date=%s\n",
-						elements[0],
-						elements[2],
-						elements[6],
-					)
-					// Echolot likes to ping expired keys.
-					// This option dictates if expired keys
-					// should be included as condidates.
-					if !p.useExpired {
-						key_phase = 0
-						continue
-					}
-				}
-				rem = new(Remailer)
-				rem.name = elements[0]
-				rem.Keyid, err = hex.DecodeString(elements[2])
-				if err != nil {
-					// keyid is not valid hex
-					fmt.Fprintln(os.Stderr, "Keyid in header is not hex")
-					key_phase = 0
-					continue
-				}
-				rem.version = elements[3]
-				rem.caps = elements[4]
-				rem.Address = elements[1]
-				key_phase = 1
+			if num_elements != 7 {
+				continue
 			}
+			from, err := time.Parse(date_format, elements[5])
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Malformed valid-from date")
+				key_phase = 0
+				continue
+			}
+			if now.Before(from) {
+				fmt.Fprintln(os.Stderr, elements[0]+": Key not yet valid")
+				key_phase = 0
+				continue
+			}
+			until, err := time.Parse(date_format, elements[6])
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Malformed valid-to date")
+				key_phase = 0
+				continue
+			}
+			// Echolot likes to ping expired keys.  The useExpired
+			// option dictates if expired keys should be included
+			// as condidates.
+			if !p.useExpired && now.After(until) {
+				fmt.Fprintf(
+					os.Stderr,
+					"Key expired: Name=%s, Key=%s, Date=%s\n",
+					elements[0],
+					elements[2],
+					elements[6],
+				)
+				key_phase = 0
+				continue
+			}
+			rem = new(Remailer)
+			rem.name = elements[0]
+			rem.Keyid, err = hex.DecodeString(elements[2])
+			if err != nil {
+				// keyid is not valid hex
+				fmt.Fprintln(os.Stderr, "Keyid in header is not hex")
+				key_phase = 0
+				continue
+			}
+			rem.version = elements[3]
+			rem.caps = elements[4]
+			rem.Address = elements[1]
+			key_phase = 1
 		case 1:
 			// Expecting Begin cutmark
 			if line == "-----Begin Mix Key-----" {
