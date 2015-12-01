@@ -77,10 +77,19 @@ func mxLookup(email string) (relay string, err error) {
 	mxRecords, err := net.LookupMX(emailParts.domain)
 	if err != nil {
 		relay = emailParts.domain
+		Trace.Printf(
+			"DNS MX lookup failed for %s.  Using hostname.",
+			emailParts.domain,
+		)
 		err = nil
 		return
 	}
 	relay = mxRecords[0].Host
+	Trace.Printf(
+		"DNS lookup: Hostname=%s, MX=%s",
+		emailParts.domain,
+		relay,
+	)
 	return
 }
 

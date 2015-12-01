@@ -4,6 +4,7 @@ import (
 	"code.google.com/p/gcfg"
 	"flag"
 	"fmt"
+	"github.com/mitchellh/go-homedir"
 	"os"
 	"path"
 )
@@ -73,7 +74,6 @@ type Config struct {
 }
 
 func init() {
-	var err error
 	// Function as a client
 	flag.BoolVar(&flag_client, "mail", false, "Function as a client")
 	flag.BoolVar(&flag_client, "m", false, "Function as a client")
@@ -121,17 +121,33 @@ func init() {
 	flag.BoolVar(&flag_meminfo, "meminfo", false, "Print memory info")
 
 	// Define our base working directory
-	var dir string
-	//dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
+	var cfgDir string
+	var useThisDir bool
 	if os.Getenv("YAMNDIR") != "" {
-		dir = os.Getenv("YAMNDIR")
+		// Use this Dir without further testing, just because we're
+		// explicitly intstructed to do so.
+		cfgDir = os.Getenv("YAMNDIR")
+		useThisDir = true
 	} else {
-		dir, err = os.Getwd()
-		if err != nil {
-			panic(err)
+		// Test for a yamn.cfg in the Present Working Directory
+		useThisDir, cfgDir = cfgInPwd()
+		// Test for $HOME/yamn/yamn.cfg
+		if !useThisDir {
+			useThisDir, cfgDir = cfgInHome()
+		}
+		// Test for /etc/yamn/yamn.cfg
+		if !useThisDir {
+			cfgDir = "/etc/yamn"
+			useThisDir = cfgInDir(cfgDir)
 		}
 	}
-	flag.StringVar(&flag_basedir, "dir", dir, "Base directory")
+	if !useThisDir {
+		fmt.Println(
+			"Unable to determine Yamn's basedir. ",
+			"Continuing with a slight sense of trepidation.",
+		)
+	}
+	flag.StringVar(&flag_basedir, "dir", cfgDir, "Base directory")
 }
 
 func setDefaultConfig() {
@@ -184,6 +200,51 @@ func setDefaultConfig() {
 	cfg.Remailer.Keygrace = 28
 	cfg.Remailer.Loglevel = "info"
 	cfg.Remailer.Daemon = false
+}
+
+// cfgInHome tries to ascertain the user's homedir and then tests if there's
+// a subdir of /yamn/ with a yamn.cfg file in it.
+func cfgInHome() (goodCfg bool, cfgDir string) {
+	home, err := homedir.Dir()
+	if err != nil {
+		// TODO log message
+		return
+	}
+	cfgDir = path.Join(home, "yamn")
+	goodCfg, err = isPath(path.Join(cfgDir, "yamn.cfg"))
+	if err != nil {
+		// TODO log message
+		goodCfg = false
+		return
+	}
+	return
+}
+
+// cfgInPwd figures out the present working directory and tests if yamn.cfg is
+// in it.
+func cfgInPwd() (goodCfg bool, pwdcfg string) {
+	pwdcfg, err := os.Getwd()
+	if err != nil {
+		//TODO log message
+		return
+	}
+	goodCfg, err = isPath(path.Join(pwdcfg, "yamn.cfg"))
+	if err != nil {
+		//TODO log message
+		goodCfg = false
+		return
+	}
+	return
+}
+
+// cfgInDir tests for the existence of a yamn.cfg file in a given directory.
+func cfgInDir(cfgDir string) bool {
+	exists, err := isPath(path.Join(cfgDir, "yamn.cfg"))
+	if err != nil {
+		//TODO log message
+		return false
+	}
+	return exists
 }
 
 func flags() {

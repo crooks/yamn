@@ -186,8 +186,8 @@ func httpGet(url, filename string) (err error) {
 	return
 }
 
-// exists returns True if a given file or directory exists
-func exists(path string) (bool, error) {
+// isPath returns True if a given file or directory exists
+func isPath(path string) (bool, error) {
 	var err error
 	_, err = os.Stat(path)
 	if err == nil {
@@ -200,13 +200,13 @@ func exists(path string) (bool, error) {
 }
 
 // assertExists panics if a given file or dir doesn't exist
-func assertExists(path string) {
-	gotPoolDir, err := exists(cfg.Files.Pooldir)
+func assertIsPath(path string) {
+	testPath, err := isPath(path)
 	if err != nil {
 		// Some error occurred other than the path not existing
 		panic(err)
 	}
-	if !gotPoolDir {
+	if !testPath {
 		// Arghh, the path doesn't exist!
 		err = fmt.Errorf(
 			"Assertion failure.  Path %s does not exist.",
