@@ -117,6 +117,8 @@ func init() {
 	// Print Version
 	flag.BoolVar(&flag_version, "version", false, "Print version string")
 	flag.BoolVar(&flag_version, "V", false, "Print version string")
+	// Print debug info
+	flag.BoolVar(&flag_debug, "debug", false, "Print detailed config")
 	// Memory usage
 	flag.BoolVar(&flag_meminfo, "meminfo", false, "Print memory info")
 
@@ -278,6 +280,10 @@ func flags() {
 	}
 	if flag_version {
 		fmt.Printf("Version: %s\n", version)
+		os.Exit(0)
+	}
+	if flag_debug {
+		fmt.Printf("Version: %s\n", version)
 		fmt.Printf("Basedir: %s\n", flag_basedir)
 		if os.Getenv("YAMNCFG") != "" {
 			fmt.Printf("YAMNCFG: %s\n", os.Getenv("YAMNCFG"))
@@ -285,14 +291,22 @@ func flags() {
 		if os.Getenv("YAMNDIR") != "" {
 			fmt.Printf("YAMNDIR: %s\n", os.Getenv("YAMNDIR"))
 		}
+		fmt.Printf("\nMaximum chain length: %d\n", maxChainLength)
+		fmt.Printf("Per header bytes: %d\n", headerBytes)
+		fmt.Printf("Total header bytes: %d\n", headersBytes)
+		fmt.Printf("Payload bytes: %d\n", bodyBytes)
+		fmt.Printf("Message bytes: %d\n", messageBytes)
 		if cfg.Stats.UseExpired {
-			fmt.Println("Warning: Configured to use expired keys.")
+			fmt.Println(
+				"\nWarning: Configured to use expired keys.",
+			)
 		}
 		os.Exit(0)
 	}
 }
 
 var flag_basedir string
+var flag_debug bool
 var flag_client bool
 var flag_send bool
 var flag_remailer bool
