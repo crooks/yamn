@@ -325,14 +325,14 @@ func (s *Secring) Purge() (active, expired, purged int) {
 	// Rename the secring file to a tmp name, just in case this screws up.
 	err := os.Rename(s.secringFile, s.secringFile+".tmp")
 	if err != nil {
-		panic(err)
+		// The implication is that no secring file exists yet
+		return
 	}
 
 	// Create a new secring file
 	f, err := os.Create(s.secringFile)
 	if err != nil {
 		panic(err)
-		return
 	}
 	defer f.Close()
 
