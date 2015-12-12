@@ -4,12 +4,12 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha512"
 	"errors"
 	"fmt"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/quickmail"
+	"github.com/dchest/blake2s"
 	"io/ioutil"
 	"os"
 	"path"
@@ -312,28 +312,33 @@ func decodeMsg(
 	msgHeader := rawMsg[:headerBytes]
 	msgEncHeaders := rawMsg[headerBytes:headersBytes]
 	msgBody := rawMsg[headersBytes:]
-	/*
-		decodeHead returns the raw Bytes of the Inner Header after it has been
-		decrypted using the Secret Key that corresponds with the provided KeyID.
-	*/
-	var decodedHeader []byte
-	decodedHeader, err = decodeHead(msgHeader, secret)
+	// Extract the NaCl encrypted bytes
+	decodeHeader := newDecodeHeader(msgHeader)
+	recipientKeyID := decodeHeader.getRecipientKeyID()
+	recipientSK, err := secret.GetSK(recipientKeyID)
 	if err != nil {
+		Warn.Printf("Failed to ascertain Recipient SK: %s", err)
+		return
+	}
+	decodeHeader.setRecipientSK(recipientSK)
+	var decodedHeader []byte
+	decodedHeader, err = decodeHeader.decode()
+	if err != nil {
+		Warn.Printf("NaCl decryption failed: %s", err)
 		return
 	}
 	// data contains the slotData struct
-	data := new(slotData)
-	err = data.decodeData(decodedHeader)
-	if err != nil {
-		return
-	}
+	data := decodeSlotData(decodedHeader)
 	// Test uniqueness of packet ID
 	if !id.Unique(data.packetID, cfg.Remailer.IDexp) {
 		err = errors.New("Packet ID collision")
 		return
 	}
 	//digest := blake2.New(nil)
-	digest := sha512.New()
+	digest, err := blake2s.New(nil)
+	if err != nil {
+		panic(err)
+	}
 	digest.Write(msgEncHeaders)
 	digest.Write(msgBody)
 	if !bytes.Equal(digest.Sum(nil), data.tagHash) {
@@ -344,18 +349,11 @@ func decodeMsg(
 		Trace.Println("This is an Intermediate type message")
 		stats.inYamn++
 		// inter contains the slotIntermediate struct
-		inter := new(slotIntermediate)
-		err = inter.decodeIntermediate(data.packetInfo)
-		if err != nil {
-			return
-		}
+		inter := decodeIntermediate(data.packetInfo)
 		var iv []byte
 		// Number of headers to decrypt is one less than max chain length
 		for headNum := 0; headNum < maxChainLength-1; headNum++ {
-			iv, err = sPopBytes(&inter.aesIVs, 16)
-			if err != nil {
-				return
-			}
+			iv = inter.seqIV(headNum)
 			sbyte := headNum * headerBytes
 			ebyte := (headNum + 1) * headerBytes
 			copy(
@@ -363,31 +361,22 @@ func decodeMsg(
 				AES_CTR(msgEncHeaders[sbyte:ebyte], data.aesKey, iv))
 		}
 		// The tenth IV is used to encrypt the deterministic header
-		iv, err = sPopBytes(&inter.aesIVs, 16)
-		if err != nil {
-			return
-		}
+		iv = inter.seqIV(maxChainLength)
 		//fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
 		fakeHeader := make([]byte, headerBytes)
 		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
 		// Body is decrypted with the final IV
-		iv, err = sPopBytes(&inter.aesIVs, 16)
+		iv = inter.seqIV(maxChainLength + 1)
 		if err != nil {
 			return
 		}
 		copy(msgBody, AES_CTR(msgBody, data.aesKey, iv))
-		// At this point there should be zero bytes left in the inter IV pool
-		if len(inter.aesIVs) != 0 {
-			err = fmt.Errorf(
-				"IV pool not empty.  Contains %d bytes.", len(inter.aesIVs))
-			return
-		}
 		// Insert encrypted headers
-		mixMsg := make([]byte, encHeadBytes, messageBytes)
+		mixMsg := make([]byte, encHeadersBytes, messageBytes)
 		copy(mixMsg, msgEncHeaders)
 		// Insert fake header
 		mixMsg = mixMsg[0 : len(mixMsg)+headerBytes]
-		copy(mixMsg[encHeadBytes:], fakeHeader)
+		copy(mixMsg[encHeadersBytes:], fakeHeader)
 		// Insert body
 		msgLen := len(mixMsg)
 		mixMsg = mixMsg[0 : msgLen+bodyBytes]
@@ -395,9 +384,10 @@ func decodeMsg(
 		// Create a string from the nextHop, for populating a To header
 		sendTo := inter.getNextHop()
 		/*
-			The following conditional tests if we are the next hop in addition to being
-			the current hop.  If we are, then it's better to store the message in the
-			inbound pool.  This prevents it being emailed back to us.
+			The following conditional tests if we are the next hop
+			in addition to being the current hop.  If we are, then
+			it's better to store the message in the inbound pool.
+			This prevents it being emailed back to us.
 		*/
 		if sendTo == cfg.Remailer.Address {
 			Info.Println(
@@ -424,28 +414,25 @@ func decodeMsg(
 
 	} else if data.packetType == 1 {
 		/*
-			This section is concerned with final hop messages. i.e. Delivery to final
-			recipients.  Currently two methods of delivery are defined:-
+			This section is concerned with final hop messages. i.e.
+			Delivery to final recipients.  Currently two methods of
+			delivery are defined:-
 			[   0                           SMTP ]
 			[ 255         Dummy (Don't deliver) ]
 		*/
-		final := new(slotFinal)
-		err = final.decodeFinal(data.packetInfo)
-		if err != nil {
-			return
-		}
+		final := decodeFinal(data.packetInfo)
 		// Test for dummy message
 		if final.deliveryMethod == 255 {
 			Trace.Println("Discarding dummy message")
 			stats.inDummy++
 			return
 		}
-		// Now we've concluded this message is not a Dummy and its format is
-		// valid, the stats counter can be incremented.
+		// Now we've concluded this message is not a Dummy and its
+		// format is valid, the stats counter can be incremented.
 		stats.inYamn++
 		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)
-		// If delivery methods other than SMTP are ever supported, something needs
-		// to happen around here.
+		// If delivery methods other than SMTP are ever supported,
+		// something needs to happen around here.
 		if final.deliveryMethod != 0 {
 			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
 			return

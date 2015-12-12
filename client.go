@@ -3,10 +3,11 @@
 package main
 
 import (
-	"crypto/sha512"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/crooks/yamn/keymgr"
+	"github.com/dchest/blake2s"
 	"io/ioutil"
 	"math"
 	"net/mail"
@@ -67,7 +68,17 @@ func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int
 			// Minus one because we don't use these keys/iv on the exit hop
 			hopkey := keys[iterLeft-1]
 			hopivs := ivs[iterLeft-1]
-			hopiv := hopivs[startSlot*16 : (startSlot+1)*16]
+			//hopiv := hopivs[startSlot*16 : (startSlot+1)*16]
+
+			// Create a sequential IV
+			// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
+			hopiv := make([]byte, 16)
+			copy(hopiv[0:4], hopivs[0:4])
+			copy(hopiv[8:16], hopivs[4:12])
+			ctr := make([]byte, 4)
+			binary.LittleEndian.PutUint32(ctr, uint32(slot))
+			copy(hopiv[4:8], ctr)
+
 			//fmt.Printf("Fake: Hop=%d, Slot=%d, Key=%x, IV=%x\n", iterLeft, startSlot, hopkey[:10], hopiv[:10])
 			fakehead = AES_CTR(fakehead, hopkey, hopiv)
 			startSlot--
@@ -88,7 +99,7 @@ func mixprep() {
 		panic(err)
 	}
 	var message []byte
-	final := new(slotFinal)
+	final := newSlotFinal()
 	if len(flag_args) == 0 {
 		//fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
 		message, err = ioutil.ReadAll(os.Stdin)
@@ -139,10 +150,6 @@ func mixprep() {
 		err = errors.New("Empty input chain")
 		return
 	}
-	// Delivery type 0 indicates SMTP.  No other methods (other than dummies)
-	// are currently supported.
-	final.deliveryMethod = 0
-	final.messageID = randbytes(16)
 	var cnum int // Chunk number
 	var numc int // Number of chunks
 	numc = int(math.Ceil(float64(msglen) / float64(maxFragLength)))
@@ -199,7 +206,7 @@ func mixprep() {
 			// Report the chain if we're running as a client.  UseExpired is an
 			// Echolot workaround to allow pinging of expired keys.  It's used here
 			// to prevent stdout messages in the pingd.log.
-			if flag_client && ! cfg.Stats.UseExpired {
+			if flag_client && !cfg.Stats.UseExpired {
 				fmt.Printf("Chain: %s\n", strings.Join(chain, ","))
 			}
 			yamnMsg, sendTo := encodeMsg(
@@ -234,14 +241,16 @@ func encodeMsg(
 	headers := make([]byte, headersBytes)
 	numRandHeads := maxChainLength - chainLength
 	copy(headers, randbytes(numRandHeads*headerBytes))
-	// Generate all the intermediate hop Keys and IVs
-	var keys [maxChainLength - 1][]byte
-	var ivs [maxChainLength - 1][]byte
-	// One key required per intermediate hop
-	for n := 0; n < chainLength-1; n++ {
-		keys[n] = randbytes(32)
-		ivs[n] = randbytes((maxChainLength + 1) * 16)
-	}
+	// One key and partial IV required per intermediate hop.
+	aes := newAesKeys(chainLength - 1)
+	/*
+		16 Byte IVs are constructed from 12 random bytes plus a 4 byte
+		counter (defined in AES_IVS()).  The counter doesn't disclose
+		any information as headers are in an identical sequence during
+		encrypt and decrypt operations.  E.g. Slot1 will be encrypted
+		and decrypted with the Slot1 counter regardless of its real
+		sequence in the chain.
+	*/
 	// body doesn't require padding as it was initialised at length bodyBytes
 	copy(body, msg)
 	var hop string
@@ -249,12 +258,8 @@ func encodeMsg(
 		//detPos := (numRandHeads + hopNum) * headerBytes
 		//copy(headers[:detPos], deterministic(interAESKeys, interAESIVs, chainLength, hopNum))
 		// Here we begin assembly of the slot data
-		data := new(slotData)
-		if err != nil {
-			panic(err)
-		}
-		data.timestamp = timestamp()
-		if hop == "" {
+		data := newSlotData()
+		if hopNum == 0 {
 			// Exit hop
 			data.packetType = 1
 			// This key and IV are not used in deterministic headers
@@ -263,59 +268,53 @@ func encodeMsg(
 			if err != nil {
 				panic(err)
 			}
-			data.packetInfo = final.encodeFinal()
+			data.setPacketInfo(final.encode())
+			// Override the random packetID created by newSlotData.
 			data.packetID = packetid
 			// Encrypt the message body
 			copy(body, AES_CTR(body, data.aesKey, final.aesIV))
 		} else {
-			inter := new(slotIntermediate)
-			data.packetType = 0
-			// Grab a Key and block of IVs from the pool for this header
-			data.aesKey = keys[hopNum-1]
-			inter.aesIVs = ivs[hopNum-1]
+			inter := newSlotIntermediate()
+			// Grab a Key and IV from the array.
+			data.aesKey = aes.getKey(hopNum - 1)
+			inter.setIV(aes.getPartialIV(hopNum - 1))
 			// The chain hasn't been popped yet so hop still contains the last node name.
 			inter.setNextHop(hop)
-			data.packetInfo = inter.encodeIntermediate()
+			data.setPacketInfo(inter.encode())
 			data.packetID = randbytes(16)
 			// Encrypt the current header slots
 			for slot := 0; slot < maxChainLength-1; slot++ {
 				sbyte := slot * headerBytes
 				ebyte := (slot + 1) * headerBytes
-				iv := inter.aesIVs[slot*16 : (slot+1)*16]
+				iv := inter.seqIV(slot)
 				//fmt.Printf("Real: Hop=%d, Slot=%d, Key=%x, IV=%x\n", hopNum, slot, data.aesKey[:10], iv[:10])
 				copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
 			}
+			deterministicHeads := aes.deterministic(hopNum)
+			detPos := encHeadersBytes - len(deterministicHeads) - headerBytes
+			copy(headers[detPos:], deterministicHeads)
 			// The final IV is used to Encrypt the message body
-			iv := inter.aesIVs[maxChainLength*16:]
+			iv := inter.seqIV(maxChainLength)
 			copy(body, AES_CTR(body, data.aesKey, iv))
 		} // End of Intermediate processing
 		// Move all the headers down one slot and chop the last header
 		copy(headers[headerBytes:], headers[:headersBytes-headerBytes])
-		if hopNum < chainLength-1 {
-			pos, fakes := deterministic(keys, ivs, chainLength, hopNum)
-			if err != nil {
-				panic(err)
-			}
-			copy(headers[pos:], fakes)
-		}
-		//digest := blake2.New(nil)
-		digest := sha512.New()
-		digest.Write(headers[headerBytes:])
-		digest.Write(body)
-		data.tagHash = digest.Sum(nil)
-		head := new(slotHead)
-		hop = popstr(&chain)
-		head.data, err = data.encodeData()
+
+		digest, err := blake2s.New(nil)
 		if err != nil {
 			panic(err)
 		}
+		digest.Write(headers[headerBytes:])
+		digest.Write(body)
+		data.tagHash = digest.Sum(nil)
+		head := newEncodeHeader()
+		hop = popstr(&chain)
 		rem, err := pubring.Get(hop)
 		if err != nil {
 			Error.Printf("%s: Remailer unknown in public keyring\n")
 		}
-		head.recipientKeyid = rem.Keyid
-		head.recipientPK = rem.PK
-		copy(headers[:headerBytes], head.encodeHead())
+		head.setRecipient(rem.Keyid, rem.PK)
+		copy(headers[:headerBytes], head.encode(data.encode()))
 	}
 	if len(chain) != 0 {
 		panic("After encoding, chain was not empty.")

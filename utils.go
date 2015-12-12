@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/dchest/blake2s"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -303,7 +303,10 @@ func armor(yamnMsg []byte, sendto string) []byte {
 	// Write message length
 	buf.WriteString(strconv.Itoa(len(yamnMsg)) + "\n")
 	//digest := blake2.New(&blake2.Config{Size: 16})
-	digest := sha256.New()
+	digest, err := blake2s.New(nil)
+	if err != nil {
+		panic(err)
+	}
 	digest.Write(yamnMsg)
 	// Write message digest
 	buf.WriteString(base64.StdEncoding.EncodeToString(
@@ -415,7 +418,10 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 		return
 	}
 	//digest := blake2.New(&blake2.Config{Size: 16})
-	digest := sha256.New()
+	digest, err := blake2s.New(nil)
+	if err != nil {
+		panic(err)
+	}
 	digest.Write(payload)
 	if !bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
 		err = errors.New("Incorrect payload digest during dearmor")
