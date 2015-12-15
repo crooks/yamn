@@ -242,7 +242,7 @@ func encodeMsg(
 	numRandHeads := maxChainLength - chainLength
 	copy(headers, randbytes(numRandHeads*headerBytes))
 	// One key and partial IV required per intermediate hop.
-	aes := newAesKeys(chainLength - 1)
+	aes := newEncMessage(chainLength)
 	/*
 		16 Byte IVs are constructed from 12 random bytes plus a 4 byte
 		counter (defined in AES_IVS()).  The counter doesn't disclose
@@ -277,7 +277,7 @@ func encodeMsg(
 			inter := newSlotIntermediate()
 			// Grab a Key and IV from the array.
 			data.aesKey = aes.getKey(hopNum - 1)
-			inter.setIV(aes.getPartialIV(hopNum - 1))
+			inter.setPartialIV(aes.getPartialIV(hopNum - 1))
 			// The chain hasn't been popped yet so hop still contains the last node name.
 			inter.setNextHop(hop)
 			data.setPacketInfo(inter.encode())

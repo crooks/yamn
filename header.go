@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/dchest/blake2s"
 	"golang.org/x/crypto/nacl/box"
 	"strings"
 	"time"
@@ -175,6 +176,7 @@ type slotData struct {
 	packetType    uint8
 	protocol      uint8
 	packetID      []byte
+	gotAesKey     bool   // Test if the AES Key has been defined
 	aesKey        []byte // Used for encrypting slots and body
 	timestamp     []byte
 	gotPacketInfo bool // Test if packetInfo has been defined
@@ -188,11 +190,41 @@ func newSlotData() *slotData {
 		protocol:   0,
 		// packetID is random for intermediate hops but needs to be
 		// identical on multi-copy Exits.
-		packetID:  randbytes(16),
-		aesKey:    randbytes(32),
-		timestamp: make([]byte, 2),
-		tagHash:   make([]byte, 32),
+		packetID:      randbytes(16),
+		gotAesKey:     false,
+		aesKey:        make([]byte, 32),
+		timestamp:     make([]byte, 2),
+		gotPacketInfo: false,
+		tagHash:       make([]byte, 32),
 	}
+}
+
+func (head *slotData) setExit() {
+	head.packetType = 1
+}
+
+// setAesKey defines the AES key required to decode the header stack and body.
+// For Exit headers, this can be completely random, but for Intermediates, it
+// needs to be predetermined in order to calculate Anti-Tag hashes.
+func (head *slotData) setAesKey(key []byte) {
+	err := lenCheck(len(key), 32)
+	if err != nil {
+		panic(err)
+	}
+	copy(head.aesKey, key)
+	head.gotAesKey = true
+}
+
+func (head *slotData) setTagHash(hash []byte) {
+	err := lenCheck(len(hash), 32)
+	if err != nil {
+		panic(err)
+	}
+	copy(head.tagHash, hash)
+}
+
+func (head *slotData) getTagHash() []byte {
+	return head.tagHash
 }
 
 func (head *slotData) setPacketInfo(ei []byte) {
@@ -223,6 +255,13 @@ func (head *slotData) ageTimestamp() uint16 {
 }
 
 func (head *slotData) encode() []byte {
+	if !head.gotAesKey {
+		err := errors.New(
+			"AES key not specified before attempt to encode " +
+				"Encrypted Header",
+		)
+		panic(err)
+	}
 	if !head.gotPacketInfo {
 		err := errors.New(
 			"Exit/Intermediate not defined before attempt to " +
@@ -367,6 +406,26 @@ type slotIntermediate struct {
 	nextHop    []byte
 }
 
+func newSlotIntermediate() *slotIntermediate {
+	return &slotIntermediate{
+		gotAesIV12: false,
+		aesIV12:    make([]byte, 12),
+		nextHop:    make([]byte, 52),
+	}
+}
+
+func (s *slotIntermediate) setPartialIV(partialIV []byte) {
+	if len(partialIV) != 12 {
+		err := fmt.Errorf(
+			"Invalid IV input. Expected 12 Bytes, got %d bytes",
+			len(partialIV),
+		)
+		panic(err)
+	}
+	s.gotAesIV12 = true
+	copy(s.aesIV12, partialIV)
+}
+
 //seqIV constructs a complete 16 Byte IV from a partial 12 Byte IV + a 4 Byte
 //counter.
 func seqIV(partialIV []byte, slot int) (iv []byte) {
@@ -393,26 +452,6 @@ func (i *slotIntermediate) setNextHop(nh string) {
 
 func (i *slotIntermediate) getNextHop() string {
 	return strings.TrimRight(string(i.nextHop), "\x00")
-}
-
-func newSlotIntermediate() *slotIntermediate {
-	return &slotIntermediate{
-		gotAesIV12: false,
-		aesIV12:    make([]byte, 12),
-		nextHop:    make([]byte, 52),
-	}
-}
-
-func (s *slotIntermediate) setIV(partialIV []byte) {
-	if len(partialIV) != 12 {
-		err := fmt.Errorf(
-			"Invalid IV input. Expected 12 Bytes, got %d bytes",
-			len(partialIV),
-		)
-		panic(err)
-	}
-	s.gotAesIV12 = true
-	copy(s.aesIV12, partialIV)
 }
 
 // AES_IV constructs a 16 Byte IV from an input of 12 random Bytes and a uint32
@@ -462,76 +501,191 @@ func decodeIntermediate(b []byte) *slotIntermediate {
 }
 
 // ----- Deterministic Headers -----
-type aesKeys struct {
+type encMessage struct {
+	payload          []byte // The actual Yamn message
+	plainLength      int    // Length of the plain-text bytes
 	keys             [maxChainLength - 1][]byte
 	ivs              [maxChainLength - 1][]byte
-	chainLen         int
-	intermediateHops int
+	chainLength      int // Number of hops in chain
+	intermediateHops int // Number of Intermediate hops
+	padHeaders       int // Number of padding headers
+	padBytes         int // Total bytes of padding
 }
 
-func newAesKeys(intermediateHops int) *aesKeys {
-	aes := new(aesKeys)
-	// Loop is to 1 less than chainLen as it starts from 0
-	for n := 0; n < intermediateHops; n++ {
-		aes.keys[n] = randbytes(32)
-		aes.ivs[n] = randbytes(12)
+func newEncMessage(chainLength int) *encMessage {
+	m := new(encMessage)
+	m.payload = make([]byte, messageBytes)
+	m.chainLength = chainLength
+	m.intermediateHops = chainLength - 1
+	m.padHeaders = maxChainLength - m.chainLength
+	m.padBytes = m.padHeaders * headerBytes
+	// The padding bytes need to be randomized, otherwise the final
+	// intermediate remailer in the chain can know its position due to the
+	// zero bytes below the decrypted exit header.
+	//TODO uncomment the following line for live use
+	//copy(m.payload, randbytes(m.padBytes)
+	// Generate keys and (partial) IVs for each hop
+	for n := 0; n < m.intermediateHops; n++ {
+		m.keys[n] = randbytes(32)
+		m.ivs[n] = randbytes(12)
 	}
-	aes.chainLen = intermediateHops + 1
-	aes.intermediateHops = intermediateHops
-	return aes
+	fmt.Printf(
+		"Populated %d keys/ivs in array of %d \n",
+		m.intermediateHops,
+		len(m.keys),
+	)
+	return m
+}
+
+// setPlainText inserts the plain message content into the payload and returns
+// its length in Bytes
+func (m *encMessage) setPlainText(plain []byte) (plainLength int) {
+	plainLength = len(plain)
+	if m.plainLength > bodyBytes {
+		err := fmt.Errorf(
+			"Payload (%d) exceeds max length (%d)",
+			plainLength,
+			bodyBytes,
+		)
+		panic(err)
+	}
+	// Insert the plain bytes after the headers
+	copy(m.payload[headersBytes:], plain)
+	return
 }
 
 // seqIV constructs a 16 Byte IV from an input of 12 random Bytes and a uint32
 // counter.  The format is arbitrary but needs to be predictable and consistent
 // between encrypt and decrypt operations.
-func (aes *aesKeys) seqIV(intermediateHop, slot int) (iv []byte) {
+func (m *encMessage) getIV(intermediateHop, slot int) (iv []byte) {
 	// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
 	iv = make([]byte, 16)
-	copy(iv, seqIV(aes.ivs[intermediateHop], slot))
+	copy(iv, seqIV(m.ivs[intermediateHop], slot))
 	return
 }
 
-func (aes *aesKeys) getKey(intermediateHop int) (key []byte) {
-	if intermediateHop >= aes.intermediateHops {
+func (m *encMessage) getKey(intermediateHop int) (key []byte) {
+	if intermediateHop >= m.intermediateHops {
 		err := fmt.Errorf(
 			"Requested key for hop (%d) exceeds array length"+
 				" (%d)",
 			intermediateHop,
-			aes.intermediateHops,
+			m.intermediateHops,
 		)
 		panic(err)
 	}
-	key = aes.keys[intermediateHop]
+	key = m.keys[intermediateHop]
 	return
 }
 
-func (aes *aesKeys) getIV(intermediateHop, slot int) (iv []byte) {
-	iv = make([]byte, 16)
-	copy(iv, seqIV(aes.ivs[intermediateHop], slot))
-	return
-}
-
-func (aes *aesKeys) getPartialIV(intermediateHop int) (ivPartial []byte) {
-	if intermediateHop >= aes.intermediateHops {
+func (m *encMessage) getPartialIV(intermediateHop int) (ivPartial []byte) {
+	if intermediateHop > m.intermediateHops {
 		err := fmt.Errorf(
 			"Requested IV for hop (%d) exceeds array length"+
 				" (%d)",
 			intermediateHop,
-			aes.intermediateHops,
+			m.intermediateHops,
 		)
 		panic(err)
 	}
-	ivPartial = aes.ivs[intermediateHop]
+	ivPartial = m.ivs[intermediateHop]
 	return
 }
 
-func (aes *aesKeys) deterministic(hop int) (detBytes []byte) {
+// getAntiTag returns a digest for the entire header stack.  It needs to be run
+// before a new header is inserted but after deterministic headers are appended
+// to the bottom of the header stack.
+func (m *encMessage) getAntiTag() []byte {
+	digest, err := blake2s.New(nil)
+	if err != nil {
+		panic(err)
+	}
+	digest.Write(m.payload)
+	return digest.Sum(nil)
+}
+
+// Encrypt the body with the provided key and IV
+func (m *encMessage) encryptBody(key, iv []byte) {
+	var err error
+	err = lenCheck(len(key), 32)
+	if err != nil {
+		panic(err)
+	}
+	err = lenCheck(len(iv), 16)
+	if err != nil {
+		panic(err)
+	}
+
+	copy(
+		m.payload[headersBytes:],
+		AES_CTR(
+			m.payload[headersBytes:],
+			key,
+			iv,
+		),
+	)
+}
+
+func (m *encMessage) encryptAll(hop int) {
+	// The same key is used for all these encrypt operations
+	key := m.getKey(hop)
+	var iv []byte
+	/*
+		* This should run before headers are shifted down *
+		For maxChainLength = 10:-
+		IVs 0-8 are used to encrypt headers
+		IV 9 is used to encrypt the payload
+	*/
+	for slot := 0; slot < maxChainLength-1; slot++ {
+		sbyte := slot * headerBytes
+		ebyte := (slot + 1) * headerBytes
+		iv = m.getIV(hop, slot)
+		if slot == 0 {
+			fmt.Printf(
+				"sbyte=%d, ebyte=%d, key=%x, iv=%x\n",
+				sbyte,
+				ebyte,
+				key,
+				iv,
+			)
+		}
+		copy(
+			m.payload[sbyte:ebyte],
+			AES_CTR(m.payload[sbyte:ebyte], key, iv),
+		)
+	}
+	iv = m.getIV(hop, maxChainLength)
+	copy(
+		m.payload[headersBytes:],
+		AES_CTR(m.payload[headersBytes:], key, iv),
+	)
+}
+
+func (m *encMessage) shiftHeaders() {
+	// Find a point one header size up from the bottom of the header stack
+	bottomHeader := headersBytes - headerBytes
+	// Move the header stack down by headerBytes
+	copy(m.payload[headerBytes:], m.payload[:bottomHeader])
+}
+
+// insertHeader copies provided header bytes into the payload
+func (m *encMessage) insertHeader(header []byte) {
+	err := lenCheck(len(header), headerBytes)
+	if err != nil {
+		panic(err)
+	}
+	// Shift the header stack down before inserting a new one at the top
+	m.shiftHeaders()
+	copy(m.payload[:headerBytes], header)
+}
+
+func (m *encMessage) deterministic(hop int) (detBytes []byte) {
 	// bottomSlot is total headers - 2.
 	// Top slot doesn't count, it's already decrypted.
 	// Next slot is numbered Slot 0.
 	// For 10 headers, bottom slotnum will be 8.
 	bottomSlot := maxChainLength - 2
-	topSlot := bottomSlot + hop - (aes.chainLen - 2)
+	topSlot := bottomSlot + hop - (m.intermediateHops - 1)
 	fakeSlots := bottomSlot - topSlot + 1
 	fakeBytes := fakeSlots * headerBytes
 	detBytes = make([]byte, fakeBytes)
@@ -548,7 +702,7 @@ func (aes *aesKeys) deterministic(hop int) (detBytes []byte) {
 		// chains are constructed in reverse.  Hop 0 is always the exit
 		// hop.
 		right := bottomSlot - slot
-		useHop := aes.chainLen - 2 - fakeSlot
+		useHop := m.intermediateHops - 1 - fakeSlot
 		for useSlot := bottomSlot + 1; useSlot > slot; useSlot-- {
 			fmt.Printf(
 				"PutHop=%d, Top=%d, bottom=%d, PutSlot=%d, Right=%d, useSlot=%d, useHop=%d\n",
@@ -560,8 +714,8 @@ func (aes *aesKeys) deterministic(hop int) (detBytes []byte) {
 				useSlot,
 				useHop,
 			)
-			key := aes.getKey(0)
-			iv := aes.getIV(0, useSlot)
+			key := m.getKey(0)
+			iv := m.getIV(0, useSlot)
 			copy(fakeHead, AES_CTR(fakeHead, key, iv))
 			useHop--
 		}
@@ -570,4 +724,131 @@ func (aes *aesKeys) deterministic(hop int) (detBytes []byte) {
 	}
 	fmt.Printf("Position=%d\n", encHeadersBytes-fakeBytes-headerBytes)
 	return
+}
+
+func (m *encMessage) debugPacket() {
+	fmt.Println("Encrypt diagnostic")
+	for slot := 0; slot < maxChainLength; slot++ {
+		sbyte := slot * headerBytes
+		ebyte := sbyte + 20
+		fmt.Printf(
+			"%05d-%05d: %x %02d\n",
+			sbyte,
+			ebyte,
+			m.payload[sbyte:ebyte],
+			slot,
+		)
+	}
+	fmt.Printf("12780-12800: %x\n", m.payload[12780:])
+}
+
+type decMessage struct {
+	payload []byte // The actual Yamn message
+}
+
+func newDecMessage(encPayload []byte) (dec *decMessage) {
+	err := lenCheck(len(encPayload), messageBytes)
+	if err != nil {
+		panic(err)
+	}
+	dec = new(decMessage)
+	dec.payload = make([]byte, messageBytes)
+	copy(dec.payload, encPayload)
+	return
+}
+
+func (m *decMessage) shiftHeaders() {
+	// Find a point one header size up from the bottom of the header stack
+	bottomHeader := headersBytes - headerBytes
+	// Move the header stack  up by one headerBytes
+	copy(m.payload, m.payload[headerBytes:headersBytes])
+	// Insert a new empty header at the bottom of the stack
+	copy(m.payload[bottomHeader:], make([]byte, headerBytes))
+}
+
+func (m *decMessage) testAntiTag(tag []byte) bool {
+	digest, err := blake2s.New(nil)
+	if err != nil {
+		panic(err)
+	}
+	digest.Write(m.payload)
+	if bytes.Compare(tag, digest.Sum(nil)) == 0 {
+		return true
+	}
+	return false
+}
+
+// Encrypt the body with the provided key and IV
+func (m *decMessage) decryptBody(key, iv []byte, length int) []byte {
+	var err error
+	err = lenCheck(len(key), 32)
+	if err != nil {
+		panic(err)
+	}
+	err = lenCheck(len(iv), 16)
+	if err != nil {
+		panic(err)
+	}
+
+	copy(
+		m.payload[headersBytes:],
+		AES_CTR(
+			m.payload[headersBytes:],
+			key,
+			iv,
+		),
+	)
+	return m.payload[headersBytes : headersBytes+length]
+}
+
+func (m *decMessage) decryptAll(key, partialIV []byte) {
+	var err error
+	err = lenCheck(len(key), 32)
+	if err != nil {
+		panic(err)
+	}
+	err = lenCheck(len(partialIV), 12)
+	if err != nil {
+		panic(err)
+	}
+	var iv []byte
+	for slot := 0; slot < maxChainLength-1; slot++ {
+		sbyte := slot * headerBytes
+		ebyte := (slot + 1) * headerBytes
+		iv = seqIV(partialIV, slot)
+		if slot == 0 {
+			fmt.Printf(
+				"sbyte=%d, ebyte=%d, key=%x, iv=%x\n",
+				sbyte,
+				ebyte,
+				key,
+				iv,
+			)
+		}
+		copy(
+			m.payload[sbyte:ebyte],
+			AES_CTR(m.payload[sbyte:ebyte], key, iv),
+		)
+	}
+	iv = seqIV(partialIV, maxChainLength)
+	copy(
+		m.payload[headersBytes:],
+		AES_CTR(m.payload[headersBytes:], key, iv),
+	)
+}
+
+func (m *decMessage) debugPacket() {
+	fmt.Println("Decrypt diagnostic")
+	for slot := 0; slot < maxChainLength; slot++ {
+		sbyte := slot * headerBytes
+		ebyte := sbyte + 20
+		fmt.Printf(
+			"%05d-%05d: %x %02d\n",
+			sbyte,
+			ebyte,
+			m.payload[sbyte:ebyte],
+			slot,
+		)
+	}
+	fmt.Printf("12780-12800: %x\n", m.payload[12780:])
 }
