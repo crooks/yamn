@@ -290,9 +290,7 @@ func encodeMsg(
 				//fmt.Printf("Real: Hop=%d, Slot=%d, Key=%x, IV=%x\n", hopNum, slot, data.aesKey[:10], iv[:10])
 				copy(headers[sbyte:ebyte], AES_CTR(headers[sbyte:ebyte], data.aesKey, iv))
 			}
-			deterministicHeads := aes.deterministic(hopNum)
-			detPos := encHeadersBytes - len(deterministicHeads) - headerBytes
-			copy(headers[detPos:], deterministicHeads)
+			aes.deterministic(hopNum)
 			// The final IV is used to Encrypt the message body
 			iv := inter.seqIV(maxChainLength)
 			copy(body, AES_CTR(body, data.aesKey, iv))

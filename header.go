@@ -529,11 +529,6 @@ func newEncMessage(chainLength int) *encMessage {
 		m.keys[n] = randbytes(32)
 		m.ivs[n] = randbytes(12)
 	}
-	fmt.Printf(
-		"Populated %d keys/ivs in array of %d \n",
-		m.intermediateHops,
-		len(m.keys),
-	)
 	return m
 }
 
@@ -600,7 +595,7 @@ func (m *encMessage) getAntiTag() []byte {
 	if err != nil {
 		panic(err)
 	}
-	digest.Write(m.payload)
+	digest.Write(m.payload[headerBytes:])
 	return digest.Sum(nil)
 }
 
@@ -636,19 +631,10 @@ func (m *encMessage) encryptAll(hop int) {
 		IVs 0-8 are used to encrypt headers
 		IV 9 is used to encrypt the payload
 	*/
-	for slot := 0; slot < maxChainLength-1; slot++ {
+	for slot := 0; slot < maxChainLength; slot++ {
 		sbyte := slot * headerBytes
 		ebyte := (slot + 1) * headerBytes
 		iv = m.getIV(hop, slot)
-		if slot == 0 {
-			fmt.Printf(
-				"sbyte=%d, ebyte=%d, key=%x, iv=%x\n",
-				sbyte,
-				ebyte,
-				key,
-				iv,
-			)
-		}
 		copy(
 			m.payload[sbyte:ebyte],
 			AES_CTR(m.payload[sbyte:ebyte], key, iv),
@@ -674,56 +660,48 @@ func (m *encMessage) insertHeader(header []byte) {
 	if err != nil {
 		panic(err)
 	}
-	// Shift the header stack down before inserting a new one at the top
-	m.shiftHeaders()
 	copy(m.payload[:headerBytes], header)
 }
 
-func (m *encMessage) deterministic(hop int) (detBytes []byte) {
-	// bottomSlot is total headers - 2.
-	// Top slot doesn't count, it's already decrypted.
-	// Next slot is numbered Slot 0.
-	// For 10 headers, bottom slotnum will be 8.
-	bottomSlot := maxChainLength - 2
-	topSlot := bottomSlot + hop - (m.intermediateHops - 1)
-	fakeSlots := bottomSlot - topSlot + 1
-	fakeBytes := fakeSlots * headerBytes
-	detBytes = make([]byte, fakeBytes)
-	fmt.Printf("Fakes=%d, Bytes=%d\n", fakeSlots, fakeBytes)
-	fakeSlot := 0
+func (m *encMessage) xtestdet() {
+	fakeHead := make([]byte, headerBytes)
+	key := m.getKey(0)
+	iv := m.getIV(0, 9)
+	sByte := 9 * headerBytes
+	eByte := sByte + headerBytes
+	copy(m.payload[sByte:eByte], AES_CTR(fakeHead, key, iv))
+}
+
+// deterministic inserts predetermined headers at the bottom of the stack.  As
+// the stack scrolls up during decryption, a blank header is inserted at the
+// bottom.  This is then decrypted along with all the real headers.  This
+// hellish function works out what those headers will contain at each phase of
+// the remailer decryption chain.
+func (m *encMessage) deterministic(hop int) {
+	// The top and bottom slots are the slots we're populating during this
+	// cycle.
+	bottomSlot := maxChainLength - 1
+	topSlot := bottomSlot - (m.intermediateHops - hop - 1)
+	// Slot in this context is the slot the header will be placed in, on
+	// the current hop.  Not, the slot to encrypt from.
 	for slot := topSlot; slot <= bottomSlot; slot++ {
-		// Within the slot loop, we're creating a single slot for a
-		// single hop but encrypting it multiple times.  fakeHead will
-		// contain the actual encrypted Bytes.
+		// right is the rightmost hop, from which to encrypt.
+		right := bottomSlot - slot + hop
+		useSlot := bottomSlot
 		fakeHead := make([]byte, headerBytes)
-		// right is the right-most hop from which to encrypt from.  The
-		// highest fake slot at hop 0 should encrypt from the first
-		// intermediate hop (bottom slot) in the chain. Remember,
-		// chains are constructed in reverse.  Hop 0 is always the exit
-		// hop.
-		right := bottomSlot - slot
-		useHop := m.intermediateHops - 1 - fakeSlot
-		for useSlot := bottomSlot + 1; useSlot > slot; useSlot-- {
-			fmt.Printf(
-				"PutHop=%d, Top=%d, bottom=%d, PutSlot=%d, Right=%d, useSlot=%d, useHop=%d\n",
-				hop,
-				topSlot,
-				bottomSlot,
-				slot,
-				right,
-				useSlot,
-				useHop,
-			)
-			key := m.getKey(0)
-			iv := m.getIV(0, useSlot)
+		// Work back from the rightmost slot to the first intermediate
+		// header.
+		for interHop := right; interHop-hop >= 0; interHop-- {
+			key := m.getKey(interHop)
+			iv := m.getIV(interHop, useSlot)
 			copy(fakeHead, AES_CTR(fakeHead, key, iv))
-			useHop--
+			useSlot--
 		}
-		copy(detBytes[fakeSlot*headerBytes:(fakeSlot+1)*headerBytes], fakeHead)
-		fakeSlot++
+		// Actually insert the fiendish header into the message
+		sByte := slot * headerBytes
+		eByte := sByte + headerBytes
+		copy(m.payload[sByte:eByte], fakeHead)
 	}
-	fmt.Printf("Position=%d\n", encHeadersBytes-fakeBytes-headerBytes)
-	return
 }
 
 func (m *encMessage) debugPacket() {
@@ -771,7 +749,7 @@ func (m *decMessage) testAntiTag(tag []byte) bool {
 	if err != nil {
 		panic(err)
 	}
-	digest.Write(m.payload)
+	digest.Write(m.payload[headerBytes:])
 	if bytes.Compare(tag, digest.Sum(nil)) == 0 {
 		return true
 	}
@@ -812,19 +790,10 @@ func (m *decMessage) decryptAll(key, partialIV []byte) {
 		panic(err)
 	}
 	var iv []byte
-	for slot := 0; slot < maxChainLength-1; slot++ {
+	for slot := 0; slot < maxChainLength; slot++ {
 		sbyte := slot * headerBytes
 		ebyte := (slot + 1) * headerBytes
 		iv = seqIV(partialIV, slot)
-		if slot == 0 {
-			fmt.Printf(
-				"sbyte=%d, ebyte=%d, key=%x, iv=%x\n",
-				sbyte,
-				ebyte,
-				key,
-				iv,
-			)
-		}
 		copy(
 			m.payload[sbyte:ebyte],
 			AES_CTR(m.payload[sbyte:ebyte], key, iv),

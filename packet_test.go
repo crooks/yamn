@@ -159,7 +159,7 @@ func DontTestOneHop(t *testing.T) {
 	}
 }
 func TestMultiHop(t *testing.T) {
-	chainLength := 5
+	chainLength := 9
 	m := newEncMessage(chainLength)
 	encPlain := []byte("Hello World!")
 	plainLength := m.setPlainText(encPlain)
@@ -183,14 +183,17 @@ func TestMultiHop(t *testing.T) {
 
 	// Populate the message with the encrypted body
 	m.encryptBody(encData.aesKey, encFinal.aesIV)
-	// Insert the anti-Tag hash into the Slot Data.  This needs to be done
-	// before the new header is inserted, thus pushing down the header
-	// stack.
+	m.shiftHeaders()
+	if chainLength > 1 {
+		m.deterministic(0)
+	}
+	//m.debugPacket()
 	encData.setTagHash(m.getAntiTag())
 	// Encode the Slot Data
 	encDataBytes := encData.encode()
 	// Insert an byte encoded version of the newly created header
 	m.insertHeader(encHeader.encode(encDataBytes))
+	//m.debugPacket()
 
 	// That concludes the exit hop compilation
 
@@ -203,14 +206,14 @@ func TestMultiHop(t *testing.T) {
 		encData.setAesKey(m.getKey(interHop))
 		encData.setPacketInfo(encInter.encode())
 		m.encryptAll(interHop)
-		m.debugPacket()
+		m.shiftHeaders()
+		m.deterministic(interHop + 1)
 		encData.setTagHash(m.getAntiTag())
 		encDataBytes = encData.encode()
 		encHeader = newEncodeHeader()
 		encHeader.setRecipient(fakeRecipientKeyID, testPK)
 		m.insertHeader(encHeader.encode(encDataBytes))
 	}
-	//m.debugPacket()
 
 	// End of Intermediate hop encoding
 
@@ -223,7 +226,6 @@ func TestMultiHop(t *testing.T) {
 		// Create a decode struct called exitHead and fill it with the
 		// encoded bytes from encHead
 		decHeader := newDecodeHeader(d.payload[:headerBytes])
-		d.shiftHeaders()
 		// We're faking the KeyID but this at least proves the function
 		_ = decHeader.getRecipientKeyID()
 		decHeader.setRecipientSK(testSK)
@@ -235,14 +237,16 @@ func TestMultiHop(t *testing.T) {
 		decData := decodeSlotData(decDataBytes)
 		if !d.testAntiTag(decData.getTagHash()) {
 			d.debugPacket()
-			//t.Fatal("Anti-Tagging Digest mismatch")
+			fmt.Printf("Packet Type: %d\n", decData.packetType)
+			t.Fatalf("Anti-tag fail at remailer: %d\n", remailer)
 		}
 		if decData.packetType == 0 {
+			d.shiftHeaders()
 			// Decode Intermediate
 			decInter := decodeIntermediate(decData.packetInfo)
 			d.decryptAll(decData.aesKey, decInter.aesIV12)
-			fmt.Println("Completed intermediate decode")
 		} else if decData.packetType == 1 {
+			//d.debugPacket()
 			// Decode Exit
 			gotExit = true
 			decFinal := decodeFinal(decData.packetInfo)
