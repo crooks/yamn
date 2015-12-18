@@ -512,9 +512,27 @@ type encMessage struct {
 	padBytes         int // Total bytes of padding
 }
 
-func newEncMessage(chainLength int) *encMessage {
-	m := new(encMessage)
-	m.payload = make([]byte, messageBytes)
+func newEncMessage() *encMessage {
+	return &encMessage{
+		payload:     make([]byte, messageBytes),
+		chainLength: 0,
+	}
+}
+
+func (m *encMessage) setChainLength(chainLength int) {
+	if chainLength > maxChainLength {
+		err := fmt.Errorf(
+			"Specified chain length (%d) exceeds "+
+				"maximum chain length (%d)",
+			chainLength,
+			maxChainLength,
+		)
+		panic(err)
+	}
+	if chainLength <= 0 {
+		err := errors.New("Chain length cannot be negative or zero")
+		panic(err)
+	}
 	m.chainLength = chainLength
 	m.intermediateHops = chainLength - 1
 	m.padHeaders = maxChainLength - m.chainLength
@@ -529,7 +547,6 @@ func newEncMessage(chainLength int) *encMessage {
 		m.keys[n] = randbytes(32)
 		m.ivs[n] = randbytes(12)
 	}
-	return m
 }
 
 // setPlainText inserts the plain message content into the payload and returns
@@ -549,10 +566,26 @@ func (m *encMessage) setPlainText(plain []byte) (plainLength int) {
 	return
 }
 
+func (m *encMessage) getIntermediateHops() int {
+	if m.chainLength == 0 {
+		err := errors.New(
+			"Cannot get hop count. Chain length is not defined",
+		)
+		panic(err)
+	}
+	return m.intermediateHops
+}
+
 // seqIV constructs a 16 Byte IV from an input of 12 random Bytes and a uint32
 // counter.  The format is arbitrary but needs to be predictable and consistent
 // between encrypt and decrypt operations.
 func (m *encMessage) getIV(intermediateHop, slot int) (iv []byte) {
+	if m.chainLength == 0 {
+		err := errors.New(
+			"Cannot get an IV until the chain length is defined",
+		)
+		panic(err)
+	}
 	// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
 	iv = make([]byte, 16)
 	copy(iv, seqIV(m.ivs[intermediateHop], slot))
@@ -560,6 +593,12 @@ func (m *encMessage) getIV(intermediateHop, slot int) (iv []byte) {
 }
 
 func (m *encMessage) getKey(intermediateHop int) (key []byte) {
+	if m.chainLength == 0 {
+		err := errors.New(
+			"Cannot get a Key until the chain length is defined",
+		)
+		panic(err)
+	}
 	if intermediateHop >= m.intermediateHops {
 		err := fmt.Errorf(
 			"Requested key for hop (%d) exceeds array length"+
@@ -663,21 +702,19 @@ func (m *encMessage) insertHeader(header []byte) {
 	copy(m.payload[:headerBytes], header)
 }
 
-func (m *encMessage) xtestdet() {
-	fakeHead := make([]byte, headerBytes)
-	key := m.getKey(0)
-	iv := m.getIV(0, 9)
-	sByte := 9 * headerBytes
-	eByte := sByte + headerBytes
-	copy(m.payload[sByte:eByte], AES_CTR(fakeHead, key, iv))
-}
-
 // deterministic inserts predetermined headers at the bottom of the stack.  As
 // the stack scrolls up during decryption, a blank header is inserted at the
 // bottom.  This is then decrypted along with all the real headers.  This
 // hellish function works out what those headers will contain at each phase of
 // the remailer decryption chain.
 func (m *encMessage) deterministic(hop int) {
+	if m.chainLength == 0 {
+		err := errors.New(
+			"Cannot generate deterministic headers until chain " +
+				"length has been specified.",
+		)
+		panic(err)
+	}
 	// The top and bottom slots are the slots we're populating during this
 	// cycle.
 	bottomSlot := maxChainLength - 1

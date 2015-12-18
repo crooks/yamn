@@ -99,7 +99,7 @@ func TestKeys(t *testing.T) {
 }
 */
 
-func DontTestOneHop(t *testing.T) {
+func TestOneHop(t *testing.T) {
 	encPlain := []byte("Hello World!")
 	exitPK, exitSK := eccGenerate()
 	//interPK, interSK := eccGenerate()
@@ -112,6 +112,7 @@ func DontTestOneHop(t *testing.T) {
 	// Tell the Slot Data that this is the exit hop, otherwise it will
 	// default to intermediate.
 	encSlotData.setExit()
+	encSlotData.setAesKey(randbytes(32))
 	encSlotData.setPacketInfo(encSlotFinal.encode())
 	encSlotDataBytes := encSlotData.encode()
 
@@ -159,8 +160,8 @@ func DontTestOneHop(t *testing.T) {
 	}
 }
 func TestMultiHop(t *testing.T) {
-	chainLength := 9
-	m := newEncMessage(chainLength)
+	chainLength := maxChainLength
+	m := newEncMessage()
 	encPlain := []byte("Hello World!")
 	plainLength := m.setPlainText(encPlain)
 	testPK, testSK := eccGenerate()
@@ -181,6 +182,8 @@ func TestMultiHop(t *testing.T) {
 	encHeader := newEncodeHeader()
 	encHeader.setRecipient(fakeRecipientKeyID, testPK)
 
+	// Define the chain length
+	m.setChainLength(chainLength)
 	// Populate the message with the encrypted body
 	m.encryptBody(encData.aesKey, encFinal.aesIV)
 	m.shiftHeaders()
@@ -198,7 +201,8 @@ func TestMultiHop(t *testing.T) {
 	// That concludes the exit hop compilation
 
 	//m.debugPacket()
-	for interHop := 0; interHop < m.intermediateHops; interHop++ {
+	interHops := m.getIntermediateHops()
+	for interHop := 0; interHop < interHops; interHop++ {
 		encInter := newSlotIntermediate()
 		encInter.setPartialIV(m.getPartialIV(interHop))
 		encInter.setNextHop("fake@remailer.org")

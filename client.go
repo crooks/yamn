@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/crooks/yamn/keymgr"
@@ -49,46 +48,6 @@ func readMessage(filename string) []byte {
 		msg.Header["Subject"] = []string{flag_subject}
 	}
 	return assemble(*msg)
-}
-
-// deterministic precalculates the header content for fake headers inserted at
-// each remailer hop.
-func deterministic(keys, ivs [maxChainLength - 1][]byte, chainLength, hopNum int) (pos int, content []byte) {
-	bottomSlotNum := maxChainLength - 1          // (9 for 10 hops)
-	numDslots := chainLength - 1 - hopNum        // (2 for exit of 10 hops)
-	topDslotNum := bottomSlotNum - numDslots + 1 // (8 for exit of 10 hops)
-	content = make([]byte, 0, numDslots*headerBytes)
-	//fmt.Printf("Chain=%d, Hop=%d\n", chainLength, hopNum)
-	for slot := topDslotNum; slot <= bottomSlotNum; slot++ {
-		fakehead := make([]byte, headerBytes)
-		//fmt.Printf("Location: H%dS%d\n", hopNum, slot)
-		startHop := maxChainLength + hopNum - slot
-		startSlot := bottomSlotNum
-		for iterLeft := startHop; iterLeft > hopNum; iterLeft-- {
-			// Minus one because we don't use these keys/iv on the exit hop
-			hopkey := keys[iterLeft-1]
-			hopivs := ivs[iterLeft-1]
-			//hopiv := hopivs[startSlot*16 : (startSlot+1)*16]
-
-			// Create a sequential IV
-			// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
-			hopiv := make([]byte, 16)
-			copy(hopiv[0:4], hopivs[0:4])
-			copy(hopiv[8:16], hopivs[4:12])
-			ctr := make([]byte, 4)
-			binary.LittleEndian.PutUint32(ctr, uint32(slot))
-			copy(hopiv[4:8], ctr)
-
-			//fmt.Printf("Fake: Hop=%d, Slot=%d, Key=%x, IV=%x\n", iterLeft, startSlot, hopkey[:10], hopiv[:10])
-			fakehead = AES_CTR(fakehead, hopkey, hopiv)
-			startSlot--
-		}
-		clen := len(content)
-		content = content[0 : clen+headerBytes]
-		copy(content[clen:], fakehead)
-	}
-	pos = topDslotNum * headerBytes
-	return
 }
 
 // mixprep fetches the plaintext and prepares it for mix encoding
@@ -242,7 +201,7 @@ func encodeMsg(
 	numRandHeads := maxChainLength - chainLength
 	copy(headers, randbytes(numRandHeads*headerBytes))
 	// One key and partial IV required per intermediate hop.
-	aes := newEncMessage(chainLength)
+	aes := newEncMessage()
 	/*
 		16 Byte IVs are constructed from 12 random bytes plus a 4 byte
 		counter (defined in AES_IVS()).  The counter doesn't disclose
