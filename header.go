@@ -199,8 +199,23 @@ func newSlotData() *slotData {
 	}
 }
 
+// getPacketID returns the Packet-ID from the Slot Data.
+func (head *slotData) getPacketID() []byte {
+	return head.packetID
+}
+
+func (head *slotData) getPacketType() int {
+	return int(head.packetType)
+}
+
+// setExit overrides the default Packet Type (0 = Intermediate) with an Exit
+// Packet Type (Exit = 1)
 func (head *slotData) setExit() {
 	head.packetType = 1
+}
+
+func (head *slotData) getAesKey() []byte {
+	return head.aesKey
 }
 
 // setAesKey defines the AES key required to decode the header stack and body.
@@ -213,6 +228,16 @@ func (head *slotData) setAesKey(key []byte) {
 	}
 	copy(head.aesKey, key)
 	head.gotAesKey = true
+}
+
+// setPacketID overrides the random ID defined in newSlotData.  This ensures
+// that on multi-copy messages, the exit hops all have the same Packet ID.
+func (head *slotData) setPacketID(id []byte) {
+	err := lenCheck(len(id), 16)
+	if err != nil {
+		panic(err)
+	}
+	copy(head.packetID, id)
 }
 
 func (head *slotData) setTagHash(hash []byte) {
@@ -320,6 +345,7 @@ type slotFinal struct {
 	chunkNum       uint8
 	numChunks      uint8
 	messageID      []byte
+	packetID       []byte // Not encoded but used in Slot Header on Exits
 	gotBodyBytes   bool
 	bodyBytes      int
 	deliveryMethod uint8
@@ -331,9 +357,14 @@ func newSlotFinal() *slotFinal {
 		chunkNum:       1,
 		numChunks:      1,
 		messageID:      randbytes(16),
+		packetID:       randbytes(16),
 		gotBodyBytes:   false,
 		deliveryMethod: 0,
 	}
+}
+
+func (f *slotFinal) getBodyBytes() int {
+	return f.bodyBytes
 }
 
 func (f *slotFinal) setBodyBytes(length int) {
@@ -347,6 +378,54 @@ func (f *slotFinal) setBodyBytes(length int) {
 	}
 	f.bodyBytes = length
 	f.gotBodyBytes = true
+}
+
+func (f *slotFinal) getAesIV() []byte {
+	return f.aesIV
+}
+
+// getPacketID returns the packet ID that should be copied into the Slot Data
+// for Exit Hop messages.  When creating mutliple copies, the PacketID needs to
+// be common across all exit packets to prevent duplicate deliveries.
+func (f *slotFinal) getPacketID() []byte {
+	return f.packetID
+}
+
+func (f *slotFinal) getNumChunks() int {
+	return int(f.numChunks)
+}
+
+func (f *slotFinal) setNumChunks(n int) {
+	f.numChunks = uint8(n)
+}
+
+func (f *slotFinal) getMessageID() []byte {
+	return f.messageID
+}
+
+func (f *slotFinal) setDeliveryMethod(n int) {
+	f.deliveryMethod = uint8(n)
+}
+
+func (f *slotFinal) getDeliveryMethod() int {
+	return int(f.deliveryMethod)
+}
+
+func (f *slotFinal) getChunkNum() int {
+	return int(f.chunkNum)
+}
+
+func (f *slotFinal) setChunkNum(n int) {
+	if uint8(n) > f.numChunks {
+		err := fmt.Errorf(
+			"Attempt to set Chunk Num (%d) greater than defined"+
+				"number of chunks (%d)",
+			n,
+			int(f.numChunks),
+		)
+		panic(err)
+	}
+	f.chunkNum = uint8(n)
 }
 
 func (f *slotFinal) encode() []byte {
@@ -502,6 +581,7 @@ func decodeIntermediate(b []byte) *slotIntermediate {
 
 // ----- Deterministic Headers -----
 type encMessage struct {
+	gotPayload       bool   // Test if a Payload has been submitted
 	payload          []byte // The actual Yamn message
 	plainLength      int    // Length of the plain-text bytes
 	keys             [maxChainLength - 1][]byte
@@ -514,9 +594,16 @@ type encMessage struct {
 
 func newEncMessage() *encMessage {
 	return &encMessage{
+		gotPayload:  false,
 		payload:     make([]byte, messageBytes),
 		chainLength: 0,
 	}
+}
+
+// getPayload returns the raw payload bytes.  Currently no checks are performed
+// as to what state the payload is in when its requested.
+func (m *encMessage) getPayload() []byte {
+	return m.payload
 }
 
 func (m *encMessage) setChainLength(chainLength int) {
@@ -563,6 +650,7 @@ func (m *encMessage) setPlainText(plain []byte) (plainLength int) {
 	}
 	// Insert the plain bytes after the headers
 	copy(m.payload[headersBytes:], plain)
+	m.gotPayload = true
 	return
 }
 
@@ -641,6 +729,10 @@ func (m *encMessage) getAntiTag() []byte {
 // Encrypt the body with the provided key and IV
 func (m *encMessage) encryptBody(key, iv []byte) {
 	var err error
+	if !m.gotPayload {
+		err = errors.New("Cannot encrypt payload until it's defined")
+		panic(err)
+	}
 	err = lenCheck(len(key), 32)
 	if err != nil {
 		panic(err)
@@ -770,6 +862,15 @@ func newDecMessage(encPayload []byte) (dec *decMessage) {
 	dec.payload = make([]byte, messageBytes)
 	copy(dec.payload, encPayload)
 	return
+}
+
+// getHeader returns the top-most header
+func (m *decMessage) getHeader() []byte {
+	return m.payload[:headerBytes]
+}
+
+func (m *decMessage) getPayload() []byte {
+	return m.payload
 }
 
 func (m *decMessage) shiftHeaders() {

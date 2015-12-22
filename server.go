@@ -3,13 +3,11 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/quickmail"
-	"github.com/dchest/blake2s"
 	"io/ioutil"
 	"os"
 	"path"
@@ -62,11 +60,12 @@ func loopServer() (err error) {
 		generateKeypair(secret)
 	} else {
 		/*
-			If the operator changes his configuration, (such as upgrading to a new
-			version or switching from exit to middleman), the published key will not
-			match the configuration.  This element of code writes a new key.txt file
-			with current settings.  This only needs to be done if we haven't generated
-			a new key.
+			If the operator changes his configuration, (such as
+			upgrading to a new version or switching from exit to
+			middleman), the published key will not match the
+			configuration.  This element of code writes a new
+			key.txt file with current settings.  This only needs to
+			be done if we haven't generated a new key.
 		*/
 		refreshPubkey(secret)
 	}
@@ -92,20 +91,22 @@ func loopServer() (err error) {
 			cfg.Remailer.Name)
 	}
 	for {
-		// Panic is the pooldir doesn't exist
+		// Panic if the pooldir doesn't exist
 		assertIsPath(cfg.Files.Pooldir)
 		if flag_daemon && time.Now().Before(poolProcessTime) {
 			// Process the inbound Pool
 			processInpool("i", public, secret, id, *chunkDB)
 			// Process the Maildir
 			processMail(public, secret, id, *chunkDB)
-			// Don't do anything beyond this point until poolProcessTime
+			// Don't do anything beyond this point until
+			// poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
 		} else if !flag_daemon {
 			/*
-				When not running as a Daemon, always read sources first. Otherwise, the
-				loop will terminate before they're ever read.
+				When not running as a Daemon, always read
+				sources first. Otherwise, the loop will
+				terminate before they're ever read.
 			*/
 			processInpool("i", public, secret, id, *chunkDB)
 			processMail(public, secret, id, *chunkDB)
@@ -114,8 +115,8 @@ func loopServer() (err error) {
 		// Midnight events
 		if time.Now().Day() != dayOfMonth {
 			Info.Println("Performing midnight events")
-			// Remove expired keys from memory and rewrite a secring file without
-			// expired keys.
+			// Remove expired keys from memory and rewrite a
+			// secring file without expired keys.
 			if purgeSecring(secret) == 0 {
 				generateKeypair(secret)
 			}
@@ -134,16 +135,19 @@ func loopServer() (err error) {
 			Info.Println("Performing daily events")
 			// Complain about poor configs
 			nagOperator()
-			// Reset today so we don't do these tasks for the next 24 hours.
+			// Reset today so we don't do these tasks for the next
+			// 24 hours.
 			daily = time.Now()
 		}
 		// Hourly events
 		if time.Since(hourly) > time.Hour {
 			Trace.Println("Performing hourly events")
 			/*
-				The following two conditions try to import new pubring and mlist2 URLs.
-				If they fail, a warning is logged but no further action is taken.  It's
-				better to have old keys/stats than none.
+				The following two conditions try to import new
+				pubring and mlist2 URLs.  If they fail, a
+				warning is logged but no further action is
+				taken.  It's better to have old keys/stats than
+				none.
 			*/
 			// Retrieve Mlist2 and Pubring URLs
 			if cfg.Urls.Fetch {
@@ -219,11 +223,19 @@ func idLogExpire(id idlog.IDLog) {
 func chunkClean(chunkDB Chunk) {
 	cret, cexp := chunkDB.Expire()
 	if cexp > 0 {
-		Info.Printf("Chunk expiry complete. Retained=%d, Expired=%d\n", cret, cexp)
+		Info.Printf(
+			"Chunk expiry complete. Retained=%d, Expired=%d\n",
+			cret,
+			cexp,
+		)
 	}
 	fret, fdel := chunkDB.Housekeep()
 	if fdel > 0 {
-		Info.Printf("Stranded chunk deletion: Retained=%d, Deleted=%d", fret, fdel)
+		Info.Printf(
+			"Stranded chunk deletion: Retained=%d, Deleted=%d",
+			fret,
+			fdel,
+		)
 	}
 }
 
@@ -231,22 +243,28 @@ func chunkClean(chunkDB Chunk) {
 func nagOperator() {
 	// Complain about excessively small loop values.
 	if cfg.Pool.Loop < 60 {
-		Warn.Println(
-			fmt.Sprintf("Loop time of %d is excessively low. ", cfg.Pool.Loop),
-			"Will loop every 60 seconds. A higher setting is recommended.")
+		Warn.Printf(
+			"Loop time of %d is excessively low. Will loop "+
+				"every 60 seconds. A higher setting is recommended.",
+			cfg.Pool.Loop,
+		)
 	}
 	// Complain about high pool rates.
 	if cfg.Pool.Rate > 90 && !flag_send {
 		Warn.Println(
-			fmt.Sprintf("Your pool rate of %d is excessively", cfg.Pool.Rate),
-			"high. Unless testing, a lower setting is recommended.")
+			"Your pool rate of %d is excessively high. Unless "+
+				"testing, a lower setting is recommended.",
+			cfg.Pool.Rate,
+		)
 	}
 	// Complain about running a remailer with flag_send
 	if flag_send && flag_remailer {
-		Warn.Println(
-			"Your remailer will flush the outbound pool every",
-			fmt.Sprintf("%d seconds. Unless you're testing,", cfg.Pool.Loop),
-			"this is probably not what you want.")
+		Warn.Printf(
+			"Your remailer will flush the outbound pool every "+
+				"%d seconds. Unless you're testing, this is "+
+				"probably not what you want.",
+			cfg.Pool.Loop,
+		)
 	}
 }
 
@@ -254,22 +272,38 @@ func createDirs() {
 	var err error
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", cfg.Files.IDlog, err)
+		Error.Println(
+			"Failed to create %s. %s",
+			cfg.Files.IDlog,
+			err,
+		)
 		os.Exit(1)
 	}
 	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", cfg.Files.Pooldir, err)
+		Error.Println(
+			"Failed to create %s. %s",
+			cfg.Files.Pooldir,
+			err,
+		)
 		os.Exit(1)
 	}
 	err = os.MkdirAll(cfg.Files.ChunkDB, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", cfg.Files.ChunkDB, err)
+		Error.Println(
+			"Failed to create %s. %s",
+			cfg.Files.ChunkDB,
+			err,
+		)
 		os.Exit(1)
 	}
 	err = os.MkdirAll(cfg.Files.Maildir, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", cfg.Files.Maildir, err)
+		Error.Println(
+			"Failed to create %s. %s",
+			cfg.Files.Maildir,
+			err,
+		)
 		os.Exit(1)
 	}
 	mdirnew := path.Join(cfg.Files.Maildir, "new")
@@ -300,198 +334,192 @@ func decodeMsg(
 	secret *keymgr.Secring,
 	id idlog.IDLog,
 	chunkDB Chunk) (err error) {
-	if len(rawMsg) != messageBytes {
-		Error.Printf(
-			"Incorrect byte count in binary payload. Expected=%d, Got=%d",
-			messageBytes,
-			len(rawMsg),
-		)
+
+	// At this point, rawMsg should always be messageBytes in length
+	err = lenCheck(len(rawMsg), messageBytes)
+	if err != nil {
+		Error.Println(err)
 		return
 	}
-	// Split the message into its component parts
-	msgHeader := rawMsg[:headerBytes]
-	msgEncHeaders := rawMsg[headerBytes:headersBytes]
-	msgBody := rawMsg[headersBytes:]
-	// Extract the NaCl encrypted bytes
-	decodeHeader := newDecodeHeader(msgHeader)
-	recipientKeyID := decodeHeader.getRecipientKeyID()
+
+	d := newDecMessage(rawMsg)
+	// Extract the top header
+	header := newDecodeHeader(d.getHeader())
+	recipientKeyID := header.getRecipientKeyID()
 	recipientSK, err := secret.GetSK(recipientKeyID)
 	if err != nil {
 		Warn.Printf("Failed to ascertain Recipient SK: %s", err)
 		return
 	}
-	decodeHeader.setRecipientSK(recipientSK)
-	var decodedHeader []byte
-	decodedHeader, err = decodeHeader.decode()
+	header.setRecipientSK(recipientSK)
+
+	slotDataBytes, err := header.decode()
 	if err != nil {
-		Warn.Printf("NaCl decryption failed: %s", err)
+		Warn.Printf("Header decode failed: %s", err)
 		return
 	}
-	// data contains the slotData struct
-	data := decodeSlotData(decodedHeader)
+	// Convert the raw Slot Data Bytes to meaningful slotData.
+	slotData := decodeSlotData(slotDataBytes)
 	// Test uniqueness of packet ID
-	if !id.Unique(data.packetID, cfg.Remailer.IDexp) {
+	if !id.Unique(slotData.getPacketID(), cfg.Remailer.IDexp) {
 		err = errors.New("Packet ID collision")
 		return
 	}
-	//digest := blake2.New(nil)
-	digest, err := blake2s.New(nil)
-	if err != nil {
-		panic(err)
-	}
-	digest.Write(msgEncHeaders)
-	digest.Write(msgBody)
-	if !bytes.Equal(digest.Sum(nil), data.tagHash) {
-		err = fmt.Errorf("Digest mismatch on Anti-tag hash")
+	if !d.testAntiTag(slotData.getTagHash()) {
+		Warn.Println("Anti-tag digest mismatch")
 		return
 	}
-	if data.packetType == 0 {
-		Trace.Println("This is an Intermediate type message")
-		stats.inYamn++
-		// inter contains the slotIntermediate struct
-		inter := decodeIntermediate(data.packetInfo)
-		var iv []byte
-		// Number of headers to decrypt is one less than max chain length
-		for headNum := 0; headNum < maxChainLength-1; headNum++ {
-			iv = inter.seqIV(headNum)
-			sbyte := headNum * headerBytes
-			ebyte := (headNum + 1) * headerBytes
-			copy(
-				msgEncHeaders[sbyte:ebyte],
-				AES_CTR(msgEncHeaders[sbyte:ebyte], data.aesKey, iv))
-		}
-		// The tenth IV is used to encrypt the deterministic header
-		iv = inter.seqIV(maxChainLength)
-		//fmt.Printf("Fake: Key=%x, IV=%x\n", data.aesKey[:10], iv[:10])
-		fakeHeader := make([]byte, headerBytes)
-		copy(fakeHeader, AES_CTR(fakeHeader, data.aesKey, iv))
-		// Body is decrypted with the final IV
-		iv = inter.seqIV(maxChainLength + 1)
-		if err != nil {
-			return
-		}
-		copy(msgBody, AES_CTR(msgBody, data.aesKey, iv))
-		// Insert encrypted headers
-		mixMsg := make([]byte, encHeadersBytes, messageBytes)
-		copy(mixMsg, msgEncHeaders)
-		// Insert fake header
-		mixMsg = mixMsg[0 : len(mixMsg)+headerBytes]
-		copy(mixMsg[encHeadersBytes:], fakeHeader)
-		// Insert body
-		msgLen := len(mixMsg)
-		mixMsg = mixMsg[0 : msgLen+bodyBytes]
-		copy(mixMsg[msgLen:], msgBody)
-		// Create a string from the nextHop, for populating a To header
-		sendTo := inter.getNextHop()
+	if slotData.getPacketType() == 0 {
+		d.shiftHeaders()
+		// Decode Intermediate
+		inter := decodeIntermediate(slotData.packetInfo)
+		d.decryptAll(slotData.aesKey, inter.aesIV12)
 		/*
 			The following conditional tests if we are the next hop
 			in addition to being the current hop.  If we are, then
 			it's better to store the message in the inbound pool.
 			This prevents it being emailed back to us.
 		*/
-		if sendTo == cfg.Remailer.Address {
+		if inter.getNextHop() == cfg.Remailer.Address {
 			Info.Println(
 				"Message loops back to us.",
 				"Storing in pool instead of sending it.")
 			outfileName := randPoolFilename("i")
-			err = ioutil.WriteFile(outfileName, mixMsg, 0600)
+			err = ioutil.WriteFile(
+				outfileName,
+				d.getPayload(),
+				0600,
+			)
 			if err != nil {
 				Warn.Printf("Failed to write to pool: %s", err)
 				return
 			}
 			stats.outLoop++
 		} else {
-			poolWrite(armor(mixMsg, sendTo), "m")
+			poolWrite(
+				armor(d.getPayload(), inter.getNextHop()),
+				"m",
+			)
 			stats.outYamn++
+			// Decide if we want to inject a dummy
+			if !flag_nodummy && randomInt(100) < 21 {
+				dummy(public)
+				stats.outDummy++
+			}
 		} // End of local or remote delivery
+	} else if slotData.getPacketType() == 1 {
+		// Decode Exit
+		final := decodeFinal(slotData.packetInfo)
+		// Decrypt the payload body
+		// This could be done under Delivery Method 0 but, future
+		// delivery methods (other than dummies) will require a
+		// decrypted body.
+		plain := d.decryptBody(
+			slotData.getAesKey(),
+			final.getAesIV(),
+			final.getBodyBytes(),
+		)
+		Trace.Printf("PlainLength=%d", final.getBodyBytes())
+		// Test delivery methods
+		switch final.getDeliveryMethod() {
+		case 0:
+			stats.inYamn++
+			if !cfg.Remailer.Exit {
+				if final.numChunks == 1 {
+					// Need to randhop as we're not an exit
+					// remailer
+					randhop(plain, public)
+				} else {
+					Warn.Println(
+						"Randhopping doesn't support " +
+							"multi-chunk messages. As " +
+							"per Mixmaster, this " +
+							"message will be dropped.",
+					)
+				}
+				return
+			}
+			smtpMethod(plain, final, chunkDB)
 
-		// Decide if we want to inject a dummy
-		if !flag_nodummy && randomInt(100) < 21 {
-			dummy(public)
-			stats.outDummy++
-		}
-		// End of Intermediate type packet handling
-
-	} else if data.packetType == 1 {
-		/*
-			This section is concerned with final hop messages. i.e.
-			Delivery to final recipients.  Currently two methods of
-			delivery are defined:-
-			[   0                           SMTP ]
-			[ 255         Dummy (Don't deliver) ]
-		*/
-		final := decodeFinal(data.packetInfo)
-		// Test for dummy message
-		if final.deliveryMethod == 255 {
+		case 255:
 			Trace.Println("Discarding dummy message")
 			stats.inDummy++
 			return
-		}
-		// Now we've concluded this message is not a Dummy and its
-		// format is valid, the stats counter can be incremented.
-		stats.inYamn++
-		msgBody = AES_CTR(msgBody[:final.bodyBytes], data.aesKey, final.aesIV)
-		// If delivery methods other than SMTP are ever supported,
-		// something needs to happen around here.
-		if final.deliveryMethod != 0 {
-			err = fmt.Errorf("Unsupported Delivery Method: %d", final.deliveryMethod)
+		default:
+			Warn.Printf(
+				"Unsupported Delivery Method: %d",
+				final.getDeliveryMethod,
+			)
 			return
 		}
-		if cfg.Remailer.Exit {
-			if final.numChunks == 1 {
-				poolWrite(msgBody, "m")
-				stats.outPlain++
-			} else {
-				chunkFilename := poolWrite(msgBody, "p")
-				Trace.Printf(
-					"Pooled partial chunk. MsgID=%x, Num=%d, Parts=%d, Filename=%s",
-					final.messageID,
-					final.chunkNum,
-					final.numChunks,
-					chunkFilename)
-				// Fetch the chunks info from the DB for the given message ID
-				chunks := chunkDB.Get(final.messageID, int(final.numChunks))
-				// This saves losts of -1's as slices start at 0 and chunks at 1
-				cslot := final.chunkNum - 1
-				// Test that the slot for this chunk is empty
-				if chunks[cslot] != "" {
-					Warn.Printf(
-						"Duplicate chunk %d in MsgID: %x",
-						final.chunkNum, final.messageID)
-				}
-				// Insert the new chunk into the slice
-				chunks[cslot] = chunkFilename
-				Trace.Printf("Chunk state: %s", strings.Join(chunks, ","))
-				// Test if all chunk slots are populated
-				if IsPopulated(chunks) {
-					newPoolFile := randPoolFilename("m")
-					Trace.Printf("Assembling chunked message into %s", newPoolFile)
-					err = chunkDB.Assemble(newPoolFile, chunks)
-					if err != nil {
-						Warn.Printf("Chunk assembly failed: %s", err)
-					}
-					// Now the message is assembled into the Pool, the DB record can be deleted
-					chunkDB.Delete(final.messageID)
-					stats.outPlain++
-				} else {
-					// Write the updated chunk status to the DB
-					chunkDB.Insert(final.messageID, chunks)
-				}
-				return
-			}
-		} else {
-			if final.numChunks == 1 {
-				// Need to randhop as we're not an exit remailer
-				randhop(msgBody, public)
-			} else {
-				Warn.Println(
-					"Randhopping doesn't support multi-chunk messages. ",
-					"As per Mixmaster, this message will be dropped.")
-				return
-			}
-		} // Randhop condition
-	} // Intermediate or exit
+	} else {
+		Warn.Printf(
+			"Unknown Packet Type: %d",
+			slotData.getPacketType(),
+		)
+		return
+	}
 	return
+}
+
+func smtpMethod(plain []byte, final *slotFinal, chunkDB Chunk) {
+	var err error
+	if final.getNumChunks() == 1 {
+		// If this is a single chunk message, pool it and get out.
+		poolWrite(plain, "m")
+		stats.outPlain++
+		return
+	}
+	// We're an exit and this is a multi-chunk message
+	chunkFilename := poolWrite(plain, "p")
+	Trace.Printf(
+		"Pooled partial chunk. MsgID=%x, Num=%d, "+
+			"Parts=%d, Filename=%s",
+		final.getMessageID(),
+		final.getChunkNum(),
+		final.getNumChunks(),
+		chunkFilename,
+	)
+	// Fetch the chunks info from the DB for the given message ID
+	chunks := chunkDB.Get(final.getMessageID(), final.getNumChunks())
+	// This saves losts of -1's as slices start at 0 and chunks at 1
+	cslot := final.getChunkNum() - 1
+	// Test that the slot for this chunk is empty
+	if chunks[cslot] != "" {
+		Warn.Printf(
+			"Duplicate chunk %d in MsgID: %x",
+			final.chunkNum,
+			final.messageID,
+		)
+	}
+	// Insert the new chunk into the slice
+	chunks[cslot] = chunkFilename
+	Trace.Printf(
+		"Chunk state: %s",
+		strings.Join(chunks, ","),
+	)
+	// Test if all chunk slots are populated
+	if IsPopulated(chunks) {
+		newPoolFile := randPoolFilename("m")
+		Trace.Printf(
+			"Assembling chunked message into %s",
+			newPoolFile,
+		)
+		err = chunkDB.Assemble(newPoolFile, chunks)
+		if err != nil {
+			Warn.Printf("Chunk assembly failed: %s", err)
+			// Don't return here or the bad chunk will remain in
+			// the DB.
+		}
+		// Now the message is assembled into the Pool, the DB record
+		// can be deleted
+		chunkDB.Delete(final.getMessageID())
+		stats.outPlain++
+	} else {
+		// Write the updated chunk status to
+		// the DB
+		chunkDB.Insert(final.getMessageID(), chunks)
+	}
 }
 
 // randhop is a simplified client function that does single-hop encodings
@@ -510,6 +538,7 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	final.numChunks = uint8(1)
 	var chain []string
 	chain, err = makeChain(in_chain, public)
+	sendTo := chain[0]
 	if err != nil {
 		Warn.Println(err)
 		return
@@ -519,8 +548,7 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 		panic(err)
 	}
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
-	packetid := randbytes(16)
-	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
+	yamnMsg := encodeMsg(plainMsg, chain, *final, public)
 	poolWrite(armor(yamnMsg, sendTo), "m")
 	stats.outRandhop++
 	return
@@ -539,13 +567,13 @@ func dummy(public *keymgr.Pubring) {
 	final.numChunks = uint8(1)
 	var chain []string
 	chain, err = makeChain(in_chain, public)
+	sendTo := chain[0]
 	if err != nil {
 		Warn.Printf("Dummy creation failed: %s", err)
 		return
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
-	packetid := randbytes(16)
-	yamnMsg, sendTo := encodeMsg(plainMsg, packetid, chain, *final, public)
+	yamnMsg := encodeMsg(plainMsg, chain, *final, public)
 	poolWrite(armor(yamnMsg, sendTo), "m")
 	return
 }

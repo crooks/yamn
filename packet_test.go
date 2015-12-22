@@ -229,7 +229,7 @@ func TestMultiHop(t *testing.T) {
 	for remailer := 0; remailer < maxChainLength; remailer++ {
 		// Create a decode struct called exitHead and fill it with the
 		// encoded bytes from encHead
-		decHeader := newDecodeHeader(d.payload[:headerBytes])
+		decHeader := newDecodeHeader(d.getHeader())
 		// We're faking the KeyID but this at least proves the function
 		_ = decHeader.getRecipientKeyID()
 		decHeader.setRecipientSK(testSK)
