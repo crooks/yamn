@@ -203,8 +203,8 @@ func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
 	*/
 
 	// Using a hash for the filename ensures that duplicate files are only
-	// written once.  The hash is truncated so their is a tiny risk of collision
-	// but it's a tiny risk!
+	// written once.  The hash is truncated so there is a tiny risk of
+	// accidental collision but it's a tiny risk!
 	digest := sha256.New()
 	digest.Write(yamnMsg)
 	poolFileName = prefix + hex.EncodeToString(digest.Sum(nil))[:14]

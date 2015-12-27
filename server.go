@@ -151,12 +151,21 @@ func loopServer() (err error) {
 			*/
 			// Retrieve Mlist2 and Pubring URLs
 			if cfg.Urls.Fetch {
-				timedURLFetch(cfg.Urls.Pubring, cfg.Files.Pubring)
-				timedURLFetch(cfg.Urls.Mlist2, cfg.Files.Mlist2)
+				timedURLFetch(
+					cfg.Urls.Pubring,
+					cfg.Files.Pubring,
+				)
+				timedURLFetch(
+					cfg.Urls.Mlist2,
+					cfg.Files.Mlist2,
+				)
 			}
 			// Test to see if the pubring.mix file has been updated
 			if public.KeyRefresh() {
-				Trace.Printf("Reimporting Public Keyring: %s", cfg.Files.Pubring)
+				Trace.Printf(
+					"Reimporting Public Keyring: %s",
+					cfg.Files.Pubring,
+				)
 				public.ImportPubring()
 			}
 			// Report throughput
