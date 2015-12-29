@@ -15,15 +15,6 @@ import (
 	//"github.com/codahale/blake2"
 )
 
-func headDiag(headers []byte) {
-	fmt.Printf("Length: %d\n", len(headers))
-	for h := 0; h < maxChainLength; h++ {
-		sbyte := h * headerBytes
-		ebyte := sbyte + 20
-		fmt.Printf("sbyte=%d, Header: %d, Starts: %x\n", sbyte, h, headers[sbyte:ebyte])
-	}
-}
-
 // readMessage tries to read a file containing the plaintext to be sent
 func readMessage(filename string) []byte {
 	var err error
@@ -40,7 +31,12 @@ func readMessage(filename string) []byte {
 	if flag_to != "" {
 		msg.Header["To"] = []string{flag_to}
 		if !strings.Contains(flag_to, "@") {
-			fmt.Fprintf(os.Stderr, "%s: Recipient doesn't appear to be an email address\n", flag_to)
+			fmt.Fprintf(
+				os.Stderr,
+				"%s: Recipient doesn't appear to be an "+
+					"email address\n",
+				flag_to,
+			)
 		}
 	}
 	if flag_subject != "" {

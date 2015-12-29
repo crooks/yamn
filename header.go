@@ -602,6 +602,8 @@ type encMessage struct {
 	padBytes         int // Total bytes of padding
 }
 
+// newEncMessage creates a new encMessage object.  This provides client-side
+// functionality for creating a new Yamn message.
 func newEncMessage() *encMessage {
 	return &encMessage{
 		gotPayload:  false,
@@ -616,6 +618,11 @@ func (m *encMessage) getPayload() []byte {
 	return m.payload
 }
 
+// setChainLength takes an integer containing the length of the chain being
+// encoded.  From this we can derive various settings, such as the number of
+// fake (padding) headers required.  It also initializes and populates an array
+// of AES keys and IVs used to encrypt the intermediate hops.  These have to be
+// predefined as they're required to create deterministic headers.
 func (m *encMessage) setChainLength(chainLength int) {
 	if chainLength > maxChainLength {
 		err := fmt.Errorf(
@@ -636,9 +643,9 @@ func (m *encMessage) setChainLength(chainLength int) {
 	m.padBytes = m.padHeaders * headerBytes
 	// The padding bytes need to be randomized, otherwise the final
 	// intermediate remailer in the chain can know its position due to the
-	// zero bytes below the decrypted exit header.
-	//TODO uncomment the following line for live use
-	//copy(m.payload, randbytes(m.padBytes)
+	// zero bytes below the decrypted exit header.  After this, the payload
+	// will contain nothing but padding.
+	copy(m.payload, randbytes(m.padBytes))
 	// Generate keys and (partial) IVs for each hop
 	for n := 0; n < m.intermediateHops; n++ {
 		m.keys[n] = randbytes(32)
@@ -664,6 +671,7 @@ func (m *encMessage) setPlainText(plain []byte) (plainLength int) {
 	return
 }
 
+// getIntermediateHops returns the number of intermediate hops in the chain.
 func (m *encMessage) getIntermediateHops() int {
 	if m.chainLength == 0 {
 		err := errors.New(
@@ -690,6 +698,7 @@ func (m *encMessage) getIV(intermediateHop, slot int) (iv []byte) {
 	return
 }
 
+// getKey returns the predetermined AES key for a specific Hop in the Chain.
 func (m *encMessage) getKey(intermediateHop int) (key []byte) {
 	if m.chainLength == 0 {
 		err := errors.New(
@@ -710,7 +719,13 @@ func (m *encMessage) getKey(intermediateHop int) (key []byte) {
 	return
 }
 
+// getPartialIV returns the predetermined partial IV for a specific Hop.
 func (m *encMessage) getPartialIV(intermediateHop int) (ivPartial []byte) {
+	/*
+		It should be noted that the 12 byte partial IV returned by this
+		function cannot be used directly to encrypt anything.  It needs
+		a 4 byte sequence number added to it in order to be usable.
+	*/
 	if intermediateHop > m.intermediateHops {
 		err := fmt.Errorf(
 			"Requested IV for hop (%d) exceeds array length"+
@@ -736,7 +751,9 @@ func (m *encMessage) getAntiTag() []byte {
 	return digest.Sum(nil)
 }
 
-// Encrypt the body with the provided key and IV
+// Encrypt the body with the provided key and IV.  This should only be used for
+// encryption of the Body during Exit-Hop encoding.  At other times, encryptAll
+// should be used.
 func (m *encMessage) encryptBody(key, iv []byte) {
 	var err error
 	if !m.gotPayload {
@@ -762,6 +779,10 @@ func (m *encMessage) encryptBody(key, iv []byte) {
 	)
 }
 
+// encryptAll encrypts each Header Slot in the message using a predetermined
+// AES Key and partial (12 byte) IV, plus a 4 byte sequence number base on the
+// Slot number.  Finally, the body is encrypted using the same key and partial
+// IV (with the next sequenced number).
 func (m *encMessage) encryptAll(hop int) {
 	// The same key is used for all these encrypt operations
 	key := m.getKey(hop)
@@ -788,6 +809,7 @@ func (m *encMessage) encryptAll(hop int) {
 	)
 }
 
+// shiftHeaders moves the entire header stack down by headerBytes.
 func (m *encMessage) shiftHeaders() {
 	// Find a point one header size up from the bottom of the header stack
 	bottomHeader := headersBytes - headerBytes
@@ -843,9 +865,12 @@ func (m *encMessage) deterministic(hop int) {
 	}
 }
 
+// debugPacket is only used for debugging purposes.  It outputs the first 20
+// bytes of each message component.  The last line output will be the first 20
+// bytes of the payload body.
 func (m *encMessage) debugPacket() {
 	fmt.Println("Encrypt diagnostic")
-	for slot := 0; slot < maxChainLength; slot++ {
+	for slot := 0; slot <= maxChainLength; slot++ {
 		sbyte := slot * headerBytes
 		ebyte := sbyte + 20
 		fmt.Printf(
@@ -856,13 +881,14 @@ func (m *encMessage) debugPacket() {
 			slot,
 		)
 	}
-	fmt.Printf("12780-12800: %x\n", m.payload[12780:])
 }
 
 type decMessage struct {
 	payload []byte // The actual Yamn message
 }
 
+// newDecMessage creates a new decMessage object and populates it with the
+// provided message bytes (assumed to be an encrypted message).
 func newDecMessage(encPayload []byte) (dec *decMessage) {
 	err := lenCheck(len(encPayload), messageBytes)
 	if err != nil {
@@ -879,10 +905,14 @@ func (m *decMessage) getHeader() []byte {
 	return m.payload[:headerBytes]
 }
 
+// getPayload returns the entire payload as a byte slice
 func (m *decMessage) getPayload() []byte {
 	return m.payload
 }
 
+// shiftHeaders moves the entire header stack up by headerBytes and chops off
+// the top header.  The created slot of headerBytes at the bottom is
+// initialized.
 func (m *decMessage) shiftHeaders() {
 	// Find a point one header size up from the bottom of the header stack
 	bottomHeader := headersBytes - headerBytes
@@ -892,6 +922,9 @@ func (m *decMessage) shiftHeaders() {
 	copy(m.payload[bottomHeader:], make([]byte, headerBytes))
 }
 
+// testAntiTag creates a Blake2 hash of the entire payload (less the top
+// headerBytes) and compares it with the provided hash.  If the two collide, it
+// returns True.
 func (m *decMessage) testAntiTag(tag []byte) bool {
 	digest, err := blake2s.New(nil)
 	if err != nil {
@@ -904,7 +937,8 @@ func (m *decMessage) testAntiTag(tag []byte) bool {
 	return false
 }
 
-// Encrypt the body with the provided key and IV
+// Decrypt the body with the provided key and IV.  This function should only be
+// called during exit decryption.  At other times, decryptAll should be used.
 func (m *decMessage) decryptBody(key, iv []byte, length int) []byte {
 	var err error
 	err = lenCheck(len(key), 32)
@@ -927,6 +961,8 @@ func (m *decMessage) decryptBody(key, iv []byte, length int) []byte {
 	return m.payload[headersBytes : headersBytes+length]
 }
 
+// Decrypt each header in turn using a supplied key and partial IV.  Also
+// decrypt the body using the same key and last IV in the sequence.
 func (m *decMessage) decryptAll(key, partialIV []byte) {
 	var err error
 	err = lenCheck(len(key), 32)
@@ -947,6 +983,8 @@ func (m *decMessage) decryptAll(key, partialIV []byte) {
 			AES_CTR(m.payload[sbyte:ebyte], key, iv),
 		)
 	}
+	// IVs from 0 to maxChainLength-1 have been used for the headers.  The
+	// next IV in sequence (maxChainLength) is used to decrypt the body.
 	iv = seqIV(partialIV, maxChainLength)
 	copy(
 		m.payload[headersBytes:],
@@ -954,9 +992,12 @@ func (m *decMessage) decryptAll(key, partialIV []byte) {
 	)
 }
 
+// debugPacket is only used for debugging purposes.  It outputs the first 20
+// bytes of each message component.  The last line output will be the first 20
+// bytes of the payload body.
 func (m *decMessage) debugPacket() {
 	fmt.Println("Decrypt diagnostic")
-	for slot := 0; slot < maxChainLength; slot++ {
+	for slot := 0; slot <= maxChainLength; slot++ {
 		sbyte := slot * headerBytes
 		ebyte := sbyte + 20
 		fmt.Printf(
@@ -967,5 +1008,4 @@ func (m *decMessage) debugPacket() {
 			slot,
 		)
 	}
-	fmt.Printf("12780-12800: %x\n", m.payload[12780:])
 }
