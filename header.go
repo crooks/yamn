@@ -181,6 +181,7 @@ type slotData struct {
 	timestamp     []byte
 	gotPacketInfo bool // Test if packetInfo has been defined
 	packetInfo    []byte
+	gotTagHash    bool // Test if Anti-tag hash has been defined
 	tagHash       []byte
 }
 
@@ -195,6 +196,7 @@ func newSlotData() *slotData {
 		aesKey:        make([]byte, 32),
 		timestamp:     make([]byte, 2),
 		gotPacketInfo: false,
+		gotTagHash:    false,
 		tagHash:       make([]byte, 32),
 	}
 }
@@ -246,6 +248,7 @@ func (head *slotData) setTagHash(hash []byte) {
 		panic(err)
 	}
 	copy(head.tagHash, hash)
+	head.gotTagHash = true
 }
 
 func (head *slotData) getTagHash() []byte {
@@ -290,6 +293,13 @@ func (head *slotData) encode() []byte {
 	if !head.gotPacketInfo {
 		err := errors.New(
 			"Exit/Intermediate not defined before attempt to " +
+				"encode Encrypted Header.",
+		)
+		panic(err)
+	}
+	if !head.gotTagHash {
+		err := errors.New(
+			"Anti-Tag Hash not defined before attempt to " +
 				"encode Encrypted Header.",
 		)
 		panic(err)

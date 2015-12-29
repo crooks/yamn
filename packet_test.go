@@ -44,6 +44,7 @@ func TestSlotData(t *testing.T) {
 	inSlotData.setTimestamp()
 	inSlotData.setPacketInfo(make([]byte, 64))
 	inSlotData.setAesKey(randbytes(32))
+	inSlotData.setTagHash(make([]byte, 32))
 	outSlotData := decodeSlotData(inSlotData.encode())
 	if bytes.Compare(inSlotData.packetID, outSlotData.packetID) != 0 {
 		t.Fatal("PacketID Mismatch")
@@ -69,6 +70,7 @@ func TestPacket(t *testing.T) {
 
 	outHead := newSlotData()
 	outHead.setAesKey(randbytes(32))
+	outHead.setTagHash(make([]byte, 32))
 	outHead.setPacketInfo(outExitHead.encode())
 	copy(payload, AES_CTR(payload, outHead.aesKey, outExitHead.aesIV))
 
@@ -114,6 +116,7 @@ func TestOneHop(t *testing.T) {
 	encSlotData.setExit()
 	encSlotData.setAesKey(randbytes(32))
 	encSlotData.setPacketInfo(encSlotFinal.encode())
+	encSlotData.setTagHash(make([]byte, 32))
 	encSlotDataBytes := encSlotData.encode()
 
 	fakeRecipientKeyID := make([]byte, 16)
