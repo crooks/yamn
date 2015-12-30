@@ -309,9 +309,7 @@ func armor(yamnMsg []byte, sendto string) []byte {
 	}
 	digest.Write(yamnMsg)
 	// Write message digest
-	buf.WriteString(base64.StdEncoding.EncodeToString(
-		digest.Sum(nil)[:16]) + "\n",
-	)
+	buf.WriteString(hex.EncodeToString(digest.Sum(nil)) + "\n")
 	// Write the payload
 	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(yamnMsg)) + "\n")
 	buf.WriteString("-----END REMAILER MESSAGE-----\n")
@@ -360,17 +358,17 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 			}
 			scanPhase = 3
 		case 3:
-			if len(line) != 24 {
+			if len(line) != 64 {
 				err = fmt.Errorf(
-					"Expected 24 byte Base64 Hash, got %d bytes\n",
+					"Expected 64 digit Hex encoded Hash, got %d bytes\n",
 					len(line),
 				)
 				return
 			} else {
-				payloadDigest, err = base64.StdEncoding.DecodeString(line)
+				payloadDigest, err = hex.DecodeString(line)
 				if err != nil {
 					err = errors.New(
-						"Unable to decode Base64 hash on payload",
+						"Unable to decode Hex hash on payload",
 					)
 					return
 				}
@@ -423,7 +421,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 		panic(err)
 	}
 	digest.Write(payload)
-	if !bytes.Equal(digest.Sum(nil)[:16], payloadDigest) {
+	if !bytes.Equal(digest.Sum(nil), payloadDigest) {
 		err = errors.New("Incorrect payload digest during dearmor")
 		return
 	}

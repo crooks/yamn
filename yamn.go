@@ -18,7 +18,7 @@ const (
 	maxFragLength          = 10230
 	maxChainLength         = 10
 	maxCopies              = 5
-	base64LineWrap         = 40
+	base64LineWrap         = 72
 	rfc5322date            = "Mon, 2 Jan 2006 15:04:05 -0700"
 	shortdate              = "2 Jan 2006"
 	headerBytes            = 256 // An entire header slot
