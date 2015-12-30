@@ -3,8 +3,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/mail"
@@ -205,10 +203,7 @@ func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
 	// Using a hash for the filename ensures that duplicate files are only
 	// written once.  The hash is truncated so there is a tiny risk of
 	// accidental collision but it's a tiny risk!
-	digest := sha256.New()
-	digest.Write(yamnMsg)
-	poolFileName = prefix + hex.EncodeToString(digest.Sum(nil))[:14]
-	fqfn := path.Join(cfg.Files.Pooldir, poolFileName)
+	fqfn := randPoolFilename(prefix)
 
 	// Create a pool file for the message
 	f, err := os.Create(fqfn)
@@ -228,5 +223,6 @@ func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
 	// Write the remainder of the message.
 	f.Write(yamnMsg)
 	f.Sync()
+	_, poolFileName = path.Split(fqfn)
 	return
 }
