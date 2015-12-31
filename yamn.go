@@ -26,7 +26,7 @@ const (
 	encDataBytes           = 64  // Exit / Intermediate header component
 	headersBytes           = headerBytes * maxChainLength
 	encHeadersBytes        = headersBytes - headerBytes
-	bodyBytes              = 10240
+	bodyBytes              = 17920
 	messageBytes           = headersBytes + bodyBytes
 )
 
