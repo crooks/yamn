@@ -87,12 +87,12 @@ func mixprep() {
 	}
 
 	// Create the Public Keyring
-	pubring := keymgr.NewPubring(
+	Pubring = keymgr.NewPubring(
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
 		cfg.Stats.UseExpired,
 	)
-	err = pubring.ImportPubring()
+	err = Pubring.ImportPubring()
 	if err != nil {
 		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
 		return
@@ -143,7 +143,7 @@ func mixprep() {
 				in_chain[len(in_chain)-1] = exitnode
 			}
 			var chain []string
-			chain, err = makeChain(in_chain, pubring)
+			chain, err = makeChain(in_chain)
 			if err != nil {
 				Error.Println(err)
 				os.Exit(0)
@@ -172,15 +172,14 @@ func mixprep() {
 				plain[first_byte:last_byte],
 				chain,
 				*final,
-				pubring,
 			)
 			poolWrite(armor(yamnMsg, sendTo), "m")
 		} // End of copies loop
 	} // End of fragments loop
 
 	// Decide if we want to inject a dummy
-	if !flag_nodummy && pubring.Stats && randomInt(7) < 3 {
-		dummy(pubring)
+	if !flag_nodummy && Pubring.Stats && randomInt(7) < 3 {
+		dummy()
 	}
 }
 
@@ -188,8 +187,7 @@ func mixprep() {
 func encodeMsg(
 	plain []byte,
 	chain []string,
-	final slotFinal,
-	pubring *keymgr.Pubring) []byte {
+	final slotFinal) []byte {
 
 	var err error
 	var hop string
@@ -212,7 +210,7 @@ func encodeMsg(
 	// Encode the (final) Packet Info and store it in the Slot Data.
 	slotData.setPacketInfo(final.encode())
 	// Get KeyID and NaCl PK for the remailer we're enrypting to.
-	remailer, err := pubring.Get(hop)
+	remailer, err := Pubring.Get(hop)
 	if err != nil {
 		Error.Printf(
 			"%s: Remailer unknown in public keyring\n",
@@ -260,7 +258,7 @@ func encodeMsg(
 		slotData.setTagHash(m.getAntiTag())
 		slotDataBytes = slotData.encode()
 		header = newEncodeHeader()
-		remailer, err := pubring.Get(hop)
+		remailer, err := Pubring.Get(hop)
 		if err != nil {
 			Error.Printf(
 				"%s: Remailer unknown in public keyring\n",
@@ -281,13 +279,13 @@ func encodeMsg(
 
 func injectDummy() {
 	// Populate public keyring
-	public := keymgr.NewPubring(
+	Pubring = keymgr.NewPubring(
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
 		cfg.Stats.UseExpired,
 	)
-	public.ImportPubring()
-	dummy(public)
+	Pubring.ImportPubring()
+	dummy()
 }
 
 // TimedURLFetch attempts to read a url into a file if the file is more

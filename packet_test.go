@@ -133,9 +133,15 @@ func TestOneHop(t *testing.T) {
 	// We're faking the KeyID but this at least proves the function
 	_ = decHeader.getRecipientKeyID()
 	decHeader.setRecipientSK(exitSK)
-	decSlotDataBytes, err := decHeader.decode()
+	decSlotDataBytes, version, err := decHeader.decode()
 	if err != nil {
 		t.Fatalf("Header docode failed: %s", err)
+	}
+	if version != 2 {
+		t.Fatalf(
+			"Not a version 2 type packet. Got version: %d",
+			version,
+		)
 	}
 	// Test if the decoded raw Slot Data bytes match the input Slot Data
 	if bytes.Compare(encSlotDataBytes, decSlotDataBytes) != 0 {
@@ -236,9 +242,15 @@ func TestMultiHop(t *testing.T) {
 		// We're faking the KeyID but this at least proves the function
 		_ = decHeader.getRecipientKeyID()
 		decHeader.setRecipientSK(testSK)
-		decDataBytes, err := decHeader.decode()
+		decDataBytes, version, err := decHeader.decode()
 		if err != nil {
 			t.Fatalf("Header decode failed: %s", err)
+		}
+		if version != 2 {
+			t.Fatalf(
+				"Not a version 2 type packet. Got version: %d",
+				version,
+			)
 		}
 		// Convert the raw Slot Data Bytes to meaningful slotData.
 		decData := decodeSlotData(decDataBytes)

@@ -14,6 +14,17 @@ import (
 	//"code.google.com/p/go.crypto/nacl/box"
 )
 
+const (
+	maxChainLength  = 10
+	headerBytes     = 256 // An entire header slot
+	encHeadBytes    = 160 // The encrypted component of a header
+	encDataBytes    = 64  // Exit / Intermediate header component
+	headersBytes    = headerBytes * maxChainLength
+	encHeadersBytes = headersBytes - headerBytes
+	bodyBytes       = 17920
+	messageBytes    = headersBytes + bodyBytes
+)
+
 // Generate a public/private ECC key pair
 func eccGenerate() (pk, sk []byte) {
 	pka, ska, err := box.GenerateKey(rand.Reader)
@@ -133,7 +144,7 @@ func (h *decodeHeader) setRecipientSK(recipientSK []byte) {
 	h.gotRecipient = true
 }
 
-func (h *decodeHeader) decode() (data []byte, err error) {
+func (h *decodeHeader) decode() (data []byte, version int, err error) {
 	if !h.gotRecipient {
 		err = errors.New("Cannot decode header until recipient defined")
 		panic(err)
@@ -154,11 +165,14 @@ func (h *decodeHeader) decode() (data []byte, err error) {
 		err = errors.New("Authentication failed decrypting slot data")
 		return
 	}
+	// Version number is the first byte of decrypted data
+	version = int(data[0])
 	return
 }
 
 /*
 Encrypted data
+[ Packet version	  1 Byte  ]
 [ Packet type ID	  1 Byte  ]
 [ Delivery protocol	  1 Byte  ]
 [ Packet ID		 16 Bytes ]
@@ -166,13 +180,14 @@ Encrypted data
 [ Timestamp		  2 Bytes ]
 [ Packet info		 64 Bytes ]
 [ Anti-tag digest	 32 Bytes ]
-[ Padding		 12 Bytes ]
+[ Padding		 11 Bytes ]
 Total	160 Bytes
 
 Packet Type: 0=Intermediate 1=Exit
 Delivery protocol: 0=SMTP
 */
 type slotData struct {
+	version       uint8
 	packetType    uint8
 	protocol      uint8
 	packetID      []byte
@@ -187,6 +202,7 @@ type slotData struct {
 
 func newSlotData() *slotData {
 	return &slotData{
+		version:    2, // This packet format is v2
 		packetType: 0,
 		protocol:   0,
 		// packetID is random for intermediate hops but needs to be
@@ -306,6 +322,7 @@ func (head *slotData) encode() []byte {
 	}
 	head.setTimestamp()
 	buf := new(bytes.Buffer)
+	buf.WriteByte(head.version)
 	buf.WriteByte(head.packetType)
 	buf.WriteByte(head.protocol)
 	buf.Write(head.packetID)
@@ -313,7 +330,7 @@ func (head *slotData) encode() []byte {
 	buf.Write(head.timestamp)
 	buf.Write(head.packetInfo)
 	buf.Write(head.tagHash)
-	err := lenCheck(buf.Len(), 148)
+	err := lenCheck(buf.Len(), 149)
 	if err != nil {
 		panic(err)
 	}
@@ -326,14 +343,24 @@ func decodeSlotData(b []byte) *slotData {
 	if err != nil {
 		panic(err)
 	}
+	// Test the correct libary is being employed for the packet version
+	version := int(b[0])
+	if version != 2 {
+		err := fmt.Errorf(
+			"Attempt to decode packet v%d with v2 library",
+			version,
+		)
+		panic(err)
+	}
 	return &slotData{
-		packetType: b[0],
-		protocol:   b[1],
-		packetID:   b[2:18],
-		aesKey:     b[18:50],
-		timestamp:  b[50:52],
-		packetInfo: b[52:116],
-		tagHash:    b[116:148],
+		version:    b[0],
+		packetType: b[1],
+		protocol:   b[2],
+		packetID:   b[3:19],
+		aesKey:     b[19:51],
+		timestamp:  b[51:53],
+		packetInfo: b[53:117],
+		tagHash:    b[117:149],
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 	//"github.com/codahale/blake2"
-	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
 )
@@ -88,12 +87,7 @@ func poolDelete(filename string) {
 }
 
 // processMail reads the Remailer's Maildir and processes the content
-func processMail(
-	public *keymgr.Pubring,
-	secret *keymgr.Secring,
-	id idlog.IDLog,
-	chunkDB Chunk) (err error) {
-
+func processMail(secret *keymgr.Secring) (err error) {
 	dir := maildir.Dir(cfg.Files.Maildir)
 	// Get a list of Maildir keys from the directory
 	keys, err := dir.Unseen()
@@ -101,7 +95,11 @@ func processMail(
 		return
 	}
 	if len(keys) > 0 {
-		Trace.Printf("Reading %d messages from %s\n", len(keys), cfg.Files.Maildir)
+		Trace.Printf(
+			"Reading %d messages from %s\n",
+			len(keys),
+			cfg.Files.Maildir,
+		)
 		// Increment inbound Email counter
 		stats.inMail += len(keys)
 	}
@@ -142,7 +140,7 @@ func processMail(
 				Warn.Println("Dearmor returned zero bytes")
 				continue
 			}
-			err = decodeMsg(msg, public, secret, id, chunkDB)
+			err = decodeMsg(msg, secret)
 			if err != nil {
 				Info.Println(err)
 			}
@@ -156,12 +154,7 @@ func processMail(
 }
 
 // processInpool is similar to processMail but reads the Inbound Pool
-func processInpool(
-	prefix string,
-	public *keymgr.Pubring,
-	secret *keymgr.Secring,
-	id idlog.IDLog,
-	chunkDB Chunk) {
+func processInpool(prefix string, secret *keymgr.Secring) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, prefix)
 	if err != nil {
 		Warn.Printf("Unable to access inbound pool: %s", err)
@@ -177,7 +170,7 @@ func processInpool(
 			Warn.Printf("Failed to read %s from pool: %s", f, err)
 			continue
 		}
-		err = decodeMsg(msg, public, secret, id, chunkDB)
+		err = decodeMsg(msg, secret)
 		if err != nil {
 			Warn.Println(err)
 		}

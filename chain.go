@@ -22,26 +22,26 @@ func distanceCriteria(addresses, dist []string) (c []string) {
 }
 
 // makeChain takes a chain string and constructs a valid remailer chain
-func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, err error) {
+func makeChain(inChain []string) (outChain []string, err error) {
 	// If the chain contains a random remailer, we're going to need stats
 	if IsMemberStr("*", inChain) {
 		// Check modification timestamp on stats file
 		var statRefresh bool
-		statRefresh, err = pubring.StatRefresh()
+		statRefresh, err = Pubring.StatRefresh()
 		if err != nil {
 			Info.Println(err)
 			err = errors.New("Cannot use random remailers without stats")
 			return
 		}
 		if statRefresh {
-			err = pubring.ImportStats()
+			err = Pubring.ImportStats()
 			if err != nil {
 				Warn.Printf("Unable to read stats: %s", err)
 				return
 			}
 		}
 		// Check generated timestamp from stats file
-		if pubring.StatsStale(cfg.Stats.StaleHrs) {
+		if Pubring.StatsStale(cfg.Stats.StaleHrs) {
 			Warn.Println("Stale stats.  Generated age exceeds configured",
 				fmt.Sprintf("threshold of %d hours", cfg.Stats.StaleHrs))
 		}
@@ -72,14 +72,14 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 			// Random remailer selection
 			if len(outChain) == 0 {
 				// Construct a list of suitable exit remailers
-				candidates = pubring.Candidates(
+				candidates = Pubring.Candidates(
 					cfg.Stats.Minlat,
 					cfg.Stats.Maxlat,
 					cfg.Stats.Relfinal,
 					true)
 			} else {
 				// Construct a list of all suitable remailers
-				candidates = pubring.Candidates(
+				candidates = Pubring.Candidates(
 					cfg.Stats.Minlat,
 					cfg.Stats.Maxlat,
 					cfg.Stats.Minrel,
@@ -99,10 +99,10 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 				Warn.Println("Relaxing latency and uptime criteria to build chain")
 				if len(outChain) == 0 {
 					// Construct a list of suitable exit remailers
-					candidates = pubring.Candidates(0, 480, 0, true)
+					candidates = Pubring.Candidates(0, 480, 0, true)
 				} else {
 					// Construct a list of all suitable remailers
-					candidates = pubring.Candidates(0, 480, 0, false)
+					candidates = Pubring.Candidates(0, 480, 0, false)
 				}
 			} else if len(candidates) == 0 {
 				// Insufficient remailers meet criteria and we're a client, so die.
@@ -115,7 +115,7 @@ func makeChain(inChain []string, pubring *keymgr.Pubring) (outChain []string, er
 			hop = candidates[randomInt(len(candidates)-1)]
 		} else {
 			var remailer keymgr.Remailer
-			remailer, err = pubring.Get(hop)
+			remailer, err = Pubring.Get(hop)
 			if err != nil {
 				return
 			}

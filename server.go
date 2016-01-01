@@ -18,14 +18,14 @@ import (
 
 // Start the server process.  If run with --daemon, this will loop forever.
 func loopServer() (err error) {
-	// Populate public and secret keyrings
-	public := keymgr.NewPubring(
+	// Initialize the Public Keyring
+	Pubring = keymgr.NewPubring(
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
 		cfg.Stats.UseExpired,
 	)
 	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
-	public.ImportPubring()
+	Pubring.ImportPubring()
 	secret.ImportSecring()
 	// Tell the secret keyring some basic info about this remailer
 	secret.SetName(cfg.Remailer.Name)
@@ -38,20 +38,17 @@ func loopServer() (err error) {
 
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
-	id, err := idlog.NewInstance(cfg.Files.IDlog)
-	if err != nil {
-		panic(err)
-	}
-	defer id.Close()
+	IdDb = idlog.NewInstance(cfg.Files.IDlog)
+	defer IdDb.Close()
 	// Open the chunk DB
 	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
-	chunkDB := OpenChunk(cfg.Files.ChunkDB)
-	chunkDB.SetExpire(cfg.Remailer.ChunkExpire)
+	ChunkDb = OpenChunk(cfg.Files.ChunkDB)
+	ChunkDb.SetExpire(cfg.Remailer.ChunkExpire)
 
 	// Expire old entries in the ID Log
-	idLogExpire(id)
+	idLogExpire()
 	// Clean the chunk DB
-	chunkClean(*chunkDB)
+	chunkClean()
 	// Complain about poor configs
 	nagOperator()
 	// Run a key purge
@@ -95,9 +92,9 @@ func loopServer() (err error) {
 		assertIsPath(cfg.Files.Pooldir)
 		if flag_daemon && time.Now().Before(poolProcessTime) {
 			// Process the inbound Pool
-			processInpool("i", public, secret, id, *chunkDB)
+			processInpool("i", secret)
 			// Process the Maildir
-			processMail(public, secret, id, *chunkDB)
+			processMail(secret)
 			// Don't do anything beyond this point until
 			// poolProcessTime
 			time.Sleep(60 * time.Second)
@@ -108,8 +105,8 @@ func loopServer() (err error) {
 				sources first. Otherwise, the loop will
 				terminate before they're ever read.
 			*/
-			processInpool("i", public, secret, id, *chunkDB)
-			processMail(public, secret, id, *chunkDB)
+			processInpool("i", secret)
+			processMail(secret)
 		}
 
 		// Midnight events
@@ -121,9 +118,9 @@ func loopServer() (err error) {
 				generateKeypair(secret)
 			}
 			// Expire entries in the ID Log
-			idLogExpire(id)
+			idLogExpire()
 			// Expire entries in the chunker
-			chunkClean(*chunkDB)
+			chunkClean()
 			// Report daily throughput and reset to zeros
 			stats.report()
 			stats.reset()
@@ -161,12 +158,12 @@ func loopServer() (err error) {
 				)
 			}
 			// Test to see if the pubring.mix file has been updated
-			if public.KeyRefresh() {
+			if Pubring.KeyRefresh() {
 				Trace.Printf(
 					"Reimporting Public Keyring: %s",
 					cfg.Files.Pubring,
 				)
-				public.ImportPubring()
+				Pubring.ImportPubring()
 			}
 			// Report throughput
 			stats.report()
@@ -223,14 +220,14 @@ func generateKeypair(secret *keymgr.Secring) {
 }
 
 // idLogExpire deletes old entries in the ID Log
-func idLogExpire(id idlog.IDLog) {
-	count, deleted := id.Expire()
+func idLogExpire() {
+	count, deleted := IdDb.Expire()
 	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)
 }
 
 // chunkClean expires entries from the chunk DB and deletes any stranded files
-func chunkClean(chunkDB Chunk) {
-	cret, cexp := chunkDB.Expire()
+func chunkClean() {
+	cret, cexp := ChunkDb.Expire()
 	if cexp > 0 {
 		Info.Printf(
 			"Chunk expiry complete. Retained=%d, Expired=%d\n",
@@ -238,7 +235,7 @@ func chunkClean(chunkDB Chunk) {
 			cexp,
 		)
 	}
-	fret, fdel := chunkDB.Housekeep()
+	fret, fdel := ChunkDb.Housekeep()
 	if fdel > 0 {
 		Info.Printf(
 			"Stranded chunk deletion: Retained=%d, Deleted=%d",
@@ -337,12 +334,7 @@ func createDirs() {
 
 // decodeMsg is the actual YAMN message decoder.  It's output is always a
 // pooled file, either in the Inbound or Outbound queue.
-func decodeMsg(
-	rawMsg []byte,
-	public *keymgr.Pubring,
-	secret *keymgr.Secring,
-	id idlog.IDLog,
-	chunkDB Chunk) (err error) {
+func decodeMsg(rawMsg []byte, secret *keymgr.Secring) (err error) {
 
 	// At this point, rawMsg should always be messageBytes in length
 	err = lenCheck(len(rawMsg), messageBytes)
@@ -362,15 +354,30 @@ func decodeMsg(
 	}
 	header.setRecipientSK(recipientSK)
 
-	slotDataBytes, err := header.decode()
+	slotDataBytes, packetVersion, err := header.decode()
 	if err != nil {
 		Warn.Printf("Header decode failed: %s", err)
 		return
 	}
+	switch packetVersion {
+	case 2:
+		err = decodeV2(d, slotDataBytes)
+		return
+	default:
+		err = fmt.Errorf(
+			"Cannot decode packet version %d",
+			packetVersion,
+		)
+		return
+	}
+	return
+}
+
+func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 	// Convert the raw Slot Data Bytes to meaningful slotData.
 	slotData := decodeSlotData(slotDataBytes)
 	// Test uniqueness of packet ID
-	if !id.Unique(slotData.getPacketID(), cfg.Remailer.IDexp) {
+	if !IdDb.Unique(slotData.getPacketID(), cfg.Remailer.IDexp) {
 		err = errors.New("Packet ID collision")
 		return
 	}
@@ -412,7 +419,7 @@ func decodeMsg(
 			stats.outYamn++
 			// Decide if we want to inject a dummy
 			if !flag_nodummy && randomInt(100) < 21 {
-				dummy(public)
+				dummy()
 				stats.outDummy++
 			}
 		} // End of local or remote delivery
@@ -437,7 +444,7 @@ func decodeMsg(
 				if final.numChunks == 1 {
 					// Need to randhop as we're not an exit
 					// remailer
-					randhop(plain, public)
+					randhop(plain)
 				} else {
 					Warn.Println(
 						"Randhopping doesn't support " +
@@ -448,7 +455,7 @@ func decodeMsg(
 				}
 				return
 			}
-			smtpMethod(plain, final, chunkDB)
+			smtpMethod(plain, final)
 
 		case 255:
 			Trace.Println("Discarding dummy message")
@@ -471,7 +478,7 @@ func decodeMsg(
 	return
 }
 
-func smtpMethod(plain []byte, final *slotFinal, chunkDB Chunk) {
+func smtpMethod(plain []byte, final *slotFinal) {
 	var err error
 	if final.getNumChunks() == 1 {
 		// If this is a single chunk message, pool it and get out.
@@ -490,7 +497,7 @@ func smtpMethod(plain []byte, final *slotFinal, chunkDB Chunk) {
 		chunkFilename,
 	)
 	// Fetch the chunks info from the DB for the given message ID
-	chunks := chunkDB.Get(final.getMessageID(), final.getNumChunks())
+	chunks := ChunkDb.Get(final.getMessageID(), final.getNumChunks())
 	// This saves losts of -1's as slices start at 0 and chunks at 1
 	cslot := final.getChunkNum() - 1
 	// Test that the slot for this chunk is empty
@@ -514,7 +521,7 @@ func smtpMethod(plain []byte, final *slotFinal, chunkDB Chunk) {
 			"Assembling chunked message into %s",
 			newPoolFile,
 		)
-		err = chunkDB.Assemble(newPoolFile, chunks)
+		err = ChunkDb.Assemble(newPoolFile, chunks)
 		if err != nil {
 			Warn.Printf("Chunk assembly failed: %s", err)
 			// Don't return here or the bad chunk will remain in
@@ -522,17 +529,17 @@ func smtpMethod(plain []byte, final *slotFinal, chunkDB Chunk) {
 		}
 		// Now the message is assembled into the Pool, the DB record
 		// can be deleted
-		chunkDB.Delete(final.getMessageID())
+		ChunkDb.Delete(final.getMessageID())
 		stats.outPlain++
 	} else {
 		// Write the updated chunk status to
 		// the DB
-		chunkDB.Insert(final.getMessageID(), chunks)
+		ChunkDb.Insert(final.getMessageID(), chunks)
 	}
 }
 
 // randhop is a simplified client function that does single-hop encodings
-func randhop(plainMsg []byte, public *keymgr.Pubring) {
+func randhop(plainMsg []byte) {
 	var err error
 	if len(plainMsg) == 0 {
 		Info.Println("Zero-byte message during randhop, ignoring it.")
@@ -540,13 +547,9 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 	}
 	// Make a single hop chain with a random node
 	in_chain := []string{"*"}
-	final := new(slotFinal)
-	final.deliveryMethod = 0
-	final.messageID = randbytes(16)
-	final.chunkNum = uint8(1)
-	final.numChunks = uint8(1)
+	final := newSlotFinal()
 	var chain []string
-	chain, err = makeChain(in_chain, public)
+	chain, err = makeChain(in_chain)
 	sendTo := chain[0]
 	if err != nil {
 		Warn.Println(err)
@@ -557,32 +560,30 @@ func randhop(plainMsg []byte, public *keymgr.Pubring) {
 		panic(err)
 	}
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
-	yamnMsg := encodeMsg(plainMsg, chain, *final, public)
+	yamnMsg := encodeMsg(plainMsg, chain, *final)
 	poolWrite(armor(yamnMsg, sendTo), "m")
 	stats.outRandhop++
 	return
 }
 
 // dummy is a simplified client function that sends dummy messages
-func dummy(public *keymgr.Pubring) {
+func dummy() {
 	var err error
 	plainMsg := []byte("I hope Len approves")
 	// Make a single hop chain with a random node
 	in_chain := []string{"*", "*"}
-	final := new(slotFinal)
-	final.deliveryMethod = 255
-	final.messageID = randbytes(16)
-	final.chunkNum = uint8(1)
-	final.numChunks = uint8(1)
+	final := newSlotFinal()
+	// Override the default delivery method (255 = Dummy)
+	final.setDeliveryMethod(255)
 	var chain []string
-	chain, err = makeChain(in_chain, public)
+	chain, err = makeChain(in_chain)
 	sendTo := chain[0]
 	if err != nil {
 		Warn.Printf("Dummy creation failed: %s", err)
 		return
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
-	yamnMsg := encodeMsg(plainMsg, chain, *final, public)
+	yamnMsg := encodeMsg(plainMsg, chain, *final)
 	poolWrite(armor(yamnMsg, sendTo), "m")
 	return
 }

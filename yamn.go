@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/crooks/yamn/idlog"
+	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
 	"io"
 	"io/ioutil"
@@ -13,28 +15,23 @@ import (
 )
 
 const (
-	version         string = "0.2a"
-	dayLength       int    = 24 * 60 * 60 // Day in seconds
-	maxFragLength          = 10230
-	maxChainLength         = 10
-	maxCopies              = 5
-	base64LineWrap         = 72
-	rfc5322date            = "Mon, 2 Jan 2006 15:04:05 -0700"
-	shortdate              = "2 Jan 2006"
-	headerBytes            = 256 // An entire header slot
-	encHeadBytes           = 160 // The encrypted component of a header
-	encDataBytes           = 64  // Exit / Intermediate header component
-	headersBytes           = headerBytes * maxChainLength
-	encHeadersBytes        = headersBytes - headerBytes
-	bodyBytes              = 17920
-	messageBytes           = headersBytes + bodyBytes
+	version        string = "0.2a"
+	dayLength      int    = 24 * 60 * 60 // Day in seconds
+	maxFragLength         = 10230
+	maxCopies             = 5
+	base64LineWrap        = 72
+	rfc5322date           = "Mon, 2 Jan 2006 15:04:05 -0700"
+	shortdate             = "2 Jan 2006"
 )
 
 var (
-	Trace *log.Logger
-	Info  *log.Logger
-	Warn  *log.Logger
-	Error *log.Logger
+	Trace   *log.Logger
+	Info    *log.Logger
+	Warn    *log.Logger
+	Error   *log.Logger
+	Pubring *keymgr.Pubring
+	IdDb    *idlog.IDLog
+	ChunkDb *Chunk
 )
 
 func logInit(
