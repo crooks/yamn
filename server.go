@@ -38,7 +38,8 @@ func loopServer() (err error) {
 
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
-	IdDb = idlog.NewInstance(cfg.Files.IDlog)
+	// NewInstance takes the filename and entry validity in days
+	IdDb = idlog.NewIDLog(cfg.Files.IDlog, cfg.Remailer.IDexp)
 	defer IdDb.Close()
 	// Open the chunk DB
 	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
@@ -377,7 +378,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 	// Convert the raw Slot Data Bytes to meaningful slotData.
 	slotData := decodeSlotData(slotDataBytes)
 	// Test uniqueness of packet ID
-	if !IdDb.Unique(slotData.getPacketID(), cfg.Remailer.IDexp) {
+	if !IdDb.Unique(slotData.getPacketID()) {
 		err = errors.New("Packet ID collision")
 		return
 	}
