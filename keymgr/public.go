@@ -37,21 +37,19 @@ type Pubring struct {
 	pub            map[string]Remailer
 	xref           map[string]string // A cross-reference of shortnames to addresses
 	Stats          bool              // Have current reliability stats been imported?
-	useExpired     bool              // Consider expired keys as candidates (Echolot wants this)
 	advertised     string            // The keyid a local server is currently advertising
 	keysImported   time.Time         // Timestamp on most recently read pubring.mix file
 	statsImported  time.Time         // Timestamp on most recently read mlist2.txt file
 	statsGenerated time.Time         // Generated timestamp on mlist2.txt file
 }
 
-func NewPubring(pubfile, statfile string, useExpired bool) *Pubring {
+func NewPubring(pubfile, statfile string) *Pubring {
 	return &Pubring{
 		pubringFile: pubfile,
 		statsFile:   statfile,
 		pub:         make(map[string]Remailer),
 		xref:        make(map[string]string),
 		Stats:       false,
-		useExpired:  useExpired,
 	}
 }
 
@@ -323,10 +321,7 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 				continue
 			}
-			// Echolot likes to ping expired keys.  The useExpired
-			// option dictates if expired keys should be included
-			// as condidates.
-			if !p.useExpired && now.After(until) {
+			if now.After(until) {
 				fmt.Fprintf(
 					os.Stderr,
 					"Key expired: Name=%s, Key=%s, Date=%s\n",

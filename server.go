@@ -22,7 +22,6 @@ func loopServer() (err error) {
 	Pubring = keymgr.NewPubring(
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
-		cfg.Stats.UseExpired,
 	)
 	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
 	Pubring.ImportPubring()

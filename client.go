@@ -90,7 +90,6 @@ func mixprep() {
 	Pubring = keymgr.NewPubring(
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
-		cfg.Stats.UseExpired,
 	)
 	err = Pubring.ImportPubring()
 	if err != nil {
@@ -162,10 +161,7 @@ func mixprep() {
 			// Retain the entry hop.  We need to mail the message to it.
 			sendTo := chain[0]
 			// Report the chain if we're running as a client.
-			// UseExpired is an Echolot workaround to allow pinging
-			// of expired keys.  It's used here to prevent stdout
-			// messages in the pingd.log.
-			if flag_client && !cfg.Stats.UseExpired {
+			if flag_client {
 				fmt.Printf("Chain: %s\n", strings.Join(chain, ","))
 			}
 			yamnMsg := encodeMsg(
@@ -282,7 +278,6 @@ func injectDummy() {
 	Pubring = keymgr.NewPubring(
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
-		cfg.Stats.UseExpired,
 	)
 	Pubring.ImportPubring()
 	dummy()

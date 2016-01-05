@@ -43,15 +43,14 @@ type Config struct {
 		CustomFrom   bool
 	}
 	Stats struct {
-		Minlat     int
-		Maxlat     int
-		Minrel     float32
-		Relfinal   float32
-		Chain      string
-		Numcopies  int
-		Distance   int
-		StaleHrs   int
-		UseExpired bool
+		Minlat    int
+		Maxlat    int
+		Minrel    float32
+		Relfinal  float32
+		Chain     string
+		Numcopies int
+		Distance  int
+		StaleHrs  int
 	}
 	Pool struct {
 		Size   int
@@ -187,7 +186,6 @@ func setDefaultConfig() {
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
-	cfg.Stats.UseExpired = false
 	cfg.Pool.Size = 45
 	cfg.Pool.Rate = 65
 	cfg.Pool.Loop = 300
@@ -296,11 +294,6 @@ func flags() {
 		fmt.Printf("Total header bytes: %d\n", headersBytes)
 		fmt.Printf("Payload bytes: %d\n", bodyBytes)
 		fmt.Printf("Message bytes: %d\n", messageBytes)
-		if cfg.Stats.UseExpired {
-			fmt.Println(
-				"\nWarning: Configured to use expired keys.",
-			)
-		}
 		os.Exit(0)
 	}
 }
