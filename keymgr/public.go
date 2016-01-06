@@ -36,7 +36,7 @@ type Pubring struct {
 	statsFile      string // mlist type file
 	pub            map[string]Remailer
 	xref           map[string]string // A cross-reference of shortnames to addresses
-	Stats          bool              // Have current reliability stats been imported?
+	stats          bool              // Have current reliability stats been imported?
 	advertised     string            // The keyid a local server is currently advertising
 	keysImported   time.Time         // Timestamp on most recently read pubring.mix file
 	statsImported  time.Time         // Timestamp on most recently read mlist2.txt file
@@ -49,13 +49,17 @@ func NewPubring(pubfile, statfile string) *Pubring {
 		statsFile:   statfile,
 		pub:         make(map[string]Remailer),
 		xref:        make(map[string]string),
-		Stats:       false,
+		stats:       false,
 	}
 }
 
 // StatsStale returns true if stats are over h hours old
 func (p *Pubring) StatsStale(h int) bool {
-	return p.Stats && int((time.Since(p.statsGenerated).Hours())) > h
+	return p.stats && int((time.Since(p.statsGenerated).Hours())) > h
+}
+
+func (p *Pubring) HaveStats() bool {
+	return p.stats
 }
 
 // KeyRefresh returns True if the Pubring file has been modified
@@ -68,12 +72,11 @@ func (p *Pubring) KeyRefresh() bool {
 }
 
 // StatRefresh returns True if the mlist2.txt file has been modified
-func (p *Pubring) StatRefresh() (refresh bool, err error) {
+func (p *Pubring) StatRefresh() (refresh bool) {
 	stat, err := os.Stat(p.statsFile)
 	if err != nil {
 		// Cannot read the stats file
-		err = fmt.Errorf("%s: File not found", p.statsFile)
-		return
+		panic(err)
 	}
 	refresh = stat.ModTime().After(p.statsImported)
 	return
@@ -148,29 +151,28 @@ func (p Pubring) Get(ref string) (r Remailer, err error) {
 	return
 }
 
+// ImportStats reads an mlist2.txt style file into a Pubring struct
 func (p *Pubring) ImportStats() (err error) {
 	f, err := os.Open(p.statsFile)
 	if err != nil {
 		return
 	}
 	scanner := bufio.NewScanner(f)
-	var elements []string
-	var line string     //Each line in mlist2.txt
-	var rem_name string //Remailer name in stats
-	var rem_addy string //Remailer address from xref
-	var lat []string    //Latency hours:minutes
-	var lathrs int      //Latent Hours
-	var latmin int      //Latent Minutes
-	var exists bool     //Test for presence of remailer in xref
-	stat_phase := 0
+	var remName string //Remailer name in stats
+	var remAddr string //Remailer address from xref
+	var lat []string   //Latency hours:minutes
+	var lathrs int     //Latent Hours
+	var latmin int     //Latent Minutes
+	var exists bool    //Test for presence of remailer in xref
+	parsePhase := 0
 	/* Stat phases are:
 	0 Want Generated timestamp
 	1 Expecting long string of dashes
 	2 Expecting stats lines
 	*/
 	for scanner.Scan() {
-		line = scanner.Text()
-		switch stat_phase {
+		line := scanner.Text()
+		switch parsePhase {
 		case 0:
 			// Generated: Tue 07 Oct 2014 10:50:01 GMT
 			if strings.HasPrefix(line, "Generated: ") {
@@ -179,70 +181,89 @@ func (p *Pubring) ImportStats() (err error) {
 					err = fmt.Errorf("Failed to parse Generated date: %s", err)
 					return
 				}
-				stat_phase++
+				parsePhase++
 			}
 		case 1:
 			// Expecting dashes
 			if strings.HasPrefix(line, "----------") {
-				stat_phase++
+				parsePhase++
 			}
 		case 2:
 			// Expecting stats
+			// Splitting the line at the % sign takes out the risk
+			// of Options being interpreted as an unpredictable
+			// number of fields.
 			line = strings.Split(line, "%")[0]
-			elements = strings.Fields(line)
-			if len(elements) == 5 {
-				rem_name = elements[0]
-				_, exists = p.xref[rem_name]
-				if exists {
-					rem_addy = p.xref[rem_name]
-					// Element 2 is Latency in the format (hrs:mins)
-					lat = strings.Split(elements[2], ":")
-					if lat[0] == "" {
-						lathrs = 0
-					} else {
-						lathrs, err = strconv.Atoi(lat[0])
-						if err != nil {
-							fmt.Fprintf(os.Stderr, "%s: Invalid latent hours\n", rem_name)
-							continue
-						}
-						if lathrs < 0 || lathrs > 99 {
-							fmt.Fprintf(os.Stderr, "%s: Latent hours out of range\n", rem_name)
-							continue
-						}
-					}
-					latmin, err = strconv.Atoi(lat[1])
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%s: Invalid latent minutes\n", rem_name)
-						continue
-					}
-					if latmin < 0 || latmin > 59 {
-						fmt.Fprintf(os.Stderr, "%s: Latent minutes out of range\n", rem_name)
-						continue
-					}
-					// Element 4 is Uptime in format (xxx.xx)
-					uptmp, err := strconv.ParseFloat(elements[4], 32)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%s: Invalid uptime\n", rem_name)
-						continue
-					}
-					if uptmp < 0 || uptmp > 100 {
-						fmt.Fprintf(os.Stderr, "%s: Uptime out of range\n", rem_name)
-						continue
-					}
-					tmp := p.pub[rem_addy]
-					tmp.latent = (lathrs * 60) + latmin
-					tmp.uptime = int(uptmp * 10)
-					p.pub[rem_addy] = tmp
-				} else {
-					fmt.Fprintf(os.Stderr, "%s: Stats for unknown remailer\n", rem_name)
-				}
-			} else {
-				stat_phase++
+			elements := strings.Fields(line)
+			if len(elements) == 0 {
+				// An empty line implies we've read all stats entries
+				parsePhase++
+				continue
+			} else if len(elements) != 5 {
+				fmt.Fprintf(
+					os.Stderr,
+					"Invalid stats line.  Expected 7 elements, got %d\n",
+					len(elements),
+				)
+				continue
 			}
+			remName = elements[0]
+			remAddr, exists = p.xref[remName]
+			if !exists {
+				fmt.Fprintf(os.Stderr, "%s: Stats for unknown remailer\n", remName)
+				continue
+			}
+			// Element 2 is Latency in the format (hrs:mins)
+			lat = strings.Split(elements[2], ":")
+			if lat[0] == "" {
+				lathrs = 0
+			} else {
+				lathrs, err = strconv.Atoi(lat[0])
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%s: Invalid latent hours\n", remName)
+					continue
+				}
+				if lathrs < 0 || lathrs > 99 {
+					fmt.Fprintf(os.Stderr, "%s: Latent hours out of range\n", remName)
+					continue
+				}
+			}
+			latmin, err = strconv.Atoi(lat[1])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: Invalid latent minutes\n", remName)
+				continue
+			}
+			if latmin < 0 || latmin > 59 {
+				fmt.Fprintf(os.Stderr, "%s: Latent minutes out of range\n", remName)
+				continue
+			}
+			// Element 4 is Uptime in format (xxx.xx)
+			uptmp, err := strconv.ParseFloat(elements[4], 32)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: Invalid uptime\n", remName)
+				continue
+			}
+			if uptmp < 0 || uptmp > 100 {
+				fmt.Fprintf(os.Stderr, "%s: Uptime out of range\n", remName)
+				continue
+			}
+			tmp := p.pub[remAddr]
+			tmp.latent = (lathrs * 60) + latmin
+			tmp.uptime = int(uptmp * 10)
+			p.pub[remAddr] = tmp
 		case 3:
 			// Reserved for future mlist2.txt processing
 			break
 		}
+	}
+	// Test that all stats phases have been achieved.
+	if parsePhase < 3 {
+		err = fmt.Errorf(
+			"Unexpected EOF reading %s during phase %d",
+			p.statsFile,
+			parsePhase,
+		)
+		return
 	}
 	// Update last-imported timestamp for stats
 	stat, err := os.Stat(p.statsFile)
@@ -250,7 +271,7 @@ func (p *Pubring) ImportStats() (err error) {
 		panic(err)
 	}
 	p.statsImported = stat.ModTime()
-	p.Stats = true
+	p.stats = true
 	return
 }
 
@@ -341,6 +362,8 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 				continue
 			}
+			rem.from = from
+			rem.until = until
 			rem.version = elements[3]
 			rem.caps = elements[4]
 			rem.Address = elements[1]

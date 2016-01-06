@@ -174,7 +174,7 @@ func mixprep() {
 	} // End of fragments loop
 
 	// Decide if we want to inject a dummy
-	if !flag_nodummy && Pubring.Stats && randomInt(7) < 3 {
+	if !flag_nodummy && Pubring.HaveStats() && randomInt(7) < 3 {
 		dummy()
 	}
 }

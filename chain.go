@@ -26,25 +26,29 @@ func makeChain(inChain []string) (outChain []string, err error) {
 	// If the chain contains a random remailer, we're going to need stats
 	if IsMemberStr("*", inChain) {
 		// Check modification timestamp on stats file
-		var statRefresh bool
-		statRefresh, err = Pubring.StatRefresh()
-		if err != nil {
-			Info.Println(err)
-			err = errors.New("Cannot use random remailers without stats")
+		if !Pubring.HaveStats() {
+			err = errors.New(
+				"Cannot use random remailers without stats",
+			)
+			Warn.Println(err)
 			return
 		}
-		if statRefresh {
-			err = Pubring.ImportStats()
-			if err != nil {
-				Warn.Printf("Unable to read stats: %s", err)
-				return
-			}
+	}
+	// Test if stats file has been modified since last imported
+	if Pubring.StatRefresh() {
+		// Try and import the modified stats file
+		err = Pubring.ImportStats()
+		if err != nil {
+			Warn.Printf("Unable to read stats: %s", err)
+			return
 		}
-		// Check generated timestamp from stats file
-		if Pubring.StatsStale(cfg.Stats.StaleHrs) {
-			Warn.Println("Stale stats.  Generated age exceeds configured",
-				fmt.Sprintf("threshold of %d hours", cfg.Stats.StaleHrs))
-		}
+	}
+	// Check generated timestamp from stats file
+	if Pubring.StatsStale(cfg.Stats.StaleHrs) {
+		Warn.Printf("Stale stats.  Generated age exceeds configured"+
+			"threshold of %d hours",
+			cfg.Stats.StaleHrs,
+		)
 	}
 	dist := cfg.Stats.Distance
 	if dist > maxChainLength {
