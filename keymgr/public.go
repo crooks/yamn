@@ -5,12 +5,11 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/dchest/blake2s"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	//"crypto/rand"
-	//"github.com/codahale/blake2"
 )
 
 const (
@@ -136,14 +135,22 @@ func (p Pubring) Get(ref string) (r Remailer, err error) {
 	if strings.Contains(ref, "@") {
 		r, exists = p.pub[ref]
 		if !exists {
-			err = fmt.Errorf("%s: Remailer address not found in public keyring", ref)
+			err = fmt.Errorf(
+				"%s: Remailer address not found in public "+
+					"keyring",
+				ref,
+			)
 			return
 		}
 	} else {
 		var addy string
 		addy, exists = p.xref[ref]
 		if !exists {
-			err = fmt.Errorf("%s: Remailer name not found in public keyring", ref)
+			err = fmt.Errorf(
+				"%s: Remailer name not found in public "+
+					"keyring",
+				ref,
+			)
 			return
 		}
 		r = p.pub[addy]
@@ -421,4 +428,14 @@ func (p *Pubring) ImportPubring() (err error) {
 	}
 	p.keysImported = stat.ModTime()
 	return
+}
+
+// makeKeyID generates a 16 Byte KeyID based on the hash of a Public Key
+func makeKeyID(pub []byte) []byte {
+	digest, err := blake2s.New(&blake2s.Config{Size: 16})
+	if err != nil {
+		panic(err)
+	}
+	digest.Write(pub)
+	return digest.Sum(nil)
 }

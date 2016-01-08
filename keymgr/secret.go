@@ -2,13 +2,11 @@ package keymgr
 
 import (
 	"bufio"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
 	"time"
-	//"github.com/codahale/blake2"
 )
 
 type secret struct {
@@ -127,8 +125,6 @@ func (s *Secring) Insert(pub, sec []byte) (keyidstr string) {
 		panic(err)
 	}
 	key := new(secret)
-	digest := sha256.New()
-	digest.Write(pub)
 	/*
 		Keyids are arbitrary, they only server to link public and
 		secret keys in a manner that enables clients to know which
@@ -137,7 +133,7 @@ func (s *Secring) Insert(pub, sec []byte) (keyidstr string) {
 		key provides the means for some, perhaps, useful validation
 		that the client-held public key is not corrupt.
 	*/
-	key.keyid = digest.Sum(nil)[:16]
+	key.keyid = makeKeyID(pub)
 	keyidstr = hex.EncodeToString(key.keyid)
 	// Validity dates
 	key.from = time.Now()
