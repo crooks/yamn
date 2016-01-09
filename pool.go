@@ -94,15 +94,18 @@ func processMail(secret *keymgr.Secring) (err error) {
 	if err != nil {
 		return
 	}
-	if len(keys) > 0 {
-		Trace.Printf(
-			"Reading %d messages from %s\n",
-			len(keys),
-			cfg.Files.Maildir,
-		)
-		// Increment inbound Email counter
-		stats.inMail += len(keys)
+	newMsgs := len(keys)
+	if newMsgs == 0 {
+		// Nothing to do, move along!
+		return
 	}
+	Trace.Printf(
+		"Reading %d messages from %s\n",
+		newMsgs,
+		cfg.Files.Maildir,
+	)
+	// Increment inbound Email counter
+	stats.inMail += newMsgs
 	// Fetch headers for each Maildir key
 	var head mail.Header
 	for _, key := range keys {
@@ -122,29 +125,34 @@ func processMail(secret *keymgr.Secring) (err error) {
 			} else {
 				Info.Println(err)
 			}
-		} else {
-			// It's not a remailer-foo request so assume a remailer message
-			var mailMsg *mail.Message
-			mailMsg, err := dir.Message(key)
-			if err != nil {
-				Warn.Printf("%s: Reading message failed with: %s", key, err)
-				continue
-			}
-			var msg []byte
-			// Convert the armored Yamn message to its byte components
-			msg, err = stripArmor(mailMsg.Body)
-			if err != nil {
-				Info.Println(err)
-			}
-			if msg == nil {
-				Warn.Println("Dearmor returned zero bytes")
-				continue
-			}
-			err = decodeMsg(msg, secret)
-			if err != nil {
-				Info.Println(err)
-			}
-		} // End of remailer-foo or remailer message
+			// Nothing else to do, move on to the next message
+			continue
+		}
+		// It's not a remailer-foo request so assume a remailer message
+		var mailMsg *mail.Message
+		mailMsg, err := dir.Message(key)
+		if err != nil {
+			Warn.Printf(
+				"%s: Reading message failed with: %s",
+				key,
+				err,
+			)
+			continue
+		}
+		var msg []byte
+		// Convert the armored Yamn message to its byte components
+		msg, err = stripArmor(mailMsg.Body)
+		if err != nil {
+			Info.Println(err)
+		}
+		if msg == nil {
+			Warn.Println("Dearmor returned zero bytes")
+			continue
+		}
+		err = decodeMsg(msg, secret)
+		if err != nil {
+			Info.Println(err)
+		}
 		err = dir.Purge(key)
 		if err != nil {
 			Warn.Printf("Cannot delete mail: %s", err)
