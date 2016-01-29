@@ -1,10 +1,10 @@
 package main
 
 import (
-	"code.google.com/p/gcfg"
 	"flag"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
+	"gopkg.in/gcfg.v1"
 	"os"
 	"path"
 )
