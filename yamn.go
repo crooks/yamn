@@ -17,7 +17,7 @@ import (
 const (
 	version        string = "0.2a"
 	dayLength      int    = 24 * 60 * 60 // Day in seconds
-	maxFragLength         = 10230
+	maxFragLength         = 17910
 	maxCopies             = 5
 	base64LineWrap        = 72
 	rfc5322date           = "Mon, 2 Jan 2006 15:04:05 -0700"
