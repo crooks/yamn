@@ -23,6 +23,10 @@ func loopServer() (err error) {
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
 	)
+	// Fetch keyring and stats URLs
+	timedURLFetch(cfg.Urls.Pubring, cfg.Files.Pubring)
+	timedURLFetch(cfg.Urls.Mlist2, cfg.Files.Mlist2)
+	// Initialize the Secret Keyring
 	secret := keymgr.NewSecring(cfg.Files.Secring, cfg.Files.Pubkey)
 	Pubring.ImportPubring()
 	secret.ImportSecring()
