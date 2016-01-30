@@ -88,7 +88,7 @@ func (h *encodeHeader) encode(encHead []byte) []byte {
 		panic(err)
 	}
 
-	// Every header has a randomly generate sender PK & SK
+	// Every header has a randomly generated sender PK & SK
 	senderPK, senderSK, err := box.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)

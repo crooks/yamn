@@ -201,7 +201,7 @@ func encodeMsg(
 
 	final.setBodyBytes(length)
 	slotData := newSlotData()
-	// Identify this hop as PAcket-Type 1 (Exit).
+	// Identify this hop as Packet-Type 1 (Exit).
 	slotData.setExit()
 	// For exit hops, the AES key can be entirely random.
 	slotData.setAesKey(randbytes(32))
@@ -223,6 +223,11 @@ func encodeMsg(
 	header := newEncodeHeader()
 	// Tell the header function what KeyID and PK to NaCl encrypt with.
 	header.setRecipient(remailer.Keyid, remailer.PK)
+	Trace.Printf(
+		"Encrypting Final Hop: Hop=%s, KeyID=%x",
+		hop,
+		remailer.Keyid,
+	)
 	// Only the body needs to be encrypted during Exit encoding.  At all other
 	// hops, the entire header stack will also need encrypting.
 	m.encryptBody(slotData.aesKey, final.aesIV)
@@ -250,6 +255,9 @@ func encodeMsg(
 		inter.setPartialIV(m.getPartialIV(interHop))
 		// hop still contains the previous iteration (or exit) address.
 		inter.setNextHop(hop)
+		// Pop another remailer from the left side of the Chain
+		hop = popstr(&chain)
+		// Create new Slot Data
 		slotData = newSlotData()
 		slotData.setAesKey(m.getKey(interHop))
 		slotData.setPacketInfo(inter.encode())
@@ -268,9 +276,12 @@ func encodeMsg(
 			os.Exit(1)
 		}
 		header.setRecipient(remailer.Keyid, remailer.PK)
+		Trace.Printf(
+			"Encrypting: Hop=%s, KeyID=%x",
+			hop,
+			remailer.Keyid,
+		)
 		m.insertHeader(header.encode(slotDataBytes))
-		// Pop another remailer from the left side of the Chain
-		hop = popstr(&chain)
 	}
 	if len(chain) != 0 {
 		panic("After encoding, chain was not empty.")
