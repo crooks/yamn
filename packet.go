@@ -496,11 +496,12 @@ func decodeFinal(b []byte) *slotFinal {
 		panic(err)
 	}
 	return &slotFinal{
-		aesIV:     b[:16],
-		chunkNum:  b[16],
-		numChunks: b[17],
-		messageID: b[18:34],
-		bodyBytes: int(binary.LittleEndian.Uint32(b[34:38])),
+		aesIV:          b[:16],
+		chunkNum:       b[16],
+		numChunks:      b[17],
+		messageID:      b[18:34],
+		bodyBytes:      int(binary.LittleEndian.Uint32(b[34:38])),
+		deliveryMethod: b[38],
 	}
 }
 

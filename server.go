@@ -430,6 +430,11 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 	} else if slotData.getPacketType() == 1 {
 		// Decode Exit
 		final := decodeFinal(slotData.packetInfo)
+		if final.getDeliveryMethod() == 255 {
+			Trace.Println("Discarding dummy message")
+			stats.inDummy++
+			return
+		}
 		// Decrypt the payload body
 		// This could be done under Delivery Method 0 but, future
 		// delivery methods (other than dummies) will require a
@@ -439,7 +444,6 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			final.getAesIV(),
 			final.getBodyBytes(),
 		)
-		Trace.Printf("PlainLength=%d", final.getBodyBytes())
 		// Test delivery methods
 		switch final.getDeliveryMethod() {
 		case 0:
@@ -460,15 +464,10 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 				return
 			}
 			smtpMethod(plain, final)
-
-		case 255:
-			Trace.Println("Discarding dummy message")
-			stats.inDummy++
-			return
 		default:
 			Warn.Printf(
 				"Unsupported Delivery Method: %d",
-				final.getDeliveryMethod,
+				final.getDeliveryMethod(),
 			)
 			return
 		}
@@ -575,12 +574,17 @@ func dummy() {
 	var err error
 	plainMsg := []byte("I hope Len approves")
 	// Make a single hop chain with a random node
-	in_chain := []string{"*", "*"}
+	var inChain []string
+	if flag_chain == "" {
+		inChain = []string{"*", "*"}
+	} else {
+		inChain = strings.Split(flag_chain, ",")
+	}
 	final := newSlotFinal()
 	// Override the default delivery method (255 = Dummy)
 	final.setDeliveryMethod(255)
 	var chain []string
-	chain, err = makeChain(in_chain)
+	chain, err = makeChain(inChain)
 	sendTo := chain[0]
 	if err != nil {
 		Warn.Printf("Dummy creation failed: %s", err)
