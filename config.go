@@ -169,7 +169,7 @@ func setDefaultConfig() {
 	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
 	cfg.Mail.Sendmail = false
 	cfg.Mail.Outfile = false
-	cfg.Mail.SMTPRelay = "snorky.mixmin.net"
+	cfg.Mail.SMTPRelay = "fleegle.mixmin.net"
 	cfg.Mail.SMTPPort = 587
 	cfg.Mail.UseTLS = true
 	cfg.Mail.MXRelay = true
