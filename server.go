@@ -257,7 +257,7 @@ func nagOperator() {
 	}
 	// Complain about high pool rates.
 	if cfg.Pool.Rate > 90 && !flag_send {
-		Warn.Println(
+		Warn.Printf(
 			"Your pool rate of %d is excessively high. Unless "+
 				"testing, a lower setting is recommended.",
 			cfg.Pool.Rate,
@@ -550,11 +550,11 @@ func randhop(plainMsg []byte) {
 	final := newSlotFinal()
 	var chain []string
 	chain, err = makeChain(in_chain)
-	sendTo := chain[0]
 	if err != nil {
 		Warn.Println(err)
 		return
 	}
+	sendTo := chain[0]
 	if len(chain) != 1 {
 		err = fmt.Errorf("Randhop chain must be single hop.  Got=%d", len(chain))
 		panic(err)

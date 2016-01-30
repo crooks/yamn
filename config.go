@@ -43,14 +43,15 @@ type Config struct {
 		CustomFrom   bool
 	}
 	Stats struct {
-		Minlat    int
-		Maxlat    int
-		Minrel    float32
-		Relfinal  float32
-		Chain     string
-		Numcopies int
-		Distance  int
-		StaleHrs  int
+		Minlat     int
+		Maxlat     int
+		Minrel     float32
+		Relfinal   float32
+		Chain      string
+		Numcopies  int
+		Distance   int
+		StaleHrs   int
+		UseExpired bool
 	}
 	Pool struct {
 		Size   int
@@ -186,6 +187,7 @@ func setDefaultConfig() {
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
+	cfg.Stats.UseExpired = false
 	cfg.Pool.Size = 45
 	cfg.Pool.Rate = 65
 	cfg.Pool.Loop = 300
@@ -288,6 +290,9 @@ func flags() {
 		}
 		if os.Getenv("YAMNDIR") != "" {
 			fmt.Printf("YAMNDIR: %s\n", os.Getenv("YAMNDIR"))
+		}
+		if cfg.Stats.UseExpired {
+			fmt.Println("Configured to use Expired Keys")
 		}
 		fmt.Printf("\nMaximum chain length: %d\n", maxChainLength)
 		fmt.Printf("Per header bytes: %d\n", headerBytes)

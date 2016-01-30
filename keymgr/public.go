@@ -33,6 +33,7 @@ type Remailer struct {
 type Pubring struct {
 	pubringFile    string // Pubring filename
 	statsFile      string // mlist type file
+	useExpired     bool   // Consider exired keys (for Echolot)
 	pub            map[string]Remailer
 	xref           map[string]string // A cross-reference of shortnames to addresses
 	stats          bool              // Have current reliability stats been imported?
@@ -46,6 +47,7 @@ func NewPubring(pubfile, statfile string) *Pubring {
 	return &Pubring{
 		pubringFile: pubfile,
 		statsFile:   statfile,
+		useExpired:  false,
 		pub:         make(map[string]Remailer),
 		xref:        make(map[string]string),
 		stats:       false,
@@ -61,6 +63,10 @@ func (p *Pubring) HaveStats() bool {
 	return p.stats
 }
 
+func (p *Pubring) UseExpired() {
+	p.useExpired = true
+}
+
 // KeyRefresh returns True if the Pubring file has been modified
 func (p *Pubring) KeyRefresh() bool {
 	stat, err := os.Stat(p.pubringFile)
@@ -74,8 +80,8 @@ func (p *Pubring) KeyRefresh() bool {
 func (p *Pubring) StatRefresh() (refresh bool) {
 	stat, err := os.Stat(p.statsFile)
 	if err != nil {
-		// Cannot read the stats file
-		panic(err)
+		// If there's no stats file, it's not time to refresh it
+		return
 	}
 	refresh = stat.ModTime().After(p.statsImported)
 	return
@@ -349,7 +355,7 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 				continue
 			}
-			if now.After(until) {
+			if !p.useExpired && now.After(until) {
 				fmt.Fprintf(
 					os.Stderr,
 					"Key expired: Name=%s, Key=%s, Date=%s\n",

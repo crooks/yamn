@@ -91,6 +91,11 @@ func mixprep() {
 		cfg.Files.Pubring,
 		cfg.Files.Mlist2,
 	)
+	// Set the Use Expired flag to include remailers with expired keys as
+	// candidates.
+	if cfg.Stats.UseExpired {
+		Pubring.UseExpired()
+	}
 	err = Pubring.ImportPubring()
 	if err != nil {
 		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
