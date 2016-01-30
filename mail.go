@@ -152,6 +152,8 @@ func mailPoolFile(filename string) (delFlag bool, err error) {
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
 		Error.Printf("Failed to process mail file: %s", err)
+		// If we can't process it, it'll never get sent.  Mark for delete.
+		delFlag = true
 		return
 	}
 
