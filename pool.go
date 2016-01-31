@@ -144,6 +144,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 		msg, err = stripArmor(mailMsg.Body)
 		if err != nil {
 			Info.Println(err)
+			continue
 		}
 		if msg == nil {
 			Warn.Println("Dearmor returned zero bytes")
