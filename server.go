@@ -569,33 +569,6 @@ func randhop(plainMsg []byte) {
 	return
 }
 
-// dummy is a simplified client function that sends dummy messages
-func dummy() {
-	var err error
-	plainMsg := []byte("I hope Len approves")
-	// Make a single hop chain with a random node
-	var inChain []string
-	if flag_chain == "" {
-		inChain = []string{"*", "*"}
-	} else {
-		inChain = strings.Split(flag_chain, ",")
-	}
-	final := newSlotFinal()
-	// Override the default delivery method (255 = Dummy)
-	final.setDeliveryMethod(255)
-	var chain []string
-	chain, err = makeChain(inChain)
-	sendTo := chain[0]
-	if err != nil {
-		Warn.Printf("Dummy creation failed: %s", err)
-		return
-	}
-	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
-	yamnMsg := encodeMsg(plainMsg, chain, *final)
-	poolWrite(armor(yamnMsg, sendTo), "m")
-	return
-}
-
 // remailerFoo responds to requests for remailer-* info
 func remailerFoo(subject, sender string) (err error) {
 	m := quickmail.NewMessage()
