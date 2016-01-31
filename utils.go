@@ -25,8 +25,16 @@ import (
 // randbytes returns n Bytes of random data
 func randbytes(n int) (b []byte) {
 	b = make([]byte, n)
-	_, err := rand.Read(b)
+	read, err := rand.Read(b)
 	if err != nil {
+		panic(err)
+	}
+	if read != n {
+		err = fmt.Errorf(
+			"Insufficient entropy.  Wanted=%d, Got=%d",
+			n,
+			read,
+		)
 		panic(err)
 	}
 	return
@@ -321,8 +329,8 @@ func armor(yamnMsg []byte, sendto string) []byte {
 func stripArmor(reader io.Reader) (payload []byte, err error) {
 	scanner := bufio.NewScanner(reader)
 	scanPhase := 0
-	var b64 string
-	var payloadLen int
+	b64 := new(bytes.Buffer)
+	var statedLen int
 	var payloadDigest []byte
 	/* Scan phases are:
 	0	Expecting ::
@@ -348,7 +356,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 			}
 		case 2:
 			// Expecting size
-			payloadLen, err = strconv.Atoi(line)
+			statedLen, err = strconv.Atoi(line)
 			if err != nil {
 				err = fmt.Errorf(
 					"Unable to extract payload size from %s",
@@ -379,7 +387,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 				scanPhase = 5
 				break
 			}
-			b64 += line
+			b64.WriteString(line)
 		} // End of switch
 	} // End of file scan
 	switch scanPhase {
@@ -393,25 +401,28 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 		err = errors.New("No End cutmarks found on message")
 		return
 	}
-	payload, err = base64.StdEncoding.DecodeString(b64)
+	payload = make([]byte, base64.StdEncoding.DecodedLen(b64.Len()))
+	payloadLen, err := base64.StdEncoding.Decode(payload, b64.Bytes())
 	if err != nil {
 		return
 	}
+	// Tuncate payload to the number of decoded bytes
+	payload = payload[0:payloadLen]
 	// Validate payload length against stated length.
-	if len(payload) != payloadLen {
+	if statedLen != payloadLen {
 		err = fmt.Errorf(
-			"Payload size doesn't match stated size. Wanted=%d, Got=%d\n",
+			"Payload size doesn't match stated size. Stated=%d, Got=%d\n",
+			statedLen,
 			payloadLen,
-			len(payload),
 		)
 		return
 	}
 	// Validate payload length against packet format.
-	if len(payload) != messageBytes {
+	if payloadLen != messageBytes {
 		err = fmt.Errorf(
 			"Payload size doesn't match stated size. Wanted=%d, Got=%d\n",
+			messageBytes,
 			payloadLen,
-			len(payload),
 		)
 		return
 	}
