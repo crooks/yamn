@@ -54,10 +54,11 @@ type Config struct {
 		UseExpired bool
 	}
 	Pool struct {
-		Size   int
-		Rate   int
-		Loop   int
-		MaxAge int
+		Size    int
+		Rate    int
+		MinSend int
+		Loop    int
+		MaxAge  int
 	}
 	Remailer struct {
 		Name        string
@@ -188,8 +189,9 @@ func setDefaultConfig() {
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
 	cfg.Stats.UseExpired = false
-	cfg.Pool.Size = 45
+	cfg.Pool.Size = 5 // Good for startups, too small for established
 	cfg.Pool.Rate = 65
+	cfg.Pool.MinSend = 5 // Only used in Binomial Mix Pools
 	cfg.Pool.Loop = 300
 	cfg.Pool.MaxAge = 28
 	cfg.Remailer.Name = "anon"

@@ -22,21 +22,23 @@ func poolOutboundSend() {
 	if flag_send || flag_client {
 		// Read all the pool files
 		filenames, err = readDir(cfg.Files.Pooldir, "m")
+		if err != nil {
+			Warn.Printf("Reading pool failed: %s", err)
+			return
+		}
 	} else {
 		// Read dynamic mix of outbound files from the Pool
-		filenames, err = poolRead()
-	}
-	if err != nil {
-		Warn.Printf("Reading pool failed: %s", err)
-		return
+		// filenames = dynamicMix()
+		// Read binomialMix of outbound files ffrom the Pool
+		filenames = binomialMix()
 	}
 	for _, file := range filenames {
 		delFlag, err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
 		if err != nil {
 			Warn.Printf("Pool mailing failed: %s", err)
 			if delFlag {
-				// If delFlag is true, we delete the file, even though mailing
-				// failed.
+				// If delFlag is true, we delete the file, even
+				// though mailing failed.
 				poolDelete(file)
 			}
 		} else {
@@ -46,32 +48,79 @@ func poolOutboundSend() {
 	}
 }
 
-// poolRead returns a dynamic Mix of filenames from the outbound pool.
-func poolRead() (selectedPoolFiles []string, err error) {
+// dynamicMix returns a dynamic Mix of filenames from the outbound pool.
+func dynamicMix() []string {
+	var empty []string
+	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
+	if err != nil {
+		Warn.Printf("Unable to access pool: %s", err)
+		return empty
+	}
+	poolSize := len(poolFiles)
+	if poolSize < cfg.Pool.Size || poolSize == 0 {
+		// Pool isn't sufficiently populated
+		Trace.Println(
+			"Pool insufficiently populated to trigger sending."+
+				"Require=%d, Got=%d",
+			cfg.Pool.Size,
+			poolSize,
+		)
+		return empty
+	}
+	// Shuffle the slice of filenames now as we're going to return a
+	// setset of the overall pool.
+	shuffle(poolFiles)
+	// Normal pool processing condition
+	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
+	Trace.Printf("Processing %d pool messages.\n", poolSize)
+	return poolFiles[:numToSend]
+}
+
+// getBatchSize takes a Pool size and returns a corresponding batch size.  This
+// is intended for use with Binomial Mix Pools.
+func getBatchSize(poolSize int) int {
+	/*
+		poolSize         -  Number of files in the pool
+		cfg.Pool.Size    -  Minimum messages to keep in pool
+		cfg.Pool.MinSend -  Minimum number of messages to consider sending
+		cfg.Pool.Rate    -  Percentage of Pool in the batch
+	*/
+	if poolSize >= (cfg.Pool.Size + cfg.Pool.MinSend) {
+		sendable := poolSize - cfg.Pool.Size
+		rate := float32(cfg.Pool.Rate) / 100
+		maxSend := max(1, int(float32(poolSize)*rate))
+		return min(sendable, maxSend)
+	}
+	return 0
+}
+
+// binomialMix returns a batched subset of Pool files to send using a
+// Probability B/P method of selecting each file.
+func binomialMix() (batch []string) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
 		Warn.Printf("Unable to access pool: %s", err)
 		return
 	}
+	// Shuffle the slice of filenames now as we're only going to consider a
+	// subset in the following loop.
+	shuffle(poolFiles)
 	poolSize := len(poolFiles)
-	var numToSend int // Number of files to return for processing
-	if poolSize < cfg.Pool.Size {
-		// Pool isn't sufficiently populated
-		Trace.Println("Pool insufficiently populated to trigger sending.",
-			fmt.Sprintf("Require=%d, Got=%d", cfg.Pool.Size, poolSize))
-		return
-	} else {
-		// Normal pool processing condition
-		numToSend = int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
+	batchSize := getBatchSize(poolSize)
+	// Multiply probability by 255 as dice() returns 0-255.
+	prob := int((float32(batchSize) / float32(poolSize)) * 255)
+	// Test each pool filename against a biased coin-toss
+	for _, s := range poolFiles[:batchSize] {
+		if prob >= dice() {
+			batch = append(batch, s)
+		}
 	}
-	keys := randInts(len(poolFiles))
-	if poolSize > 0 {
-		Trace.Printf("Processing %d pool messages.\n", poolSize)
-	}
-	for n := 0; n < numToSend; n++ {
-		mykey := keys[n]
-		selectedPoolFiles = append(selectedPoolFiles, poolFiles[mykey])
-	}
+	Trace.Printf(
+		"Binomial Mix Pool: Size=%d, Batch=%d, Sending=%d",
+		poolSize,
+		batchSize,
+		len(batch),
+	)
 	return
 }
 

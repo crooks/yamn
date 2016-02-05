@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/rand"
+	urand "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -12,7 +12,7 @@ import (
 	"github.com/dchest/blake2s"
 	"io"
 	"io/ioutil"
-	"math/big"
+	"math/rand"
 	"net/http"
 	"os"
 	"path"
@@ -22,10 +22,29 @@ import (
 	//"github.com/codahale/blake2"
 )
 
+// The following section defines crypto/rand as a source for functions in
+// math/rand.  This means we can use many of the math/rand functions with
+// a cryptographically random source.
+type CryptoRandSource struct{}
+
+func NewCryptoRandSource() CryptoRandSource {
+	return CryptoRandSource{}
+}
+
+func (_ CryptoRandSource) Int63() int64 {
+	var b [8]byte
+	urand.Read(b[:])
+	return int64(binary.LittleEndian.Uint64(b[:]) & (1<<63 - 1))
+}
+
+func (_ CryptoRandSource) Seed(_ int64) {}
+
+// And so ends the random magic section
+
 // randbytes returns n Bytes of random data
 func randbytes(n int) (b []byte) {
 	b = make([]byte, n)
-	read, err := rand.Read(b)
+	read, err := urand.Read(b)
 	if err != nil {
 		panic(err)
 	}
@@ -40,35 +59,58 @@ func randbytes(n int) (b []byte) {
 	return
 }
 
-//xrandomint is a pointlessly complicated random int generator
-func xrandomInt(m int) (n int) {
-	var err error
-	bigInt, err := rand.Int(rand.Reader, big.NewInt(int64(m)))
-	if err != nil {
-		panic(err)
-	}
-	return int(bigInt.Int64())
+// dice returns a random integer of range 0-255
+func dice() int {
+	var b [1]byte
+	urand.Read(b[:])
+	return int(b[0])
 }
 
 // randomInt returns an integer between 0 and max
 func randomInt(max int) int {
-	var n uint16
-	binary.Read(rand.Reader, binary.LittleEndian, &n)
-	return int(n) % (max + 1)
+	r := rand.New(NewCryptoRandSource())
+	return r.Intn(max)
 }
 
 // randInts returns a randomly ordered slice of ints
 func randInts(n int) (m []int) {
+	r := rand.New(NewCryptoRandSource())
 	m = make([]int, n)
 	for i := 0; i < n; i++ {
-		j := randomInt(i)
+		j := r.Intn(i)
 		m[i] = m[j]
 		m[j] = i
 	}
 	return
 }
 
-// daysAgo takes a timestamp and returns it as an integer of its age in days.
+// min returns the lower of two integers
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+// max returns the higher of two integers
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+// shuffle performs an inline Fisher-Yates Shuffle of a string slice
+func shuffle(slice []string) {
+	r := rand.New(NewCryptoRandSource())
+	sliceLen := len(slice)
+	for i := range slice {
+		j := r.Intn(sliceLen)
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+}
+
+// daysAgo takes a timestamp and returns an integer of its age in days.
 func daysAgo(date time.Time) (days int) {
 	age := time.Since(date)
 	days = int(age.Hours() / 24)

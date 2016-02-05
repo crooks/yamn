@@ -422,7 +422,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			)
 			stats.outYamn++
 			// Decide if we want to inject a dummy
-			if !flag_nodummy && randomInt(100) < 21 {
+			if !flag_nodummy && dice() < 55 {
 				dummy()
 				stats.outDummy++
 			}
@@ -596,6 +596,10 @@ func remailerFoo(subject, sender string) (err error) {
 				cfg.Remailer.Name, cfg.Remailer.Address))
 		if !cfg.Remailer.Exit {
 			m.Text(" middle")
+		}
+		packetVersions := []string{"v2"}
+		for _, v := range packetVersions {
+			m.Text(fmt.Sprintf(" %s", v))
 		}
 		m.Text("\";\n")
 		m.Text("\nSUPPORTED MIXMASTER (TYPE II) REMAILERS")
