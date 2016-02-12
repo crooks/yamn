@@ -85,13 +85,13 @@ func getBatchSize(poolSize int) int {
 		cfg.Pool.MinSend -  Minimum number of messages to consider sending
 		cfg.Pool.Rate    -  Percentage of Pool in the batch
 	*/
-	if poolSize >= (cfg.Pool.Size + cfg.Pool.MinSend) {
-		sendable := poolSize - cfg.Pool.Size
-		rate := float32(cfg.Pool.Rate) / 100
-		maxSend := max(1, int(float32(poolSize)*rate))
-		return min(sendable, maxSend)
+	if poolSize < (cfg.Pool.Size + cfg.Pool.MinSend) {
+		return 0
 	}
-	return 0
+	sendable := poolSize - cfg.Pool.Size
+	rate := float32(cfg.Pool.Rate) / 100
+	maxSend := max(1, int(float32(poolSize)*rate))
+	return min(sendable, maxSend)
 }
 
 // binomialMix returns a batched subset of Pool files to send using a
@@ -102,11 +102,16 @@ func binomialMix() (batch []string) {
 		Warn.Printf("Unable to access pool: %s", err)
 		return
 	}
+	poolSize := len(poolFiles)
+	batchSize := getBatchSize(poolSize)
+	if batchSize == 0 {
+		Trace.Printf("Binomial Mix Pool: Size=%d", poolSize)
+		// If the batch is empty, don't bother to process it.
+		return
+	}
 	// Shuffle the slice of filenames now as we're only going to consider a
 	// subset in the following loop.
 	shuffle(poolFiles)
-	poolSize := len(poolFiles)
-	batchSize := getBatchSize(poolSize)
 	// Multiply probability by 255 as dice() returns 0-255.
 	prob := int((float32(batchSize) / float32(poolSize)) * 255)
 	// Test each pool filename against a biased coin-toss
@@ -116,9 +121,10 @@ func binomialMix() (batch []string) {
 		}
 	}
 	Trace.Printf(
-		"Binomial Mix Pool: Size=%d, Batch=%d, Sending=%d",
+		"Binomial Mix Pool: Size=%d, Batch=%d, Prob=%d/255, Sending=%d",
 		poolSize,
 		batchSize,
+		prob,
 		len(batch),
 	)
 	return

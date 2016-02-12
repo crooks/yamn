@@ -110,10 +110,16 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				os.Exit(1)
 			}
 			if len(candidates) == 0 {
-				errors.New("No remailers available to build random chain link")
+				errors.New(
+					"No remailers available to build " +
+						"random chain link",
+				)
 				return
+			} else if len(candidates) == 1 {
+				hop = candidates[0]
+			} else {
+				hop = candidates[randomInt(len(candidates))]
 			}
-			hop = candidates[randomInt(len(candidates)-1)]
 		} else {
 			var remailer keymgr.Remailer
 			remailer, err = Pubring.Get(hop)
