@@ -117,6 +117,11 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				return
 			} else if len(candidates) == 1 {
 				hop = candidates[0]
+				Warn.Printf(
+					"Only one remailer (%s) meets chain "+
+						"criteria",
+					hop,
+				)
 			} else {
 				hop = candidates[randomInt(len(candidates))]
 			}

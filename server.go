@@ -84,8 +84,11 @@ func loopServer() (err error) {
 
 	oneDay := time.Duration(dayLength) * time.Second
 
+	// Determine if this is a single run or the start of a Daemon
+	runAsDaemon := cfg.Remailer.Daemon || flag_daemon
+
 	// Actually start the server loop
-	if cfg.Remailer.Daemon || flag_daemon {
+	if runAsDaemon {
 		Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
 	} else {
 		Info.Printf("Performing routine remailer functions for: %s",
@@ -94,7 +97,7 @@ func loopServer() (err error) {
 	for {
 		// Panic if the pooldir doesn't exist
 		assertIsPath(cfg.Files.Pooldir)
-		if flag_daemon && time.Now().Before(poolProcessTime) {
+		if runAsDaemon && time.Now().Before(poolProcessTime) {
 			// Process the inbound Pool
 			processInpool("i", secret)
 			// Process the Maildir
@@ -103,7 +106,8 @@ func loopServer() (err error) {
 			// poolProcessTime
 			time.Sleep(60 * time.Second)
 			continue
-		} else if !flag_daemon {
+		}
+		if !runAsDaemon {
 			/*
 				When not running as a Daemon, always read
 				sources first. Otherwise, the loop will
@@ -180,7 +184,7 @@ func loopServer() (err error) {
 		// Reset the process time for the next pool read
 		poolProcessTime = time.Now().Add(poolProcessDelay)
 		// Break out of the loop if we're not running as a daemon
-		if !flag_daemon && !cfg.Remailer.Daemon {
+		if !runAsDaemon {
 			break
 		}
 	} // End of server loop
