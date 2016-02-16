@@ -58,7 +58,8 @@ type Config struct {
 		Rate    int
 		MinSend int
 		Loop    int
-		MaxAge  int
+		// Delete excessively old messages from the outbound pool
+		MaxAge int
 	}
 	Remailer struct {
 		Name        string
@@ -67,6 +68,7 @@ type Config struct {
 		MaxSize     int
 		IDexp       int
 		ChunkExpire int
+		MaxAge      int
 		Keylife     int
 		Keygrace    int
 		Loglevel    string
@@ -200,7 +202,9 @@ func setDefaultConfig() {
 	cfg.Remailer.MaxSize = 12
 	cfg.Remailer.IDexp = 14
 	cfg.Remailer.ChunkExpire = 60
-	cfg.Remailer.Keylife = 60
+	// Discard messages if packet timestamp exceeds this age in days
+	cfg.Remailer.MaxAge = 14
+	cfg.Remailer.Keylife = 14
 	cfg.Remailer.Keygrace = 28
 	cfg.Remailer.Loglevel = "info"
 	cfg.Remailer.Daemon = false

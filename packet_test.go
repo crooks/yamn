@@ -14,10 +14,9 @@ func errTest(err error) {
 
 func TestEpochTimestamp(t *testing.T) {
 	data := newSlotData()
-	data.setTimestamp()
 	age := data.ageTimestamp()
-	if age != 0 {
-		t.Fatalf("Epoch age should be zero. Got: %d", age)
+	if age < 0 || age > 3 {
+		t.Fatalf("Epoch age should be in the range 0-3. Got: %d", age)
 	}
 }
 

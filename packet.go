@@ -201,6 +201,12 @@ type slotData struct {
 }
 
 func newSlotData() *slotData {
+	// timestamp will contain the current days since Epoch
+	timestamp := make([]byte, 2)
+	ts := time.Now().UTC().Unix() / 86400
+	// Add some randomness to the timestamp by subtracting 0-3 days
+	ts -= int64(dice() % 4)
+	binary.LittleEndian.PutUint16(timestamp, uint16(ts))
 	return &slotData{
 		version:    2, // This packet format is v2
 		packetType: 0,
@@ -210,7 +216,7 @@ func newSlotData() *slotData {
 		packetID:      randbytes(16),
 		gotAesKey:     false,
 		aesKey:        make([]byte, 32),
-		timestamp:     make([]byte, 2),
+		timestamp:     timestamp,
 		gotPacketInfo: false,
 		gotTagHash:    false,
 		tagHash:       make([]byte, 32),
@@ -288,14 +294,15 @@ func (head *slotData) setTimestamp() {
 	return
 }
 
-func (head *slotData) ageTimestamp() uint16 {
+// ageTimestamp returns an integer of the timestamp's age in days.
+func (head *slotData) ageTimestamp() int {
 	err := lenCheck(len(head.timestamp), 2)
 	if err != nil {
 		panic(err)
 	}
-	now := uint16(time.Now().UTC().Unix() / 86400)
-	then := binary.LittleEndian.Uint16(head.timestamp)
-	return then - now
+	now := int(time.Now().UTC().Unix() / 86400)
+	then := int(binary.LittleEndian.Uint16(head.timestamp))
+	return now - then
 }
 
 func (head *slotData) encode() []byte {
@@ -320,7 +327,6 @@ func (head *slotData) encode() []byte {
 		)
 		panic(err)
 	}
-	head.setTimestamp()
 	buf := new(bytes.Buffer)
 	buf.WriteByte(head.version)
 	buf.WriteByte(head.packetType)

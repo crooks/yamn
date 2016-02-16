@@ -393,6 +393,18 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 		Warn.Println("Anti-tag digest mismatch")
 		return
 	}
+	if slotData.ageTimestamp() > cfg.Remailer.MaxAge {
+		Warn.Printf(
+			"Max packet age in days exceeded. Age=%d, Max=%d",
+			slotData.ageTimestamp(),
+			cfg.Remailer.MaxAge,
+		)
+		return
+	}
+	if slotData.ageTimestamp() < 0 {
+		Warn.Println("Packet timestamp is in the future. Rejecting")
+		return
+	}
 	if slotData.getPacketType() == 0 {
 		d.shiftHeaders()
 		// Decode Intermediate
