@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>YAMN Packet Specification</title>
+	<link rel="StyleSheet" href="master.css" type="text/css">
+	<link rel="StyleSheet" href="tables.css" type="text/css">
+</head>
+<body>
+	<h1>Yamn Packet Specification</h1>
+	<p>
+	Yamn (Yet Another Mix Network) is a very close relative to Mixmaster.
+	The keyrings, stats and payload format are similar enough that the
+	Echolot Pinger can be used with only minor modification to some Regular
+	Expressions.
+	</p>
+	<p>
+	The following table presents a simple overview of the principle
+	differences between Yamn and Mixmaster.
+	</p>
+	<table class="one">
+		<tr>
+			<th class="oneHed">Function</th>
+			<th class="oneHed">Mixmaster</th>
+			<th class="oneHed">Yamn</th>
+		</tr>
+		<tr>
+			<td class="oneBod">Public Key Encryption</td>
+			<td class="oneBod">RSA</td>
+			<td class="oneBod">NaCl Box</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Symmetric Encryption</td>
+			<td class="oneBod">DES3</td>
+			<td class="oneBod">AES256 (CTR Mode)</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Integrity Checking</td>
+			<td class="oneBod">MD5 (Partial only)</td>
+			<td class="oneBod">Blake2 (ed25519 with NaCl)</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Pooling Algorithm</td>
+			<td class="oneBod">Dynamic Mix</td>
+			<td class="oneBod">Binomial Mix</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Maximum Chain Length</td>
+			<td class="oneBod">20</td>
+			<td class="oneBod">10</td>
+		</tr>
+	</table>
+	<h2>Payload Format</h2>
+	<P>
+	The term payload describes the entire Yamn payload at it's highest
+	level.  The Headers content is described in greater detail in
+	subsequent sections.  During client-side message construction, all
+	headers (excluding the first one) and the Body are wrapped in multiple
+	layers of encryption.  These layers are stripped, one-by-one at each
+	hop until the plain content is exposed for delivery to the actual
+	recipient.
+	</p>
+	<table class="one">
+		<tr>
+			<th class="oneHed">Field Name</th>
+			<th class="oneHed">Bytes</th>
+			<th class="oneHed">Description</th>
+		</tr>
+		<tr>
+			<td class="oneBod">Headers</td>
+			<td class="oneBod">2560</td>
+			<td class="oneBod">10 x Headers (1 per hop)</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Body</td>
+			<td class="oneBod">17920</td>
+			<td class="oneBod">User defined content</td>
+		</tr>
+		<tr>
+			<th class="oneHed">Total</th>
+			<th class="oneHed">20480</th>
+			<th class="oneHed"></th>
+		</tr>
+	</table>
+	<h2>Header Format</h2>
+	<p>
+	Each of the 10 headers consists of 256 Bytes split into 4 fields.  The
+	first 3 fields contain instructions on how to decrypt the content of
+	the 4th field, the Sealed Header.
+	</p>
+	<table class="one">
+		<tr>
+			<th class="oneHed">Field Name</th>
+			<th class="oneHed">Bytes</th>
+			<th class="oneHed">Description</th>
+		</tr>
+		<tr>
+			<td class="oneBod">Recipient key ID</td>
+			<td class="oneBod">16</td>
+			<td class="oneBod">KeyID required to decrypt NaCl Sealed header</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Sender Public key</td>
+			<td class="oneBod">32</td>
+			<td class="oneBod">Public key corresponding to SK used in NaCl Seal</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Xsalsa20 Nonce</td>
+			<td class="oneBod">24</td>
+			<td class="oneBod">Nonce used during NaCl Seal</td>
+		</tr>
+		<tr>
+			<td class="oneBod">NaCl Sealed  header</td>
+			<td class="oneBod">176</td>
+			<td class="oneBod">160 Bytes + NaCl Overhead</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Random padding</td>
+			<td class="oneBod">8</td>
+			<td class="oneBod"></td>
+		</tr>
+		<tr>
+			<th class="oneHed">Total</th>
+			<th class="oneHed">256</th>
+			<th class="oneHed"></th>
+		</tr>
+	</table>
+	<p>
+	The client generates a NaCl key pair for each hop in the chain.  The SK
+	is used to encrypt the Sealed Header and is then discarded.  The PK is
+	transmitted within the header.  The KeyID informs the recipient
+	Remailer of what SK to use for decryption.
+	</p>
+	<h2>NaCl Sealed Header Format</h2>
+	<p>
+	The Sealed Header contains sensitive content, such as how to decrypt
+	other payload components and further delivery instructions.
+	</p>
+	<table class="one">
+		<tr>
+			<th class="oneHed">Field Name</th>
+			<th class="oneHed">Bytes</th>
+			<th class="oneHed">Description</th>
+		</tr>
+		<tr>
+			<td class="oneBod">Packet version</td>
+			<td class="oneBod">1</td>
+			<td class="oneBod">Support for multiple packet versions.</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Packet Type ID</td>
+			<td class="oneBod">1</td>
+			<td class="oneBod">Intermediate Hops=0, Exit Hop=1</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Delivery Protocol</td>
+			<td class="oneBod">1</td>
+			<td class="oneBod">SMTP=0 (Currently the only option)</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Packet ID</td>
+			<td class="oneBod">16</td>
+			<td class="oneBod">Unique packet identifier (prevents replay)</td>
+		</tr>
+		<tr>
+			<td class="oneBod">AES-CTR Key</td>
+			<td class="oneBod">32</td>
+			<td class="oneBod">AES Key required to decrypt subsequent headers and body</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Timestamp</td>
+			<td class="oneBod">2</td>
+			<td class="oneBod">Days since Epoch in Little-Endian
+				format.  A random 0-3 days are subtracted during
+				stamp creation.</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Packet Info</td>
+			<td class="oneBod">64</td>
+			<td class="oneBod">Packet-Type specific headers</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Anti-Tag Digest</td>
+			<td class="oneBod">32</td>
+			<td class="oneBod">Blake2 Digest of subsequent headers and body</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Padding</td>
+			<td class="oneBod">11</td>
+			<td class="oneBod">\x00 Bytes (encrypted)</td>
+		</tr>
+		<tr>
+			<th class="oneHed">Total</th>
+			<th class="oneHed">160</th>
+			<th class="oneHed"></th>
+		</tr>
+	</table>
+	<h2>Packet Info - Intermediate Hop</h2>
+	<p>
+	Sealed headers that are specific to Intermediate type hops.
+	</p>
+	<table class="one">
+		<tr>
+			<th class="oneHed">Field Name</th>
+			<th class="oneHed">Bytes</th>
+			<th class="oneHed">Description</th>
+		</tr>
+		<tr>
+			<td class="oneBod">Partial AES-CTR IV</td>
+			<td class="oneBod">12</td>
+			<td class="oneBod">Random 12 Bytes of 16 Byte IV</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Next Hop Address</td>
+			<td class="oneBod">52</td>
+			<td class="oneBod">Address of next hop</td>
+		</tr>
+		<tr>
+			<th class="oneHed">Total</th>
+			<th class="oneHed">64</th>
+			<th class="oneHed"></th>
+		</tr>
+	</table>
+	<p>
+	IV's are constructed from 12 random bytes and a 4 Byte counter in
+	Little-Endian format.  The top-most header uses sequence 0, the
+	bottom-most header uses sequence 8 and the Body, sequence 9.  The
+	format is: RRRRNNNNRRRRRRRR.
+	</p>
+	<h2>Packet Info - Exit Hop</h2>
+	<p>
+	Sealed headers that are specific to the Exit hops.  Each complete chain
+	can only contain a single Exit Hop.
+	</p>
+	<table class="one">
+		<tr>
+			<th class="oneHed">Field Name</th>
+			<th class="oneHed">Bytes</th>
+			<th class="oneHed">Description</th>
+		</tr>
+		<tr>
+			<td class="oneBod">AES-CTR IV</td>
+			<td class="oneBod">16</td>
+			<td class="oneBod">Used to decrypt Body</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Chunk num</td>
+			<td class="oneBod">1</td>
+			<td class="oneBod">Sequence number for chunked messages</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Total number of chunks</td>
+			<td class="oneBod">1</td>
+			<td class="oneBod">Number of chunks required for complete Body</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Message-ID</td>
+			<td class="oneBod">16</td>
+			<td class="oneBod">Common to all chunks of a message</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Body length</td>
+			<td class="oneBod">4</td>
+			<td class="oneBod">Total length of Body (less padding) in
+				Little-Endian format</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Delivery Method</td>
+			<td class="oneBod">1</td>
+			<td class="oneBod">Delivery Protocol. 0=SMTP, 255=Dummy</td>
+		</tr>
+		<tr>
+			<td class="oneBod">Padding</td>
+			<td class="oneBod">25</td>
+			<td class="oneBod">\x00 Bytes (encrypted)</td>
+		</tr>
+		<tr>
+			<th class="oneHed">Total</th>
+			<th class="oneHed">64</th>
+			<th class="oneHed"></th>
+		</tr>
+	</table>
+
+</body>
+</html>
