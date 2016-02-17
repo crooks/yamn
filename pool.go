@@ -180,6 +180,13 @@ func processMail(secret *keymgr.Secring) (err error) {
 			} else {
 				Info.Println(err)
 			}
+			err = dir.Purge(key)
+			if err != nil {
+				Warn.Printf(
+					"Cannot delete remailer-foo mail: %s",
+					err,
+				)
+			}
 			// Nothing else to do, move on to the next message
 			continue
 		}
