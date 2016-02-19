@@ -326,7 +326,11 @@ func (s *Secring) Purge() (active, expired, purged int) {
 	}
 
 	// Create a new secring file
-	f, err := os.Create(s.secringFile)
+	f, err := os.OpenFile(
+		s.secringFile,
+		os.O_TRUNC|os.O_RDWR|os.O_CREATE,
+		0600,
+	)
 	if err != nil {
 		panic(err)
 	}
