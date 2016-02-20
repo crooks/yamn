@@ -210,6 +210,34 @@ func setDefaultConfig() {
 	cfg.Remailer.Daemon = false
 }
 
+// abort is a shortcut for print an error message and exit
+func abort(reason string) {
+	fmt.Fprintln(os.Stderr, reason)
+	os.Exit(1)
+}
+
+// validateThresholds tests config against some sane thresholds
+func validateThresholds() {
+	if flag_remailer {
+		if cfg.Remailer.Keylife < 5 {
+			msg := fmt.Sprintf(
+				"Key life of %d is too short. "+
+					"Must be at least 5 days.",
+				cfg.Remailer.Keylife,
+			)
+			abort(msg)
+		}
+		if cfg.Remailer.Keygrace < 5 {
+			msg := fmt.Sprintf(
+				"Key grace of %d is too short. "+
+					"Must be at least 5 days.",
+				cfg.Remailer.Keygrace,
+			)
+			abort(msg)
+		}
+	}
+}
+
 // cfgInHome tries to ascertain the user's homedir and then tests if there's
 // a subdir of /yamn/ with a yamn.cfg file in it.
 func cfgInHome() (goodCfg bool, cfgDir string) {
@@ -307,6 +335,7 @@ func flags() {
 		fmt.Printf("Message bytes: %d\n", messageBytes)
 		os.Exit(0)
 	}
+	validateThresholds()
 }
 
 var flag_basedir string
