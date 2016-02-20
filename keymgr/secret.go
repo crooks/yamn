@@ -53,7 +53,7 @@ func (s *Secring) SetName(name string) {
 	l := len(name)
 	if l < 2 || l > 12 {
 		err = fmt.Errorf(
-			"Remailer name must be between 2 and 12 chars, not %d.",
+			"Remailer name must be 2 to 12 chars, not %d.",
 			l,
 		)
 		panic(err)
@@ -65,9 +65,9 @@ func (s *Secring) SetName(name string) {
 func (s *Secring) SetAddress(addy string) {
 	var err error
 	l := len(addy)
-	if l < 3 || l > 80 {
+	if l < 3 || l > 52 {
 		err = fmt.Errorf(
-			"Remailer address must be between 2 and 80 chars, not %d.",
+			"Remailer address must be 2 to 52 chars, not %d.",
 			l,
 		)
 		panic(err)
@@ -214,8 +214,14 @@ func (s *Secring) WriteSecret(keyidstr string) {
 	}
 	defer f.Close()
 	keydata := "\n-----Begin Mixmaster Secret Key-----\n"
-	keydata += fmt.Sprintf("Created: %s\n", key.from.UTC().Format(date_format))
-	keydata += fmt.Sprintf("Expires: %s\n", key.until.UTC().Format(date_format))
+	keydata += fmt.Sprintf(
+		"Created: %s\n",
+		key.from.UTC().Format(date_format),
+	)
+	keydata += fmt.Sprintf(
+		"Expires: %s\n",
+		key.until.UTC().Format(date_format),
+	)
 	keydata += keyidstr + "\n"
 	keydata += hex.EncodeToString(key.sk) + "\n"
 	keydata += "-----End Mixmaster Secret Key-----\n"
@@ -340,24 +346,32 @@ func (s *Secring) Purge() (active, expired, purged int) {
 	for k, m := range s.sec {
 		purgeDate := m.until.Add(s.grace)
 		if time.Now().After(purgeDate) {
+			// Key has expired. Purge from memory and don't write
+			// it back to disk.
 			delete(s.sec, k)
 			purged++
+			continue
+		}
+		keydata := "-----Begin Mixmaster Secret Key-----\n"
+		keydata += fmt.Sprintf(
+			"Created: %s\n",
+			m.from.Format(date_format),
+		)
+		keydata += fmt.Sprintf(
+			"Expires: %s\n",
+			m.until.Format(date_format),
+		)
+		keydata += hex.EncodeToString(m.keyid) + "\n"
+		keydata += hex.EncodeToString(m.sk) + "\n"
+		keydata += "-----End Mixmaster Secret Key-----\n\n"
+		_, err = f.WriteString(keydata)
+		if err != nil {
+			panic(err)
+		}
+		if time.Now().After(m.until) {
+			expired++
 		} else {
-			keydata := "-----Begin Mixmaster Secret Key-----\n"
-			keydata += fmt.Sprintf("Created: %s\n", m.from.Format(date_format))
-			keydata += fmt.Sprintf("Expires: %s\n", m.until.Format(date_format))
-			keydata += hex.EncodeToString(m.keyid) + "\n"
-			keydata += hex.EncodeToString(m.sk) + "\n"
-			keydata += "-----End Mixmaster Secret Key-----\n\n"
-			_, err = f.WriteString(keydata)
-			if err != nil {
-				panic(err)
-			}
-			if time.Now().After(m.until) {
-				expired++
-			} else {
-				active++
-			}
+			active++
 		}
 	}
 	return
@@ -403,18 +417,27 @@ func (s *Secring) ImportSecring() (err error) {
 			if line[:9] == "Created: " {
 				valid, err = time.Parse(date_format, line[9:])
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "Malformed Created date")
+					fmt.Fprintln(
+						os.Stderr,
+						"Malformed Created date",
+					)
 					key_phase = 0
 					continue
 				}
 			} else {
-				fmt.Fprintln(os.Stderr, "Expected Created line")
+				fmt.Fprintln(
+					os.Stderr,
+					"Expected Created line",
+				)
 				key_phase = 0
 				continue
 			}
 			if valid.After(now) {
 				// Key is not yet valid
-				fmt.Fprintln(os.Stderr, "Key is not valid yet")
+				fmt.Fprintln(
+					os.Stderr,
+					"Key is not valid yet",
+				)
 				key_phase = 0
 				continue
 			}
@@ -425,17 +448,23 @@ func (s *Secring) ImportSecring() (err error) {
 			if line[:9] == "Expires: " {
 				expire, err = time.Parse(date_format, line[9:])
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "Malformed Expires date")
+					fmt.Fprintln(
+						os.Stderr,
+						"Malformed Expires date",
+					)
 					key_phase = 0
 					continue
 				}
 			} else {
-				fmt.Fprintln(os.Stderr, "Expected Expires line")
+				fmt.Fprintln(
+					os.Stderr,
+					"Expected Expires line",
+				)
 				key_phase = 0
 				continue
 			}
 			if expire.Before(now) {
-				// Key has expired (but we don't really care)
+				// Key has expired (but we don't care)
 			}
 			sec.until = expire
 			key_phase = 3
@@ -454,7 +483,8 @@ func (s *Secring) ImportSecring() (err error) {
 				continue
 			}
 			sec.keyid = keyid
-			// Retain a textual representation to key the secring map with
+			// Retain a textual representation to key the secring
+			// map with
 			keyidMapKey = line
 			key_phase = 4
 		case 4:
@@ -475,6 +505,7 @@ func (s *Secring) ImportSecring() (err error) {
 		case 5:
 			// Expecting end cutmark
 			if line == "-----End Mixmaster Secret Key-----" {
+				// Add the key to the Keyring
 				s.sec[keyidMapKey] = *sec
 				key_phase = 0
 			}
