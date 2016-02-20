@@ -316,9 +316,10 @@ func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 }
 
 // Purge deletes expired keys and writes current ones to a backup secring
-func (s *Secring) Purge() (active, expired, purged int) {
+func (s *Secring) Purge() (active, expiring, expired, purged int) {
 	/*
 		active  - Keys that have not yet expired
+		expiring - Keys expiring in the next 48 hours
 		expired - Keys that have expired but not yet exceeded their
 		          grace period
 		purged  - Keys that are beyond their grace period
@@ -342,10 +343,11 @@ func (s *Secring) Purge() (active, expired, purged int) {
 	}
 	defer f.Close()
 
+	now := time.Now()
 	// Iterate key and value of Secring in memory
 	for k, m := range s.sec {
 		purgeDate := m.until.Add(s.grace)
-		if time.Now().After(purgeDate) {
+		if now.After(purgeDate) {
 			// Key has expired. Purge from memory and don't write
 			// it back to disk.
 			delete(s.sec, k)
@@ -368,8 +370,13 @@ func (s *Secring) Purge() (active, expired, purged int) {
 		if err != nil {
 			panic(err)
 		}
-		if time.Now().After(m.until) {
+		// If a key is expiring in the next 48 hours, treat it as
+		// expiring rather than active.
+		expiringThreshold := m.until.Add(-48 * time.Hour)
+		if now.After(m.until) {
 			expired++
+		} else if now.After(expiringThreshold) {
+			expiring++
 		} else {
 			active++
 		}

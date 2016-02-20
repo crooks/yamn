@@ -208,10 +208,15 @@ func refreshPubkey(secret *keymgr.Secring) {
 // purgeSecring deletes old keys and counts active ones.  If no active keys
 // are found, it triggers a generation.
 func purgeSecring(secret *keymgr.Secring) (active int) {
-	active, expired, purged := secret.Purge()
+	active, expiring, expired, purged := secret.Purge()
 	Info.Printf(
-		"Key purge complete. Active=%d, Expired=%d, Purged=%d",
-		active, expired, purged)
+		"Key purge complete. Active=%d, Expiring=%d, Expired=%d, "+
+			"Purged=%d",
+		active,
+		expiring,
+		expired,
+		purged,
+	)
 	return
 }
 
