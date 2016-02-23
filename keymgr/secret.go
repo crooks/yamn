@@ -3,10 +3,16 @@ package keymgr
 import (
 	"bufio"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+)
+
+const (
+	expiringDays int = 48 // Treat keys as expiring n hours before expired
+	maxAddyLen   int = 52 // Max chars in remailer address
 )
 
 type secret struct {
@@ -27,6 +33,18 @@ type Secring struct {
 	grace       time.Duration // Period of grace after key expiry
 	exit        bool          // Is this an Exit type remailer?
 	version     string        // Yamn version string
+}
+
+// OpenAppend opens a file in Append mode and sets user-only permissions
+func OpenAppend(name string) (f *os.File, err error) {
+	f, err = os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	return
+}
+
+// OpenCreate opens a new file in Write mode and sets user-only permissions
+func OpenCreate(name string) (f *os.File, err error) {
+	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	return
 }
 
 // NewSecring is a constructor for the Secret Keyring
@@ -65,7 +83,7 @@ func (s *Secring) SetName(name string) {
 func (s *Secring) SetAddress(addy string) {
 	var err error
 	l := len(addy)
-	if l < 3 || l > 52 {
+	if l < 3 || l > maxAddyLen {
 		err = fmt.Errorf(
 			"Remailer address must be 2 to 52 chars, not %d.",
 			l,
@@ -204,11 +222,7 @@ func (s *Secring) WriteSecret(keyidstr string) {
 		err = fmt.Errorf("%s: Keyid does not exist", keyidstr)
 		panic(err)
 	}
-	f, err := os.OpenFile(
-		s.secringFile,
-		os.O_APPEND|os.O_WRONLY|os.O_CREATE,
-		0600,
-	)
+	f, err := OpenAppend(s.secringFile)
 	if err != nil {
 		panic(err)
 	}
@@ -318,12 +332,21 @@ func (s *Secring) GetSK(keyid string) (sk []byte, err error) {
 // Purge deletes expired keys and writes current ones to a backup secring
 func (s *Secring) Purge() (active, expiring, expired, purged int) {
 	/*
-		active  - Keys that have not yet expired
-		expiring - Keys expiring in the next 48 hours
-		expired - Keys that have expired but not yet exceeded their
-		          grace period
-		purged  - Keys that are beyond their grace period
+		Keys exist in four possible states:-
+
+		active  - Keys that are valid and not yet expiring
+		expiring - Active keys that will expire soon
+		expired - Expired keys, not yet purged from the Secring
+		purged  - Keys that have just been deleted from the Secring
 	*/
+
+	// Running Purge with undefined validity parameters would probably
+	// trash the Secret Keyring.  This tests prevents that unfortunate
+	// circumstance.
+	if s.validity == 0 || s.grace == 0 {
+		err := errors.New("Cannot purge without validity parameters")
+		panic(err)
+	}
 
 	// Rename the secring file to a tmp name, just in case this screws up.
 	err := os.Rename(s.secringFile, s.secringFile+".tmp")
@@ -332,16 +355,16 @@ func (s *Secring) Purge() (active, expiring, expired, purged int) {
 		return
 	}
 
-	// Create a new secring file
-	f, err := os.OpenFile(
-		s.secringFile,
-		os.O_TRUNC|os.O_RDWR|os.O_CREATE,
-		0600,
-	)
+	// Create a new secring file. At this point, secringFile must not
+	// exist.
+	f, err := OpenCreate(s.secringFile)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
+
+	// Set the duration prior to expired that we consider "expiring".
+	expirePeriod := time.Duration(-expiringDays) * time.Hour
 
 	now := time.Now()
 	// Iterate key and value of Secring in memory
@@ -372,7 +395,7 @@ func (s *Secring) Purge() (active, expiring, expired, purged int) {
 		}
 		// If a key is expiring in the next 48 hours, treat it as
 		// expiring rather than active.
-		expiringThreshold := m.until.Add(-48 * time.Hour)
+		expiringThreshold := m.until.Add(expirePeriod)
 		if now.After(m.until) {
 			expired++
 		} else if now.After(expiringThreshold) {
