@@ -73,15 +73,10 @@ func loopServer() (err error) {
 
 	Info.Printf("Secret keyring contains %d keys", secret.Count())
 
-	// Maintain time of last pool process
-	poolProcessTime := time.Now()
-	poolProcessDelay := time.Duration(cfg.Pool.Loop) * time.Second
-
 	// Define triggers for timed events
 	daily := time.Now()
 	hourly := time.Now()
 	dayOfMonth := time.Now().Day()
-
 	oneDay := time.Duration(dayLength) * time.Second
 
 	// Determine if this is a single run or the start of a Daemon
@@ -90,6 +85,8 @@ func loopServer() (err error) {
 	// Actually start the server loop
 	if runAsDaemon {
 		Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
+		Info.Printf("Detaching Pool processing")
+		go serverPoolOutboundSend()
 	} else {
 		Info.Printf("Performing routine remailer functions for: %s",
 			cfg.Remailer.Name)
@@ -97,25 +94,10 @@ func loopServer() (err error) {
 	for {
 		// Panic if the pooldir doesn't exist
 		assertIsPath(cfg.Files.Pooldir)
-		if runAsDaemon && time.Now().Before(poolProcessTime) {
-			// Process the inbound Pool
-			processInpool("i", secret)
-			// Process the Maildir
-			processMail(secret)
-			// Don't do anything beyond this point until
-			// poolProcessTime
-			time.Sleep(60 * time.Second)
-			continue
-		}
-		if !runAsDaemon {
-			/*
-				When not running as a Daemon, always read
-				sources first. Otherwise, the loop will
-				terminate before they're ever read.
-			*/
-			processInpool("i", secret)
-			processMail(secret)
-		}
+		// Process the inbound Pool
+		processInpool("i", secret)
+		// Process the Maildir
+		processMail(secret)
 
 		// Midnight events
 		if time.Now().Day() != dayOfMonth {
@@ -178,15 +160,13 @@ func loopServer() (err error) {
 			hourly = time.Now()
 		}
 
-		// Select outbound pool files and mail them
-		poolOutboundSend()
-
-		// Reset the process time for the next pool read
-		poolProcessTime = time.Now().Add(poolProcessDelay)
 		// Break out of the loop if we're not running as a daemon
 		if !runAsDaemon {
 			break
 		}
+
+		// And rest a while
+		time.Sleep(60 * time.Second)
 	} // End of server loop
 	return
 }

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/mail"
@@ -15,36 +16,66 @@ import (
 	"github.com/luksen/maildir"
 )
 
-func poolOutboundSend() {
-	var err error
-	var delFlag bool
-	var filenames []string
-	if flag_send || flag_client {
-		// Read all the pool files
-		filenames, err = readDir(cfg.Files.Pooldir, "m")
-		if err != nil {
-			Warn.Printf("Reading pool failed: %s", err)
-			return
-		}
-	} else {
+func serverPoolOutboundSend() {
+	if cfg.Pool.Loop < 120 {
+		Warn.Printf(
+			"Pool loop of %d Seconds is too short. "+
+				"Adjusting to minimum of 120 Seconds.",
+			cfg.Pool.Loop,
+		)
+		cfg.Pool.Loop = 120
+	}
+	sleepFor := time.Duration(cfg.Pool.Loop) * time.Second
+	for {
 		// Read dynamic mix of outbound files from the Pool
 		// filenames = dynamicMix()
-		// Read binomialMix of outbound files ffrom the Pool
-		filenames = binomialMix()
-	}
-	for _, file := range filenames {
-		delFlag, err = mailPoolFile(path.Join(cfg.Files.Pooldir, file))
-		if err != nil {
-			Warn.Printf("Pool mailing failed: %s", err)
-			if delFlag {
-				// If delFlag is true, we delete the file, even
-				// though mailing failed.
-				poolDelete(file)
-			}
-		} else {
-			stats.outMail++
-			poolDelete(file)
+		// Read binomialMix of outbound files from the Pool
+		filenames := binomialMix()
+		for _, filename := range filenames {
+			emailPoolFile(filename)
 		}
+		time.Sleep(sleepFor)
+	}
+}
+
+func poolOutboundSend() {
+	var err error
+	if cfg.Remailer.Daemon || flag_daemon {
+		// This should never happen.  If the server is started as a
+		// daemon, the serverPoolOutboundSend process is initiated and
+		// runs in an endless loop.  This function would conflict with
+		// it.
+		err = errors.New("Cannot flush pool when running as a Daemon")
+		panic(err)
+	}
+	var filenames []string
+	// Read all the pool files
+	filenames, err = readDir(cfg.Files.Pooldir, "m")
+	if err != nil {
+		Warn.Printf("Reading pool failed: %s", err)
+		return
+	}
+	if flag_remailer {
+		// During normal operation, the pool shouldn't be flushed.
+		Warn.Println("Flushing outbound remailer pool")
+	}
+	for _, filename := range filenames {
+		emailPoolFile(filename)
+	}
+}
+
+func emailPoolFile(filename string) {
+	delFlag, err := mailPoolFile(path.Join(cfg.Files.Pooldir, filename))
+	if err != nil {
+		Warn.Printf("Pool mailing failed: %s", err)
+		if delFlag {
+			// If delFlag is true, we delete the file, even though
+			// mailing failed.
+			poolDelete(filename)
+		}
+	} else {
+		stats.outMail++
+		poolDelete(filename)
 	}
 }
 
