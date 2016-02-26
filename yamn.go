@@ -74,7 +74,6 @@ func main() {
 	}
 	if flag_client {
 		mixprep()
-		poolOutboundSend()
 	} else if flag_stdin {
 		dir := maildir.Dir(cfg.Files.Maildir)
 		newmsg, err := dir.NewDelivery()
@@ -96,7 +95,9 @@ func main() {
 		}
 	} else if flag_dummy {
 		injectDummy()
-	} else if flag_send {
+	}
+	if flag_send {
+		// Flush the outbound pool
 		poolOutboundSend()
 	}
 }
