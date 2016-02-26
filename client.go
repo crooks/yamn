@@ -174,7 +174,7 @@ func mixprep() {
 				chain,
 				*final,
 			)
-			poolWrite(armor(yamnMsg, sendTo), "m")
+			writeMessageToPool(sendTo, yamnMsg)
 		} // End of copies loop
 	} // End of fragments loop
 
@@ -347,6 +347,6 @@ func dummy() {
 	}
 	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
 	yamnMsg := encodeMsg(plainMsg, chain, *final)
-	poolWrite(armor(yamnMsg, sendTo), "m")
+	writeMessageToPool(sendTo, yamnMsg)
 	return
 }

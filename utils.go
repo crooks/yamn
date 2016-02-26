@@ -9,13 +9,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/crooks/yamn/linebreaker"
 	"github.com/dchest/blake2s"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -125,21 +125,6 @@ func IsMemberStr(s string, slice []string) bool {
 		}
 	}
 	return false
-}
-
-// randPoolFilename returns a random filename with a given prefix
-func randPoolFilename(prefix string) (fqfn string) {
-	for {
-		outfileName := prefix + hex.EncodeToString(randbytes(7))
-		fqfn = path.Join(cfg.Files.Pooldir, outfileName)
-		_, err := os.Stat(fqfn)
-		if err != nil {
-			// For once we want an error (indicating the file
-			// doesn't exist)
-			break
-		}
-	}
-	return
 }
 
 // readdir returns a list of files in a specified directory that begin with
@@ -308,62 +293,51 @@ func popstr(s *[]string) (element string) {
 	return
 }
 
-// wrap takes a long string and wraps it to lines of a predefined length.
-// The intention is to feed it a base64 encoded string.
-func wrap(str string) (newstr string) {
-	var substr string
-	var end int
-	strlen := len(str)
-	for i := 0; i <= strlen; i += base64LineWrap {
-		end = i + base64LineWrap
-		if end > strlen {
-			end = strlen
-		}
-		substr = str[i:end] + "\n"
-		newstr += substr
-	}
-	// Strip the inevitable trailing LF
-	newstr = strings.TrimRight(newstr, "\n")
-	return
+// writeInternalHeader inserts a Yamn internal header containing the pooled
+// date.  This is useful for performing expiry on old messages.
+func writeInternalHeader(w io.Writer) {
+	dateHeader := fmt.Sprintf(
+		"Yamn-Pooled-Date: %s\n",
+		time.Now().Format(shortdate),
+	)
+	w.Write([]byte(dateHeader))
 }
 
-// armor base64 encodes a Yamn message for emailing
-func armor(yamnMsg []byte, sendto string) []byte {
-	/*
-		With the exception of email delivery to recipients, every
-		outbound message should be wrapped by this function.
-	*/
-	var err error
-	err = lenCheck(len(yamnMsg), messageBytes)
+func writeMailHeaders(w io.Writer, sendTo string) {
+	w.Write([]byte(fmt.Sprintf("To: %s\n", sendTo)))
+	w.Write([]byte(fmt.Sprintf("From: %s\n", cfg.Remailer.Address)))
+	w.Write([]byte(fmt.Sprintf("Subject: yamn-%s\n", version)))
+	w.Write([]byte("\n"))
+}
+
+// armor converts a plain-byte Yamn message to a Base64 armored message with
+// cutmarks and header fields.
+func armor(w io.Writer, payload []byte) {
+	err := lenCheck(len(payload), messageBytes)
 	if err != nil {
 		panic(err)
 	}
-	buf := new(bytes.Buffer)
-	if !cfg.Mail.Outfile {
-		// Add email headers as we're not writing output to a file
-		buf.WriteString(fmt.Sprintf("To: %s\n", sendto))
-		buf.WriteString(fmt.Sprintf("From: %s\n", cfg.Remailer.Address))
-		buf.WriteString(fmt.Sprintf("Subject: yamn-%s\n", version))
-		buf.WriteString("\n")
-	}
-	buf.WriteString("::\n")
-	header := fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)
-	buf.WriteString(header)
-	buf.WriteString("-----BEGIN REMAILER MESSAGE-----\n")
+	w.Write([]byte("::\n"))
+	w.Write([]byte(fmt.Sprintf("Remailer-Type: yamn-%s\n\n", version)))
+	w.Write([]byte("-----BEGIN REMAILER MESSAGE-----\n"))
 	// Write message length
-	buf.WriteString(strconv.Itoa(len(yamnMsg)) + "\n")
+	w.Write([]byte(strconv.Itoa(len(payload)) + "\n"))
 	//digest := blake2.New(&blake2.Config{Size: 16})
 	digest, err := blake2s.New(nil)
 	if err != nil {
 		panic(err)
 	}
-	digest.Write(yamnMsg)
+	digest.Write(payload)
 	// Write message digest
-	buf.WriteString(hex.EncodeToString(digest.Sum(nil)) + "\n")
-	// Write the payload
-	buf.WriteString(wrap(base64.StdEncoding.EncodeToString(yamnMsg)) + "\n")
-	buf.WriteString("-----END REMAILER MESSAGE-----\n")
-	return buf.Bytes()
+	w.Write([]byte(hex.EncodeToString(digest.Sum(nil)) + "\n"))
+	// Create a Linebreaker io Writer
+	breaker := linebreaker.NewLineBreaker(w, base64LineWrap)
+	// Write b64 encoding to the linebreaker
+	b64 := base64.NewEncoder(base64.StdEncoding, breaker)
+	b64.Write(payload)
+	b64.Close()
+	breaker.Close()
+	w.Write([]byte("\n-----END REMAILER MESSAGE-----\n"))
 }
 
 // stripArmor takes a Mixmaster formatted message from an ioreader and

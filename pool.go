@@ -3,8 +3,8 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/mail"
 	"os"
@@ -16,6 +16,8 @@ import (
 	"github.com/luksen/maildir"
 )
 
+// serverPoolOutboundSend is intended to be run concurrently with the server
+// daemon.  It sends messages from the pool at timed intervals.
 func serverPoolOutboundSend() {
 	if cfg.Pool.Loop < 120 {
 		Warn.Printf(
@@ -38,6 +40,8 @@ func serverPoolOutboundSend() {
 	}
 }
 
+// poolOutboundSend flushes the outbound pool.  This should only be performed
+// on clients, where all messages should be sent instantly after creation.
 func poolOutboundSend() {
 	var err error
 	if cfg.Remailer.Daemon || flag_daemon {
@@ -64,6 +68,8 @@ func poolOutboundSend() {
 	}
 }
 
+// emailPoolFile tries to email a given file from the Pool.  If conditions are
+// met, the file is then deleted.
 func emailPoolFile(filename string) {
 	delFlag, err := mailPoolFile(path.Join(cfg.Files.Pooldir, filename))
 	if err != nil {
@@ -285,39 +291,59 @@ func processInpool(prefix string, secret *keymgr.Secring) {
 	}
 }
 
-// PoolWrite writes a raw Byte Yamn message to the Outbound pool with a prefix
-// string.
-func poolWrite(yamnMsg []byte, prefix string) (poolFileName string) {
+// randPoolFilename returns a random filename with a given prefix.  This should
+// be used in all instances where a new pool file is required.
+func randPoolFilename(prefix string) (fqfn string) {
+	for {
+		outfileName := prefix + hex.EncodeToString(randbytes(7))
+		fqfn = path.Join(cfg.Files.Pooldir, outfileName)
+		_, err := os.Stat(fqfn)
+		if err != nil {
+			// For once we want an error (indicating the file
+			// doesn't exist)
+			break
+		}
+	}
+	return
+}
+
+// newPoolFile opens a new file in Write mode and sets user-only permissions
+func newPoolFile(prefix string) (f *os.File, err error) {
 	/*
 		Currently supported prefixs are:-
 		[ m              Oubound message (final or intermediate) ]
 		[ i          Inbound message (destined for this remailer ]
 		[ p               Partial message chunk needing assembly ]
 	*/
-
-	// Using a hash for the filename ensures that duplicate files are only
-	// written once.  The hash is truncated so there is a tiny risk of
-	// accidental collision but it's a tiny risk!
 	fqfn := randPoolFilename(prefix)
+	f, err = os.OpenFile(fqfn, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	return
+}
 
-	// Create a pool file for the message
-	f, err := os.Create(fqfn)
+// writeMessageToPool requires a recipient address (another remailer) and a
+// payload (that gets Base64 armored).
+func writeMessageToPool(sendTo string, payload []byte) {
+	f, err := newPoolFile("m")
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
+	// Add mail headers to the pool file
+	writeInternalHeader(f)
+	writeMailHeaders(f, sendTo)
+	// Armor the payload
+	armor(f, payload)
+}
 
-	// Insert a Yamn internal header containing the date pooled.
-	// This is useful for performing expiry on old messages.
-	dateHeader := fmt.Sprintf(
-		"Yamn-Pooled-Date: %s\n",
-		time.Now().Format(shortdate),
-	)
-	f.WriteString(dateHeader)
-
-	// Write the remainder of the message.
-	f.Write(yamnMsg)
-	f.Sync()
-	_, poolFileName = path.Split(fqfn)
+// writePlainToPool writes a plaintext file to the pool and returns the filename
+func writePlainToPool(payload []byte, prefix string) (filename string) {
+	f, err := newPoolFile(prefix)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	writeInternalHeader(f)
+	f.Write(payload)
+	_, filename = path.Split(f.Name())
 	return
 }

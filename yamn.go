@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	version        string = "0.2a"
+	version        string = "0.2b"
 	dayLength      int    = 24 * 60 * 60 // Day in seconds
 	maxFragLength         = 17910
 	maxCopies             = 5
-	base64LineWrap        = 72
+	base64LineWrap        = 64
 	rfc5322date           = "Mon, 2 Jan 2006 15:04:05 -0700"
 	shortdate             = "2 Jan 2006"
 )

@@ -417,10 +417,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			}
 			stats.outLoop++
 		} else {
-			poolWrite(
-				armor(d.getPayload(), inter.getNextHop()),
-				"m",
-			)
+			writeMessageToPool(inter.getNextHop(), d.getPayload())
 			stats.outYamn++
 			// Decide if we want to inject a dummy
 			if !flag_nodummy && dice() < 55 {
@@ -482,16 +479,17 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 	return
 }
 
+// smtpMethod is concerned with final-hop processing.
 func smtpMethod(plain []byte, final *slotFinal) {
 	var err error
 	if final.getNumChunks() == 1 {
 		// If this is a single chunk message, pool it and get out.
-		poolWrite(plain, "m")
+		writePlainToPool(plain, "m")
 		stats.outPlain++
 		return
 	}
 	// We're an exit and this is a multi-chunk message
-	chunkFilename := poolWrite(plain, "p")
+	chunkFilename := writePlainToPool(plain, "p")
 	Trace.Printf(
 		"Pooled partial chunk. MsgID=%x, Num=%d, "+
 			"Parts=%d, Filename=%s",
@@ -565,7 +563,7 @@ func randhop(plainMsg []byte) {
 	}
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
 	yamnMsg := encodeMsg(plainMsg, chain, *final)
-	poolWrite(armor(yamnMsg, sendTo), "m")
+	writeMessageToPool(sendTo, yamnMsg)
 	stats.outRandhop++
 	return
 }
