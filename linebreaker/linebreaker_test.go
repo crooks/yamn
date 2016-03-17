@@ -45,8 +45,9 @@ All mimsy were the borogoves,
 And the mome raths outgrabe.`
 }
 
-func armor(writer io.Writer, b []byte) {
-	breaker := NewLineBreaker(writer, 64)
+// wrap64 writes a byte payload as wrapped base64 to an io.writer
+func wrap64(writer io.Writer, b []byte, wrap int) {
+	breaker := NewLineBreaker(writer, wrap)
 	b64 := base64.NewEncoder(base64.StdEncoding, breaker)
 	b64.Write(b)
 	b64.Close()
@@ -57,7 +58,7 @@ func TestWrap(t *testing.T) {
 	inText := []byte(testText())
 	buf := new(bytes.Buffer)
 	writer := bufio.NewWriter(buf)
-	armor(writer, inText)
+	wrap64(writer, inText, 64)
 	writer.Flush()
 	outText := make([]byte, base64.StdEncoding.DecodedLen(buf.Len()))
 	n, err := base64.StdEncoding.Decode(outText, buf.Bytes())

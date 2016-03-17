@@ -310,6 +310,15 @@ func writeMailHeaders(w io.Writer, sendTo string) {
 	w.Write([]byte("\n"))
 }
 
+// wrap64 writes a byte payload as wrapped base64 to an io.writer
+func wrap64(writer io.Writer, b []byte, wrap int) {
+	breaker := linebreaker.NewLineBreaker(writer, wrap)
+	b64 := base64.NewEncoder(base64.StdEncoding, breaker)
+	b64.Write(b)
+	b64.Close()
+	breaker.Close()
+}
+
 // armor converts a plain-byte Yamn message to a Base64 armored message with
 // cutmarks and header fields.
 func armor(w io.Writer, payload []byte) {
@@ -330,13 +339,8 @@ func armor(w io.Writer, payload []byte) {
 	digest.Write(payload)
 	// Write message digest
 	w.Write([]byte(hex.EncodeToString(digest.Sum(nil)) + "\n"))
-	// Create a Linebreaker io Writer
-	breaker := linebreaker.NewLineBreaker(w, base64LineWrap)
-	// Write b64 encoding to the linebreaker
-	b64 := base64.NewEncoder(base64.StdEncoding, breaker)
-	b64.Write(payload)
-	b64.Close()
-	breaker.Close()
+	// Write the payload to the base64 wrapper
+	wrap64(w, payload, base64LineWrap)
 	w.Write([]byte("\n-----END REMAILER MESSAGE-----\n"))
 }
 

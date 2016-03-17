@@ -186,7 +186,7 @@ func setDefaultConfig() {
 	cfg.Stats.Relfinal = 99.0
 	cfg.Stats.Minlat = 2
 	cfg.Stats.Maxlat = 60
-	cfg.Stats.Chain = "yamn4,*,*"
+	cfg.Stats.Chain = "*,*,*"
 	cfg.Stats.Numcopies = 1
 	cfg.Stats.Distance = 2
 	cfg.Stats.StaleHrs = 24
