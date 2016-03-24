@@ -84,7 +84,26 @@ func mxLookup(email string) (relay string, err error) {
 		err = nil
 		return
 	}
-	relay = mxRecords[0].Host
+	for _, mx := range mxRecords {
+		if !cfg.Mail.OnionRelay {
+			// We don't want no onions!
+			if strings.HasSuffix(mx.Host, ".onion.") {
+				// Ignore the onion, find another.
+				continue
+			}
+		}
+		relay = mx.Host
+		break
+	}
+	if relay == "" {
+		// No suitable relays found, use the hostname.
+		Info.Printf(
+			"No valid MX records found for %s. Using hostname.",
+			emailParts.domain,
+		)
+		relay = emailParts.domain
+		return
+	}
 	Trace.Printf(
 		"DNS lookup: Hostname=%s, MX=%s",
 		emailParts.domain,
@@ -275,14 +294,19 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 	port := cfg.Mail.SMTPPort
 
 	/*
-		The following section tries to get the MX record for the recipient email
-		address, when there is only a single recipient.  If it succeeds, the email
-		will be sent directly to the recipient MX.
+		The following section tries to get the MX record for the
+		recipient email address, when there is only a single recipient.
+		If it succeeds, the email will be sent directly to the
+		recipient MX.
 	*/
 	if cfg.Mail.MXRelay && len(sendTo) == 1 {
 		mx, err := mxLookup(sendTo[0])
 		if err == nil {
-			Trace.Printf("Doing direct relay for %s to %s:25.", sendTo[0], mx)
+			Trace.Printf(
+				"Doing direct relay for %s to %s:25.",
+				sendTo[0],
+				mx,
+			)
 			relay = mx
 			port = 25
 		}
@@ -297,7 +321,11 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 
 	client, err := smtp.NewClient(conn, relay)
 	if err != nil {
-		Warn.Printf("SMTP Connection Error: Server=%s, Error=%s", serverAddr, err)
+		Warn.Printf(
+			"SMTP Connection Error: Server=%s, Error=%s",
+			serverAddr,
+			err,
+		)
 		return
 	}
 	// Test is the remote MTA supports STARTTLS

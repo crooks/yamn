@@ -35,6 +35,7 @@ type Config struct {
 		SMTPRelay    string
 		SMTPPort     int
 		MXRelay      bool
+		OnionRelay   bool
 		Sender       string
 		Username     string
 		Password     string
@@ -176,6 +177,7 @@ func setDefaultConfig() {
 	cfg.Mail.SMTPPort = 587
 	cfg.Mail.UseTLS = true
 	cfg.Mail.MXRelay = true
+	cfg.Mail.OnionRelay = false // Allow .onion addresses as MX relays
 	cfg.Mail.Sender = ""
 	cfg.Mail.Username = ""
 	cfg.Mail.Password = ""
