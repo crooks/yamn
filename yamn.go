@@ -68,9 +68,19 @@ func main() {
 	case "warn":
 		logInit(ioutil.Discard, ioutil.Discard, os.Stdout, os.Stderr)
 	case "error":
-		logInit(ioutil.Discard, ioutil.Discard, ioutil.Discard, os.Stderr)
+		logInit(
+			ioutil.Discard,
+			ioutil.Discard,
+			ioutil.Discard,
+			os.Stderr,
+		)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown loglevel: %s\n", cfg.Remailer.Loglevel)
+		fmt.Fprintf(
+			os.Stderr,
+			"Unknown loglevel: %s.  Assuming \"Info\".\n",
+			cfg.Remailer.Loglevel,
+		)
+		logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 	}
 	if flag_client {
 		mixprep()
