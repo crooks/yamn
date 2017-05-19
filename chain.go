@@ -100,10 +100,20 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				Warn.Println("Relaxing latency and uptime criteria to build chain")
 				if len(outChain) == 0 {
 					// Construct a list of suitable exit remailers
+					Info.Println("Constructing relaxed list of Exit remailers")
 					candidates = Pubring.Candidates(0, 480, 0, true)
+					Info.Printf(
+						"Discovered %d Exit Remailers matching relaxed criteria",
+						len(candidates),
+					)
 				} else {
 					// Construct a list of all suitable remailers
+					Info.Println("Constructing relaxed list of candidate remailers")
 					candidates = Pubring.Candidates(0, 480, 0, false)
+					Info.Printf(
+						"Discovered %d candidate Remailers matching relaxed criteria",
+						len(candidates),
+					)
 				}
 			} else if len(candidates) == 0 {
 				// Insufficient remailers meet criteria and we're a client, so die.
