@@ -9,7 +9,6 @@ import (
 	"net/smtp"
 	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"time"
 )
@@ -233,7 +232,12 @@ func mailBytes(payload []byte, sendTo []string) (err error) {
 	if cfg.Mail.Outfile {
 		var f *os.File
 		filename := randPoolFilename("outfile-")
-		f, err = os.Create(path.Join(cfg.Files.Pooldir, filename))
+		Trace.Printf("Writing output to %s", filename)
+		f, err = os.Create(filename)
+		if err != nil {
+			Warn.Printf("Pool file creation failed: %s\n", err)
+			return
+		}
 		defer f.Close()
 		_, err = f.WriteString(string(payload))
 		if err != nil {
