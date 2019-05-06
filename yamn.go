@@ -1,5 +1,3 @@
-// vim: tabstop=2 shiftwidth=2
-
 package main
 
 import (
@@ -60,28 +58,93 @@ func logInit(
 func main() {
 	var err error
 	flags()
-	switch strings.ToLower(cfg.Remailer.Loglevel) {
-	case "trace":
-		logInit(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
-	case "info":
-		logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-	case "warn":
-		logInit(ioutil.Discard, ioutil.Discard, os.Stdout, os.Stderr)
-	case "error":
-		logInit(
-			ioutil.Discard,
-			ioutil.Discard,
-			ioutil.Discard,
-			os.Stderr,
+	if cfg.General.LogToFile {
+		logfile, err := os.OpenFile(
+			cfg.Files.Logfile,
+			os.O_RDWR|os.O_CREATE|os.O_APPEND,
+			0640,
 		)
-	default:
-		fmt.Fprintf(
-			os.Stderr,
-			"Unknown loglevel: %s.  Assuming \"Info\".\n",
-			cfg.Remailer.Loglevel,
-		)
-		logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-	}
+		if err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"Error opening logfile: %s.\n",
+				err,
+			)
+			os.Exit(1)
+		}
+		switch strings.ToLower(cfg.General.Loglevel) {
+		case "trace":
+			logInit(logfile,
+				logfile,
+				logfile,
+				logfile,
+			)
+		case "info":
+			logInit(ioutil.Discard,
+				logfile,
+				logfile,
+				logfile,
+			)
+		case "warn":
+			logInit(ioutil.Discard,
+				ioutil.Discard,
+				logfile,
+				logfile,
+			)
+		case "error":
+			logInit(ioutil.Discard,
+				ioutil.Discard,
+				ioutil.Discard,
+				logfile,
+			)
+		default:
+			fmt.Fprintf(
+				os.Stderr,
+				"Unknown loglevel: %s.  Assuming \"Info\".\n",
+				cfg.General.Loglevel,
+			)
+			logInit(ioutil.Discard,
+				logfile,
+				logfile,
+				logfile,
+			)
+		}
+	} else {
+		switch strings.ToLower(cfg.General.Loglevel) {
+		case "trace":
+			logInit(os.Stdout,
+				os.Stdout,
+				os.Stdout,
+				os.Stderr,
+			)
+		case "info":
+			logInit(ioutil.Discard,
+				os.Stdout,
+				os.Stdout,
+				os.Stderr,
+			)
+		case "warn":
+			logInit(ioutil.Discard,
+				ioutil.Discard,
+				os.Stdout,
+				os.Stderr,
+			)
+		case "error":
+			logInit(
+				ioutil.Discard,
+				ioutil.Discard,
+				ioutil.Discard,
+				os.Stderr,
+			)
+		default:
+			fmt.Fprintf(
+				os.Stderr,
+				"Unknown loglevel: %s.  Assuming \"Info\".\n",
+				cfg.General.Loglevel,
+			)
+			logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
+		} // End of stdout/stderr logging setup
+	} // End of logging setup
 	if flag_client {
 		mixprep()
 	} else if flag_stdin {

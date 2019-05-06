@@ -10,6 +10,10 @@ import (
 )
 
 type Config struct {
+	General struct {
+		Loglevel  string
+		LogToFile bool
+	}
 	Files struct {
 		Pubring  string
 		Mlist2   string
@@ -21,6 +25,7 @@ type Config struct {
 		Maildir  string
 		IDlog    string
 		ChunkDB  string
+		Logfile  string
 	}
 	Urls struct {
 		Fetch   bool
@@ -72,7 +77,6 @@ type Config struct {
 		MaxAge      int
 		Keylife     int
 		Keygrace    int
-		Loglevel    string
 		Daemon      bool
 	}
 }
@@ -158,6 +162,8 @@ func init() {
 
 func setDefaultConfig() {
 	// Set defaults and read config file
+	cfg.General.Loglevel = "info"
+	cfg.General.LogToFile = false // By default, log to stdout/stderr
 	cfg.Files.Pubkey = path.Join(flag_basedir, "key.txt")
 	cfg.Files.Pubring = path.Join(flag_basedir, "pubring.mix")
 	cfg.Files.Secring = path.Join(flag_basedir, "secring.mix")
@@ -168,6 +174,7 @@ func setDefaultConfig() {
 	cfg.Files.Maildir = path.Join(flag_basedir, "Maildir")
 	cfg.Files.IDlog = path.Join(flag_basedir, "idlog")
 	cfg.Files.ChunkDB = path.Join(flag_basedir, "chunkdb")
+	cfg.Files.Logfile = path.Join(flag_basedir, "yamn.log")
 	cfg.Urls.Fetch = true
 	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
 	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
@@ -208,7 +215,6 @@ func setDefaultConfig() {
 	cfg.Remailer.MaxAge = 14
 	cfg.Remailer.Keylife = 14
 	cfg.Remailer.Keygrace = 28
-	cfg.Remailer.Loglevel = "info"
 	cfg.Remailer.Daemon = false
 }
 
