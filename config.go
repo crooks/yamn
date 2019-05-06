@@ -324,25 +324,6 @@ func flags() {
 		fmt.Printf("Version: %s\n", version)
 		os.Exit(0)
 	}
-	if flag_debug {
-		fmt.Printf("Version: %s\n", version)
-		fmt.Printf("Basedir: %s\n", flag_basedir)
-		if os.Getenv("YAMNCFG") != "" {
-			fmt.Printf("YAMNCFG: %s\n", os.Getenv("YAMNCFG"))
-		}
-		if os.Getenv("YAMNDIR") != "" {
-			fmt.Printf("YAMNDIR: %s\n", os.Getenv("YAMNDIR"))
-		}
-		if cfg.Stats.UseExpired {
-			fmt.Println("Configured to use Expired Keys")
-		}
-		fmt.Printf("\nMaximum chain length: %d\n", maxChainLength)
-		fmt.Printf("Per header bytes: %d\n", headerBytes)
-		fmt.Printf("Total header bytes: %d\n", headersBytes)
-		fmt.Printf("Payload bytes: %d\n", bodyBytes)
-		fmt.Printf("Message bytes: %d\n", messageBytes)
-		os.Exit(0)
-	}
 	validateThresholds()
 }
 

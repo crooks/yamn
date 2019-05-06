@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -172,5 +173,13 @@ func main() {
 	if flag_send {
 		// Flush the outbound pool
 		poolOutboundSend()
+	}
+	if flag_debug {
+		j, err := json.MarshalIndent(cfg, "", "    ")
+		if err != nil {
+			fmt.Printf("Debugging Error: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s\n", j)
 	}
 }
