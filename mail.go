@@ -292,8 +292,8 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 	conf := new(tls.Config)
 	//conf.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA}
 	conf.InsecureSkipVerify = true
-	conf.MinVersion = tls.VersionSSL30
-	conf.MaxVersion = tls.VersionTLS10
+	//conf.MinVersion = tls.VersionSSL30
+	//conf.MaxVersion = tls.VersionTLS10
 	relay := cfg.Mail.SMTPRelay
 	port := cfg.Mail.SMTPPort
 
@@ -304,6 +304,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 		recipient MX.
 	*/
 	if cfg.Mail.MXRelay && len(sendTo) == 1 {
+		Trace.Printf("DNS lookup of MX record for %s.", sendTo[0])
 		mx, err := mxLookup(sendTo[0])
 		if err == nil {
 			Trace.Printf(
