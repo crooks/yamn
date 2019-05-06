@@ -146,6 +146,18 @@ func main() {
 			logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 		} // End of stdout/stderr logging setup
 	} // End of logging setup
+
+	// If the debug flag is set, print the config in JSON format and then exit.
+	if flag_debug {
+		j, err := json.MarshalIndent(cfg, "", "    ")
+		if err != nil {
+			fmt.Printf("Debugging Error: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s\n", j)
+		os.Exit(0)
+	}
+
 	if flag_client {
 		mixprep()
 	} else if flag_stdin {
@@ -173,13 +185,5 @@ func main() {
 	if flag_send {
 		// Flush the outbound pool
 		poolOutboundSend()
-	}
-	if flag_debug {
-		j, err := json.MarshalIndent(cfg, "", "    ")
-		if err != nil {
-			fmt.Printf("Debugging Error: %s\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("%s\n", j)
 	}
 }
