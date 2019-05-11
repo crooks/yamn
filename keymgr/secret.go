@@ -364,13 +364,14 @@ func (s *Secring) Purge() (active, expiring, expired, purged int) {
 	defer f.Close()
 
 	// Set the duration prior to expired that we consider "expiring".
+	now := time.Now()
 	expirePeriod := time.Duration(-expiringDays) * time.Hour
 
-	now := time.Now()
 	// Iterate key and value of Secring in memory
 	for k, m := range s.sec {
 		purgeDate := m.until.Add(s.grace)
-		if now.After(purgeDate) {
+		_, purgeNextMidnight := midnights(purgeDate)
+		if now.After(purgeNextMidnight) {
 			// Key has expired. Purge from memory and don't write
 			// it back to disk.
 			delete(s.sec, k)
@@ -393,12 +394,14 @@ func (s *Secring) Purge() (active, expiring, expired, purged int) {
 		if err != nil {
 			panic(err)
 		}
-		// If a key is expiring in the next 48 hours, treat it as
-		// expiring rather than active.
+		// Key dates on keyrings are in days so a we use nextMidnight
+		// so that keys remain valid throughout their whole last day.
+		_, untilNextMidnight := midnights(m.until)
 		expiringThreshold := m.until.Add(expirePeriod)
-		if now.After(m.until) {
+		_, expiringNextMidnight := midnights(expiringThreshold)
+		if now.After(untilNextMidnight) {
 			expired++
-		} else if now.After(expiringThreshold) {
+		} else if now.After(expiringNextMidnight) {
 			expiring++
 		} else {
 			active++
@@ -423,6 +426,7 @@ func (s *Secring) ImportSecring() (err error) {
 	var expire time.Time
 	var sec *secret
 	now := time.Now().UTC()
+	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
 	key_phase := 0
 	/* Key phases are:
 	0 Expecting Begin cutmark
@@ -493,7 +497,7 @@ func (s *Secring) ImportSecring() (err error) {
 				key_phase = 0
 				continue
 			}
-			if expire.Before(now) {
+			if expire.Before(nextMidnight) {
 				// Key has expired (but we don't care)
 			}
 			sec.until = expire

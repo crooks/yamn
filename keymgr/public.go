@@ -317,7 +317,8 @@ func (p *Pubring) ImportPubring() (err error) {
 	var line string //Each line within Pubring.mix
 	var rem *Remailer
 	var pkdata []byte // Decoded Public key
-	now := time.Now() // Current time for key validity testing
+	// The following two dates are used for validity checking.
+	now := time.Now()
 	key_phase := 0
 	/* Key phases are:
 	0	Expecting header line
@@ -344,7 +345,8 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 				continue
 			}
-			if now.Before(from) {
+			fromLastMidnight, _ := midnights(from)
+			if now.Before(fromLastMidnight) {
 				fmt.Fprintln(os.Stderr, elements[0]+": Key not yet valid")
 				key_phase = 0
 				continue
@@ -355,7 +357,9 @@ func (p *Pubring) ImportPubring() (err error) {
 				key_phase = 0
 				continue
 			}
-			if !p.useExpired && now.After(until) {
+			// Calculate the next midnight after the until date.
+			_, untilNextMidnight := midnights(until)
+			if !p.useExpired && now.After(untilNextMidnight) {
 				fmt.Fprintf(
 					os.Stderr,
 					"Key expired: Name=%s, Key=%s, Date=%s\n",
@@ -444,4 +448,14 @@ func makeKeyID(pub []byte) []byte {
 	}
 	digest.Write(pub)
 	return digest.Sum(nil)
+}
+
+// midnights returns the timestamp for the previous and next midnights of a
+// given timestamp
+func midnights(t time.Time) (lastMidnight, nextMidnight time.Time) {
+	lastMidnight = time.Date(t.Year(), t.Month(), t.Day(),
+		0, 0, 0, 0, time.UTC)
+	nextMidnight = time.Date(t.Year(), t.Month(), t.Day()+1,
+		0, 0, 0, 0, time.UTC)
+	return
 }

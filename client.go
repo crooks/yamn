@@ -167,7 +167,7 @@ func mixprep() {
 			sendTo := chain[0]
 			// Report the chain if we're running as a client.
 			if flag_client {
-				fmt.Printf("Chain: %s\n", strings.Join(chain, ","))
+				Info.Printf("Chain: %s\n", strings.Join(chain, ","))
 			}
 			yamnMsg := encodeMsg(
 				plain[first_byte:last_byte],
