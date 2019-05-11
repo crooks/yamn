@@ -333,7 +333,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 		)
 		return
 	}
-	// Test is the remote MTA supports STARTTLS
+	// Test if the remote MTA supports STARTTLS
 	ok, _ := client.Extension("STARTTLS")
 	if ok && cfg.Mail.UseTLS {
 		if err = client.StartTLS(conf); err != nil {

@@ -162,7 +162,7 @@ func init() {
 
 func setDefaultConfig() {
 	// Set defaults and read config file
-	cfg.General.Loglevel = "info"
+	cfg.General.Loglevel = "warn"
 	cfg.General.LogToFile = false // By default, log to stdout/stderr
 	cfg.Files.Pubkey = path.Join(flag_basedir, "key.txt")
 	cfg.Files.Pubring = path.Join(flag_basedir, "pubring.mix")
