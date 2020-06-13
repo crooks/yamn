@@ -8,7 +8,7 @@ import (
 	"crypto/cipher"
 )
 
-// Encrypt applies the necessary padding to the message and encrypts it
+// AES_GCM_Encrypt applies the necessary padding to the message and encrypts it
 // with AES-GCM.
 func AES_GCM_Encrypt(plain, key, nonce, data []byte) (ct []byte) {
 	block, err := aes.NewCipher(key)
@@ -25,7 +25,7 @@ func AES_GCM_Encrypt(plain, key, nonce, data []byte) (ct []byte) {
 	return
 }
 
-// Decrypt decrypts the message and removes any padding.
+// AES_GCM_Decrypt decrypts the message and removes any padding.
 func AES_GCM_Decrypt(ct, key, nonce, data []byte) (plain []byte) {
 	block, err := aes.NewCipher(key)
 	if err != nil {

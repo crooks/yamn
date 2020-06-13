@@ -10,12 +10,14 @@ import (
 	"time"
 )
 
+// Chunk holds variables that apply globally to all chunked message content.
 type Chunk struct {
 	db         *leveldb.DB   // A level DB instance
 	expireDays time.Duration // How long to retain keys
 	deleteDays time.Duration // Age of partial files before deletion
 }
 
+// OpenChunk opens a levelDB database file
 func OpenChunk(filename string) *Chunk {
 	levelDB, err := leveldb.OpenFile(filename, nil)
 	if err != nil {

@@ -565,6 +565,7 @@ func seqIV(partialIV []byte, slot int) (iv []byte) {
 	return
 }
 
+// setNextHop inserts the name of the next hop remailer and pads it.
 func (i *slotIntermediate) setNextHop(nh string) {
 	if len(nh) > 52 {
 		err := fmt.Errorf("Next hop address exceeds 52 chars")
@@ -573,6 +574,7 @@ func (i *slotIntermediate) setNextHop(nh string) {
 	i.nextHop = []byte(nh + strings.Repeat("\x00", 52-len(nh)))
 }
 
+//getNextHop returns the next hop remailer name after stripping any padding.
 func (i *slotIntermediate) getNextHop() string {
 	return strings.TrimRight(string(i.nextHop), "\x00")
 }

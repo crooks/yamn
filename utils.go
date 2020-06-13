@@ -25,8 +25,12 @@ import (
 // The following section defines crypto/rand as a source for functions in
 // math/rand.  This means we can use many of the math/rand functions with
 // a cryptographically random source.
+
+// CryptoRandSource is an empty struct for creating a new random source in the
+// rand package.
 type CryptoRandSource struct{}
 
+// NewCryptoRandSource returns a new instance of CryptoRandSource.
 func NewCryptoRandSource() CryptoRandSource {
 	return CryptoRandSource{}
 }

@@ -9,6 +9,7 @@ import (
 	"path"
 )
 
+// Config contains all the configuration settings for Yamn.
 type Config struct {
 	General struct {
 		Loglevel  string
