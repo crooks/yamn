@@ -5,14 +5,15 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/crooks/yamn/idlog"
-	"github.com/crooks/yamn/keymgr"
-	"github.com/crooks/yamn/quickmail"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/crooks/yamn/idlog"
+	"github.com/crooks/yamn/keymgr"
+	"github.com/crooks/yamn/quickmail"
 	//"github.com/codahale/blake2"
 )
 
@@ -42,8 +43,8 @@ func loopServer() (err error) {
 	// Open the IDlog
 	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
 	// NewInstance takes the filename and entry validity in days
-	IdDb = idlog.NewIDLog(cfg.Files.IDlog, cfg.Remailer.IDexp)
-	defer IdDb.Close()
+	IDDb = idlog.NewIDLog(cfg.Files.IDlog, cfg.Remailer.IDexp)
+	defer IDDb.Close()
 	// Open the chunk DB
 	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
 	ChunkDb = OpenChunk(cfg.Files.ChunkDB)
@@ -80,7 +81,7 @@ func loopServer() (err error) {
 	oneDay := time.Duration(dayLength) * time.Second
 
 	// Determine if this is a single run or the start of a Daemon
-	runAsDaemon := cfg.Remailer.Daemon || flag_daemon
+	runAsDaemon := cfg.Remailer.Daemon || flagDaemon
 
 	// Actually start the server loop
 	if runAsDaemon {
@@ -214,7 +215,7 @@ func generateKeypair(secret *keymgr.Secring) {
 
 // idLogExpire deletes old entries in the ID Log
 func idLogExpire() {
-	count, deleted := IdDb.Expire()
+	count, deleted := IDDb.Expire()
 	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)
 }
 
@@ -249,7 +250,7 @@ func nagOperator() {
 		)
 	}
 	// Complain about high pool rates.
-	if cfg.Pool.Rate > 90 && !flag_send {
+	if cfg.Pool.Rate > 90 && !flagSend {
 		Warn.Printf(
 			"Your pool rate of %d is excessively high. Unless "+
 				"testing, a lower setting is recommended.",
@@ -257,7 +258,7 @@ func nagOperator() {
 		)
 	}
 	// Complain about running a remailer with flag_send
-	if flag_send && flag_remailer {
+	if flagSend && flagRemailer {
 		Warn.Printf(
 			"Your remailer will flush the outbound pool every "+
 				"%d seconds. Unless you're testing, this is "+
@@ -271,7 +272,7 @@ func createDirs() {
 	var err error
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
 	if err != nil {
-		Error.Println(
+		Error.Printf(
 			"Failed to create %s. %s",
 			cfg.Files.IDlog,
 			err,
@@ -280,7 +281,7 @@ func createDirs() {
 	}
 	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
 	if err != nil {
-		Error.Println(
+		Error.Printf(
 			"Failed to create %s. %s",
 			cfg.Files.Pooldir,
 			err,
@@ -289,7 +290,7 @@ func createDirs() {
 	}
 	err = os.MkdirAll(cfg.Files.ChunkDB, 0700)
 	if err != nil {
-		Error.Println(
+		Error.Printf(
 			"Failed to create %s. %s",
 			cfg.Files.ChunkDB,
 			err,
@@ -298,7 +299,7 @@ func createDirs() {
 	}
 	err = os.MkdirAll(cfg.Files.Maildir, 0700)
 	if err != nil {
-		Error.Println(
+		Error.Printf(
 			"Failed to create %s. %s",
 			cfg.Files.Maildir,
 			err,
@@ -308,19 +309,19 @@ func createDirs() {
 	mdirnew := path.Join(cfg.Files.Maildir, "new")
 	err = os.MkdirAll(mdirnew, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", mdirnew, err)
+		Error.Printf("Failed to create %s. %s", mdirnew, err)
 		os.Exit(1)
 	}
 	mdircur := path.Join(cfg.Files.Maildir, "cur")
 	err = os.MkdirAll(mdircur, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", mdircur, err)
+		Error.Printf("Failed to create %s. %s", mdircur, err)
 		os.Exit(1)
 	}
 	mdirtmp := path.Join(cfg.Files.Maildir, "tmp")
 	err = os.MkdirAll(mdirtmp, 0700)
 	if err != nil {
-		Error.Println("Failed to create %s. %s", mdirtmp, err)
+		Error.Printf("Failed to create %s. %s", mdirtmp, err)
 		os.Exit(1)
 	}
 }
@@ -355,13 +356,11 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring) (err error) {
 	switch packetVersion {
 	case 2:
 		err = decodeV2(d, slotDataBytes)
-		return
 	default:
 		err = fmt.Errorf(
 			"Cannot decode packet version %d",
 			packetVersion,
 		)
-		return
 	}
 	return
 }
@@ -370,7 +369,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 	// Convert the raw Slot Data Bytes to meaningful slotData.
 	slotData := decodeSlotData(slotDataBytes)
 	// Test uniqueness of packet ID
-	if !IdDb.Unique(slotData.getPacketID()) {
+	if !IDDb.Unique(slotData.getPacketID()) {
 		err = errors.New("Packet ID collision")
 		return
 	}
@@ -420,7 +419,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			writeMessageToPool(inter.getNextHop(), d.getPayload())
 			stats.outYamn++
 			// Decide if we want to inject a dummy
-			if !flag_nodummy && dice() < 55 {
+			if !flagNoDummy && dice() < 55 {
 				dummy()
 				stats.outDummy++
 			}
@@ -548,10 +547,10 @@ func randhop(plainMsg []byte) {
 		return
 	}
 	// Make a single hop chain with a random node
-	in_chain := []string{"*"}
+	inChain := []string{"*"}
 	final := newSlotFinal()
 	var chain []string
-	chain, err = makeChain(in_chain)
+	chain, err = makeChain(inChain)
 	if err != nil {
 		Warn.Println(err)
 		return
@@ -640,7 +639,7 @@ func remailerFoo(subject, sender string) (err error) {
 	}
 	err = mailBytes(msg, []string{sender})
 	if err != nil {
-		Warn.Println("Failed to send %s to %s", subject, sender)
+		Warn.Printf("Failed to send %s to %s", subject, sender)
 		return
 	}
 	return

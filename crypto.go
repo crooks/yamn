@@ -8,9 +8,9 @@ import (
 	"crypto/cipher"
 )
 
-// AES_GCM_Encrypt applies the necessary padding to the message and encrypts it
+// aesGcmEncrypt applies the necessary padding to the message and encrypts it
 // with AES-GCM.
-func AES_GCM_Encrypt(plain, key, nonce, data []byte) (ct []byte) {
+func aesGcmEncrypt(plain, key, nonce, data []byte) (ct []byte) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
@@ -25,8 +25,8 @@ func AES_GCM_Encrypt(plain, key, nonce, data []byte) (ct []byte) {
 	return
 }
 
-// AES_GCM_Decrypt decrypts the message and removes any padding.
-func AES_GCM_Decrypt(ct, key, nonce, data []byte) (plain []byte) {
+// aesGcmDecrypt decrypts the message and removes any padding.
+func aesGcmDecrypt(ct, key, nonce, data []byte) (plain []byte) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
@@ -44,8 +44,8 @@ func AES_GCM_Decrypt(ct, key, nonce, data []byte) (plain []byte) {
 	return
 }
 
-// AES_CTR does encrypt and decrypt of aes_ctr mode
-func AES_CTR(in, key, iv []byte) (out []byte) {
+// aesCtr does encrypt and decrypt of aes_ctr mode
+func aesCtr(in, key, iv []byte) (out []byte) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)

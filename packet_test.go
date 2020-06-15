@@ -71,7 +71,7 @@ func TestPacket(t *testing.T) {
 	outHead.setAesKey(randbytes(32))
 	outHead.setTagHash(make([]byte, 32))
 	outHead.setPacketInfo(outExitHead.encode())
-	copy(payload, AES_CTR(payload, outHead.aesKey, outExitHead.aesIV))
+	copy(payload, aesCtr(payload, outHead.aesKey, outExitHead.aesIV))
 
 	inHead := decodeSlotData(outHead.encode())
 
@@ -82,7 +82,7 @@ func TestPacket(t *testing.T) {
 	if bytes.Compare(outExitHead.aesIV, inExitHead.aesIV) != 0 {
 		t.Fatal("AES IV mismatch")
 	}
-	copy(payload, AES_CTR(payload, inHead.aesKey, inExitHead.aesIV))
+	copy(payload, aesCtr(payload, inHead.aesKey, inExitHead.aesIV))
 	outText := string(payload[0:inExitHead.bodyBytes])
 	if outText != plainText {
 		t.Fatal("Body encrypt/decrypt mismatch")
@@ -124,7 +124,7 @@ func TestOneHop(t *testing.T) {
 
 	exitHeader := encHeader.encode(encSlotDataBytes)
 	encBody := make([]byte, bodyBytes)
-	copy(encBody, AES_CTR(encPlain, encSlotData.aesKey, encSlotFinal.aesIV))
+	copy(encBody, aesCtr(encPlain, encSlotData.aesKey, encSlotFinal.aesIV))
 
 	// Create a decode struct called exitHead and fill it with the encoded
 	// bytes from encHead
@@ -157,7 +157,7 @@ func TestOneHop(t *testing.T) {
 	decSlotFinal := decodeFinal(decSlotData.packetInfo)
 
 	decBody := make([]byte, bodyBytes)
-	copy(decBody, AES_CTR(encBody, decSlotData.aesKey, decSlotFinal.aesIV))
+	copy(decBody, aesCtr(encBody, decSlotData.aesKey, decSlotFinal.aesIV))
 	decPlain := decBody[:decSlotFinal.bodyBytes]
 	if bytes.Compare(encPlain, decPlain) != 0 {
 		t.Fatalf(

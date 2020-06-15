@@ -3,14 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/crooks/yamn/idlog"
-	"github.com/crooks/yamn/keymgr"
-	"github.com/luksen/maildir"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/crooks/yamn/idlog"
+	"github.com/crooks/yamn/keymgr"
+	"github.com/luksen/maildir"
 )
 
 const (
@@ -29,7 +30,7 @@ var (
 	Warn    *log.Logger
 	Error   *log.Logger
 	Pubring *keymgr.Pubring
-	IdDb    *idlog.IDLog
+	IDDb    *idlog.IDLog
 	ChunkDb *Chunk
 )
 
@@ -148,7 +149,7 @@ func main() {
 	} // End of logging setup
 
 	// If the debug flag is set, print the config in JSON format and then exit.
-	if flag_debug {
+	if flagDebug {
 		j, err := json.MarshalIndent(cfg, "", "    ")
 		if err != nil {
 			fmt.Printf("Debugging Error: %s\n", err)
@@ -158,9 +159,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	if flag_client {
+	if flagClient {
 		mixprep()
-	} else if flag_stdin {
+	} else if flagStdin {
 		dir := maildir.Dir(cfg.Files.Maildir)
 		newmsg, err := dir.NewDelivery()
 		if err != nil {
@@ -174,15 +175,15 @@ func main() {
 		}
 		newmsg.Write(stdin)
 		newmsg.Close()
-	} else if flag_remailer {
+	} else if flagRemailer {
 		err = loopServer()
 		if err != nil {
 			panic(err)
 		}
-	} else if flag_dummy {
+	} else if flagDummy {
 		injectDummy()
 	}
-	if flag_send {
+	if flagSend {
 		// Flush the outbound pool
 		poolOutboundSend()
 	}

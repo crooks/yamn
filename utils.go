@@ -248,7 +248,7 @@ func assertIsPath(path string) {
 	if !testPath {
 		// Arghh, the path doesn't exist!
 		err = fmt.Errorf(
-			"Assertion failure.  Path %s does not exist.",
+			"Assertion failure.  Path %s does not exist",
 			path,
 		)
 		panic(err)
@@ -392,18 +392,17 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 		case 3:
 			if len(line) != 64 {
 				err = fmt.Errorf(
-					"Expected 64 digit Hex encoded Hash, got %d bytes\n",
+					"Expected 64 digit Hex encoded Hash, got %d bytes",
 					len(line),
 				)
 				return
-			} else {
-				payloadDigest, err = hex.DecodeString(line)
-				if err != nil {
-					err = errors.New(
-						"Unable to decode Hex hash on payload",
-					)
-					return
-				}
+			}
+			payloadDigest, err = hex.DecodeString(line)
+			if err != nil {
+				err = errors.New(
+					"Unable to decode Hex hash on payload",
+				)
+				return
 			}
 			scanPhase = 4
 		case 4:
@@ -435,7 +434,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	// Validate payload length against stated length.
 	if statedLen != payloadLen {
 		err = fmt.Errorf(
-			"Payload size doesn't match stated size. Stated=%d, Got=%d\n",
+			"Payload size doesn't match stated size. Stated=%d, Got=%d",
 			statedLen,
 			payloadLen,
 		)
@@ -444,7 +443,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	// Validate payload length against packet format.
 	if payloadLen != messageBytes {
 		err = fmt.Errorf(
-			"Payload size doesn't match stated size. Wanted=%d, Got=%d\n",
+			"Payload size doesn't match stated size. Wanted=%d, Got=%d",
 			messageBytes,
 			payloadLen,
 		)

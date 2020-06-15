@@ -44,7 +44,7 @@ func serverPoolOutboundSend() {
 // on clients, where all messages should be sent instantly after creation.
 func poolOutboundSend() {
 	var err error
-	if cfg.Remailer.Daemon || flag_daemon {
+	if cfg.Remailer.Daemon || flagDaemon {
 		// This should never happen.  If the server is started as a
 		// daemon, the serverPoolOutboundSend process is initiated and
 		// runs in an endless loop.  This function would conflict with
@@ -59,7 +59,7 @@ func poolOutboundSend() {
 		Warn.Printf("Reading pool failed: %s", err)
 		return
 	}
-	if flag_remailer {
+	if flagRemailer {
 		// During normal operation, the pool shouldn't be flushed.
 		Warn.Println("Flushing outbound remailer pool")
 	}

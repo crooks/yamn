@@ -5,13 +5,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/crooks/yamn/keymgr"
 	"io/ioutil"
 	"math"
 	"net/mail"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/crooks/yamn/keymgr"
 	//"github.com/codahale/blake2"
 )
 
@@ -28,19 +29,19 @@ func readMessage(filename string) []byte {
 		fmt.Fprintf(os.Stderr, "%s: Malformed mail message\n", filename)
 		os.Exit(1)
 	}
-	if flag_to != "" {
-		msg.Header["To"] = []string{flag_to}
-		if !strings.Contains(flag_to, "@") {
+	if flagTo != "" {
+		msg.Header["To"] = []string{flagTo}
+		if !strings.Contains(flagTo, "@") {
 			fmt.Fprintf(
 				os.Stderr,
 				"%s: Recipient doesn't appear to be an "+
 					"email address\n",
-				flag_to,
+				flagTo,
 			)
 		}
 	}
-	if flag_subject != "" {
-		msg.Header["Subject"] = []string{flag_subject}
+	if flagSubject != "" {
+		msg.Header["Subject"] = []string{flagSubject}
 	}
 	return assemble(*msg)
 }
@@ -56,20 +57,20 @@ func mixprep() {
 	var plain []byte
 	// final is consistent across multiple copies so we define it early
 	final := newSlotFinal()
-	if len(flag_args) == 0 {
+	if len(flagArgs) == 0 {
 		//fmt.Println("Enter message, complete with headers.  Ctrl-D to finish")
 		plain, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-	} else if len(flag_args) == 1 {
+	} else if len(flagArgs) == 1 {
 		// A single arg should be the filename
-		plain = readMessage(flag_args[0])
-	} else if len(flag_args) >= 2 {
+		plain = readMessage(flagArgs[0])
+	} else if len(flagArgs) >= 2 {
 		// Two args should be recipient and filename
-		flag_to = flag_args[0]
-		plain = readMessage(flag_args[1])
+		flagTo = flagArgs[0]
+		plain = readMessage(flagArgs[1])
 	}
 	// plainLen is the length of the plain byte message and can exceed
 	// the total body size of the payload.
@@ -102,13 +103,13 @@ func mixprep() {
 		return
 	}
 	// Read the chain from flag or config
-	var in_chain []string
-	if flag_chain == "" {
-		in_chain = strings.Split(cfg.Stats.Chain, ",")
+	var inChain []string
+	if flagChain == "" {
+		inChain = strings.Split(cfg.Stats.Chain, ",")
 	} else {
-		in_chain = strings.Split(flag_chain, ",")
+		inChain = strings.Split(flagChain, ",")
 	}
-	if len(in_chain) == 0 {
+	if len(inChain) == 0 {
 		err = errors.New("Empty input chain")
 		return
 	}
@@ -117,60 +118,60 @@ func mixprep() {
 	numc = int(math.Ceil(float64(plainLen) / float64(maxFragLength)))
 	final.setNumChunks(numc)
 	var exitnode string // Address of exit node (for multiple copy chains)
-	var got_exit bool   // Flag to indicate an exit node has been selected
-	var first_byte int  // First byte of message slice
-	var last_byte int   // Last byte of message slice
+	var gotExit bool    // Flag to indicate an exit node has been selected
+	var firstByte int   // First byte of message slice
+	var lastByte int    // Last byte of message slice
 	// Fragments loop begins here
 	for cnum = 1; cnum <= numc; cnum++ {
 		final.setChunkNum(cnum)
 		// First byte of message fragment
-		first_byte = (cnum - 1) * maxFragLength
-		last_byte = first_byte + maxFragLength
+		firstByte = (cnum - 1) * maxFragLength
+		lastByte = firstByte + maxFragLength
 		// Don't slice beyond the end of the message
-		if last_byte > plainLen {
-			last_byte = plainLen
+		if lastByte > plainLen {
+			lastByte = plainLen
 		}
-		got_exit = false
+		gotExit = false
 		// If no copies flag is specified, use the config file NUMCOPIES
-		if flag_copies == 0 {
-			flag_copies = cfg.Stats.Numcopies
+		if flagCopies == 0 {
+			flagCopies = cfg.Stats.Numcopies
 		}
-		if flag_copies > maxCopies {
+		if flagCopies > maxCopies {
 			// Limit copies to a maximum of 10
-			flag_copies = maxCopies
+			flagCopies = maxCopies
 		}
 		// Copies loop begins here
-		for n := 0; n < flag_copies; n++ {
-			if got_exit {
+		for n := 0; n < flagCopies; n++ {
+			if gotExit {
 				// Set the last node in the chain to the
 				// previously select exitnode
-				in_chain[len(in_chain)-1] = exitnode
+				inChain[len(inChain)-1] = exitnode
 			}
 			var chain []string
-			chain, err = makeChain(in_chain)
+			chain, err = makeChain(inChain)
 			if err != nil {
 				Error.Println(err)
 				os.Exit(0)
 			}
-			if len(chain) != len(in_chain) {
+			if len(chain) != len(inChain) {
 				err = fmt.Errorf(
 					"Chain length mismatch.  In=%d, Out=%d",
-					len(in_chain), len(chain))
+					len(inChain), len(chain))
 				panic(err)
 			}
 			//fmt.Println(chain)
-			if !got_exit {
+			if !gotExit {
 				exitnode = chain[len(chain)-1]
-				got_exit = true
+				gotExit = true
 			}
 			// Retain the entry hop.  We need to mail the message to it.
 			sendTo := chain[0]
 			// Report the chain if we're running as a client.
-			if flag_client {
+			if flagClient {
 				Info.Printf("Chain: %s\n", strings.Join(chain, ","))
 			}
 			yamnMsg := encodeMsg(
-				plain[first_byte:last_byte],
+				plain[firstByte:lastByte],
 				chain,
 				*final,
 			)
@@ -179,7 +180,7 @@ func mixprep() {
 	} // End of fragments loop
 
 	// Decide if we want to inject a dummy
-	if !flag_nodummy && Pubring.HaveStats() && dice() < 80 {
+	if !flagNoDummy && Pubring.HaveStats() && dice() < 80 {
 		dummy()
 	}
 }
@@ -330,10 +331,10 @@ func dummy() {
 	plainMsg := []byte("I hope Len approves")
 	// Make a single hop chain with a random node
 	var inChain []string
-	if flag_chain == "" {
+	if flagChain == "" {
 		inChain = []string{"*", "*"}
 	} else {
-		inChain = strings.Split(flag_chain, ",")
+		inChain = strings.Split(flagChain, ",")
 	}
 	final := newSlotFinal()
 	// Override the default delivery method (255 = Dummy)

@@ -5,8 +5,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/crooks/yamn/keymgr"
 	"os"
+
+	"github.com/crooks/yamn/keymgr"
 )
 
 // distanceCriteria enforces user-defined minimal distance criteria
@@ -61,11 +62,11 @@ func makeChain(inChain []string) (outChain []string, err error) {
 		dist = len(inChain)
 	}
 	var distance []string
-	in_dist := make([]string, 0, dist)  // n distance elements of input chain
-	out_dist := make([]string, 0, dist) // n distance elements of output chain
+	inDist := make([]string, 0, dist)  // n distance elements of input chain
+	outDist := make([]string, 0, dist) // n distance elements of output chain
 	outChain = make([]string, 0, len(inChain))
 	// Loop until inChain contains no more remailers
-	num_hops := len(inChain)
+	numHops := len(inChain)
 	var hop string
 	for {
 		hop = popstr(&inChain)
@@ -96,7 +97,7 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				Warn.Println("No candidate remailers match selection criteria")
 			}
 
-			if len(candidates) == 0 && flag_remailer {
+			if len(candidates) == 0 && flagRemailer {
 				Warn.Println("Relaxing latency and uptime criteria to build chain")
 				if len(outChain) == 0 {
 					// Construct a list of suitable exit remailers
@@ -120,7 +121,7 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				os.Exit(1)
 			}
 			if len(candidates) == 0 {
-				errors.New(
+				err = errors.New(
 					"No remailers available to build " +
 						"random chain link",
 				)
@@ -156,18 +157,18 @@ func makeChain(inChain []string) (outChain []string, err error) {
 		}
 		// The following section is concerned with distance parameter compliance
 		if len(outChain) > dist {
-			out_dist = outChain[:dist]
+			outDist = outChain[:dist]
 		} else {
-			out_dist = outChain
+			outDist = outChain
 		}
 		if len(inChain) > dist {
-			in_dist = inChain[len(inChain)-dist:]
+			inDist = inChain[len(inChain)-dist:]
 		} else {
-			in_dist = inChain
+			inDist = inChain
 		}
-		distance = append(in_dist, out_dist...)
+		distance = append(inDist, outDist...)
 	}
-	if len(outChain) != num_hops {
+	if len(outChain) != numHops {
 		panic("Constructed chain length doesn't match input chain length")
 	}
 	return

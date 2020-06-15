@@ -807,7 +807,7 @@ func (m *encMessage) encryptBody(key, iv []byte) {
 
 	copy(
 		m.payload[headersBytes:],
-		AES_CTR(
+		aesCtr(
 			m.payload[headersBytes:],
 			key,
 			iv,
@@ -835,13 +835,13 @@ func (m *encMessage) encryptAll(hop int) {
 		iv = m.getIV(hop, slot)
 		copy(
 			m.payload[sbyte:ebyte],
-			AES_CTR(m.payload[sbyte:ebyte], key, iv),
+			aesCtr(m.payload[sbyte:ebyte], key, iv),
 		)
 	}
 	iv = m.getIV(hop, maxChainLength)
 	copy(
 		m.payload[headersBytes:],
-		AES_CTR(m.payload[headersBytes:], key, iv),
+		aesCtr(m.payload[headersBytes:], key, iv),
 	)
 }
 
@@ -891,7 +891,7 @@ func (m *encMessage) deterministic(hop int) {
 		for interHop := right; interHop-hop >= 0; interHop-- {
 			key := m.getKey(interHop)
 			iv := m.getIV(interHop, useSlot)
-			copy(fakeHead, AES_CTR(fakeHead, key, iv))
+			copy(fakeHead, aesCtr(fakeHead, key, iv))
 			useSlot--
 		}
 		// Actually insert the fiendish header into the message
@@ -988,7 +988,7 @@ func (m *decMessage) decryptBody(key, iv []byte, length int) []byte {
 
 	copy(
 		m.payload[headersBytes:],
-		AES_CTR(
+		aesCtr(
 			m.payload[headersBytes:],
 			key,
 			iv,
@@ -1016,7 +1016,7 @@ func (m *decMessage) decryptAll(key, partialIV []byte) {
 		iv = seqIV(partialIV, slot)
 		copy(
 			m.payload[sbyte:ebyte],
-			AES_CTR(m.payload[sbyte:ebyte], key, iv),
+			aesCtr(m.payload[sbyte:ebyte], key, iv),
 		)
 	}
 	// IVs from 0 to maxChainLength-1 have been used for the headers.  The
@@ -1024,7 +1024,7 @@ func (m *decMessage) decryptAll(key, partialIV []byte) {
 	iv = seqIV(partialIV, maxChainLength)
 	copy(
 		m.payload[headersBytes:],
-		AES_CTR(m.payload[headersBytes:], key, iv),
+		aesCtr(m.payload[headersBytes:], key, iv),
 	)
 }
 
