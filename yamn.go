@@ -25,12 +25,19 @@ const (
 )
 
 var (
-	Trace   *log.Logger
-	Info    *log.Logger
-	Warn    *log.Logger
-	Error   *log.Logger
+	// Trace loglevel
+	Trace *log.Logger
+	// Info loglevel
+	Info *log.Logger
+	// Warn loglevel
+	Warn *log.Logger
+	// Error loglevel
+	Error *log.Logger
+	// Pubring - Public Keyring
 	Pubring *keymgr.Pubring
-	IDDb    *idlog.IDLog
+	// IDDb - Message ID log (replay protection)
+	IDDb *idlog.IDLog
+	// ChunkDb - Chunk database
 	ChunkDb *Chunk
 )
 

@@ -566,17 +566,17 @@ func seqIV(partialIV []byte, slot int) (iv []byte) {
 }
 
 // setNextHop inserts the name of the next hop remailer and pads it.
-func (i *slotIntermediate) setNextHop(nh string) {
+func (s *slotIntermediate) setNextHop(nh string) {
 	if len(nh) > 52 {
 		err := fmt.Errorf("Next hop address exceeds 52 chars")
 		panic(err)
 	}
-	i.nextHop = []byte(nh + strings.Repeat("\x00", 52-len(nh)))
+	s.nextHop = []byte(nh + strings.Repeat("\x00", 52-len(nh)))
 }
 
 //getNextHop returns the next hop remailer name after stripping any padding.
-func (i *slotIntermediate) getNextHop() string {
-	return strings.TrimRight(string(i.nextHop), "\x00")
+func (s *slotIntermediate) getNextHop() string {
+	return strings.TrimRight(string(s.nextHop), "\x00")
 }
 
 // AES_IV constructs a 16 Byte IV from an input of 12 random Bytes and a uint32
