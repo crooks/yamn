@@ -9,8 +9,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/crooks/yamn/linebreaker"
-	"github.com/dchest/blake2s"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -19,6 +17,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/crooks/yamn/linebreaker"
+	"github.com/dchest/blake2s"
 	//"github.com/codahale/blake2"
 )
 
@@ -30,8 +31,8 @@ import (
 // rand package.
 type CryptoRandSource struct{}
 
-// NewCryptoRandSource returns a new instance of CryptoRandSource.
-func NewCryptoRandSource() CryptoRandSource {
+// newCryptoRandSource returns a new instance of CryptoRandSource.
+func newCryptoRandSource() CryptoRandSource {
 	return CryptoRandSource{}
 }
 
@@ -72,13 +73,13 @@ func dice() int {
 
 // randomInt returns an integer between 0 and max
 func randomInt(max int) int {
-	r := rand.New(NewCryptoRandSource())
+	r := rand.New(newCryptoRandSource())
 	return r.Intn(max)
 }
 
 // randInts returns a randomly ordered slice of ints
 func randInts(n int) (m []int) {
-	r := rand.New(NewCryptoRandSource())
+	r := rand.New(newCryptoRandSource())
 	m = make([]int, n)
 	for i := 0; i < n; i++ {
 		j := r.Intn(i)
@@ -106,7 +107,7 @@ func max(x, y int) int {
 
 // shuffle performs an inline Fisher-Yates Shuffle of a string slice
 func shuffle(slice []string) {
-	r := rand.New(NewCryptoRandSource())
+	r := rand.New(newCryptoRandSource())
 	sliceLen := len(slice)
 	for i := range slice {
 		j := r.Intn(sliceLen)
