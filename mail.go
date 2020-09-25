@@ -245,7 +245,11 @@ func mailBytes(payload []byte, sendTo []string) (err error) {
 			return
 		}
 	} else if cfg.Mail.Pipe != "" {
-		execSend(payload, cfg.Mail.Pipe)
+		err = execSend(payload, cfg.Mail.Pipe)
+		if err != nil {
+			Warn.Println("Email pipe failed")
+			return
+		}
 	} else if cfg.Mail.Sendmail {
 		err = sendmail(payload, sendTo)
 		if err != nil {
@@ -263,14 +267,15 @@ func mailBytes(payload []byte, sendTo []string) (err error) {
 }
 
 // Pipe mail to an external command (E.g. sendmail -t)
-func execSend(payload []byte, execCmd string) {
+func execSend(payload []byte, execCmd string) (err error) {
 	sendmail := new(exec.Cmd)
 	sendmail.Args = strings.Fields(execCmd)
 	sendmail.Path = sendmail.Args[0]
 
 	stdin, err := sendmail.StdinPipe()
 	if err != nil {
-		panic(err)
+		Error.Printf("%s: %s", execCmd, err)
+		return
 	}
 	defer stdin.Close()
 	sendmail.Stdout = os.Stdout
@@ -287,6 +292,7 @@ func execSend(payload []byte, execCmd string) {
 		Error.Printf("%s: %s", execCmd, err)
 		return
 	}
+	return
 }
 
 func smtpRelay(payload []byte, sendTo []string) (err error) {
