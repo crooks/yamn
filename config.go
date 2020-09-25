@@ -316,10 +316,8 @@ func flags() {
 		fn := path.Join(flagBasedir, "yamn.cfg")
 		err = gcfg.ReadFileInto(&cfg, fn)
 		if err != nil {
-			if !flagClient {
-				fmt.Println(err)
-			}
-			fmt.Println("Using internal, default config.")
+			fmt.Printf("Error: Unable to read config: %s", err)
+			os.Exit(1)
 		}
 	}
 	if flagVersion {
