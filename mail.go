@@ -277,14 +277,15 @@ func execSend(payload []byte, execCmd string) {
 	sendmail.Stderr = os.Stderr
 	err = sendmail.Start()
 	if err != nil {
-		panic(err)
+		Error.Printf("%s: %s", execCmd, err)
+		return
 	}
 	stdin.Write(payload)
 	stdin.Close()
 	err = sendmail.Wait()
 	if err != nil {
-		//Warn.Printf("%s: %s", execCmd, err)
-		panic(err)
+		Error.Printf("%s: %s", execCmd, err)
+		return
 	}
 }
 
