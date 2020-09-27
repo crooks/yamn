@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/linebreaker"
 	"github.com/dchest/blake2s"
 	//"github.com/codahale/blake2"
@@ -72,7 +73,7 @@ func readDir(path, prefix string) (files []string, err error) {
 // construction.
 func messageID() (datestr string) {
 	dateComponent := time.Now().Format("20060102.150405")
-	randomComponent := hex.EncodeToString(randbytes(4))
+	randomComponent := hex.EncodeToString(crandom.Randbytes(4))
 	var domainComponent string
 	if strings.Contains(cfg.Remailer.Address, "@") {
 		domainComponent = strings.SplitN(

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/crooks/yamn/quickmail"
@@ -419,7 +420,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			writeMessageToPool(inter.getNextHop(), d.getPayload())
 			stats.outYamn++
 			// Decide if we want to inject a dummy
-			if !flagNoDummy && dice() < 55 {
+			if !flagNoDummy && crandom.Dice() < 55 {
 				dummy()
 				stats.outDummy++
 			}

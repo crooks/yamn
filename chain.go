@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 )
 
@@ -134,7 +135,7 @@ func makeChain(inChain []string) (outChain []string, err error) {
 					hop,
 				)
 			} else {
-				hop = candidates[randomInt(len(candidates))]
+				hop = candidates[crandom.RandomInt(len(candidates))]
 			}
 		} else {
 			var remailer keymgr.Remailer

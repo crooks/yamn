@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"testing"
+
+	"github.com/crooks/yamn/crandom"
 )
 
 func errTest(err error) {
@@ -42,7 +44,7 @@ func TestSlotData(t *testing.T) {
 	inSlotData := newSlotData()
 	inSlotData.setTimestamp()
 	inSlotData.setPacketInfo(make([]byte, 64))
-	inSlotData.setAesKey(randbytes(32))
+	inSlotData.setAesKey(crandom.Randbytes(32))
 	inSlotData.setTagHash(make([]byte, 32))
 	outSlotData := decodeSlotData(inSlotData.encode())
 	if bytes.Compare(inSlotData.packetID, outSlotData.packetID) != 0 {
@@ -52,9 +54,9 @@ func TestSlotData(t *testing.T) {
 
 func TestNaClEncryptDecrypt(t *testing.T) {
 	inHead := newEncodeHeader()
-	inPlain := randbytes(160)
+	inPlain := crandom.Randbytes(160)
 	recipientPK, _ := eccGenerate()
-	fakeKeyid := randbytes(16)
+	fakeKeyid := crandom.Randbytes(16)
 	inHead.setRecipient(fakeKeyid, recipientPK)
 	inHead.encode(inPlain)
 }
@@ -68,7 +70,7 @@ func TestPacket(t *testing.T) {
 	copy(payload, []byte(plainText))
 
 	outHead := newSlotData()
-	outHead.setAesKey(randbytes(32))
+	outHead.setAesKey(crandom.Randbytes(32))
 	outHead.setTagHash(make([]byte, 32))
 	outHead.setPacketInfo(outExitHead.encode())
 	copy(payload, aesCtr(payload, outHead.aesKey, outExitHead.aesIV))
@@ -113,7 +115,7 @@ func TestOneHop(t *testing.T) {
 	// Tell the Slot Data that this is the exit hop, otherwise it will
 	// default to intermediate.
 	encSlotData.setExit()
-	encSlotData.setAesKey(randbytes(32))
+	encSlotData.setAesKey(crandom.Randbytes(32))
 	encSlotData.setPacketInfo(encSlotFinal.encode())
 	encSlotData.setTagHash(make([]byte, 32))
 	encSlotDataBytes := encSlotData.encode()
@@ -182,7 +184,7 @@ func TestMultiHop(t *testing.T) {
 	// Tell the Slot Data that this is the exit hop, otherwise it will
 	// default to intermediate.
 	encData.setExit()
-	encData.setAesKey(randbytes(32))
+	encData.setAesKey(crandom.Randbytes(32))
 	// Encode the Packet Info and store it in the Slot Data
 	encData.setPacketInfo(encFinal.encode())
 

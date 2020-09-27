@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 	//"github.com/codahale/blake2"
 )
@@ -180,7 +181,7 @@ func mixprep() {
 	} // End of fragments loop
 
 	// Decide if we want to inject a dummy
-	if !flagNoDummy && Pubring.HaveStats() && dice() < 80 {
+	if !flagNoDummy && Pubring.HaveStats() && crandom.Dice() < 80 {
 		dummy()
 	}
 }
@@ -205,7 +206,7 @@ func encodeMsg(
 	// Identify this hop as Packet-Type 1 (Exit).
 	slotData.setExit()
 	// For exit hops, the AES key can be entirely random.
-	slotData.setAesKey(randbytes(32))
+	slotData.setAesKey(crandom.Randbytes(32))
 	// Override the random PacketID so that multi-copy messages all share a
 	// common Exit PacketID.
 	slotData.setPacketID(final.getPacketID())

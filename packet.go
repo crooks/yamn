@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/dchest/blake2s"
-	"golang.org/x/crypto/nacl/box"
 	"strings"
 	"time"
+
+	"github.com/crooks/yamn/crandom"
+	"github.com/dchest/blake2s"
+	"golang.org/x/crypto/nacl/box"
 	//"code.google.com/p/go.crypto/nacl/box"
 )
 
@@ -94,7 +96,7 @@ func (h *encodeHeader) encode(encHead []byte) []byte {
 		panic(err)
 	}
 	var nonce [24]byte
-	copy(nonce[:], randbytes(24))
+	copy(nonce[:], crandom.Randbytes(24))
 	buf := new(bytes.Buffer)
 	buf.Write(h.recipientKeyID)
 	buf.Write(senderPK[:])
@@ -104,7 +106,7 @@ func (h *encodeHeader) encode(encHead []byte) []byte {
 	if err != nil {
 		panic(err)
 	}
-	buf.Write(randbytes(headerBytes - buf.Len()))
+	buf.Write(crandom.Randbytes(headerBytes - buf.Len()))
 	return buf.Bytes()
 }
 
@@ -205,7 +207,7 @@ func newSlotData() *slotData {
 	timestamp := make([]byte, 2)
 	ts := time.Now().UTC().Unix() / 86400
 	// Add some randomness to the timestamp by subtracting 0-3 days
-	ts -= int64(dice() % 4)
+	ts -= int64(crandom.Dice() % 4)
 	binary.LittleEndian.PutUint16(timestamp, uint16(ts))
 	return &slotData{
 		version:    2, // This packet format is v2
@@ -213,7 +215,7 @@ func newSlotData() *slotData {
 		protocol:   0,
 		// packetID is random for intermediate hops but needs to be
 		// identical on multi-copy Exits.
-		packetID:      randbytes(16),
+		packetID:      crandom.Randbytes(16),
 		gotAesKey:     false,
 		aesKey:        make([]byte, 32),
 		timestamp:     timestamp,
@@ -396,11 +398,11 @@ type slotFinal struct {
 
 func newSlotFinal() *slotFinal {
 	return &slotFinal{
-		aesIV:          randbytes(16),
+		aesIV:          crandom.Randbytes(16),
 		chunkNum:       1,
 		numChunks:      1,
-		messageID:      randbytes(16),
-		packetID:       randbytes(16),
+		messageID:      crandom.Randbytes(16),
+		packetID:       crandom.Randbytes(16),
 		gotBodyBytes:   false,
 		deliveryMethod: 0,
 	}
@@ -681,11 +683,11 @@ func (m *encMessage) setChainLength(chainLength int) {
 	// intermediate remailer in the chain can know its position due to the
 	// zero bytes below the decrypted exit header.  After this, the payload
 	// will contain nothing but padding.
-	copy(m.payload, randbytes(m.padBytes))
+	copy(m.payload, crandom.Randbytes(m.padBytes))
 	// Generate keys and (partial) IVs for each hop
 	for n := 0; n < m.intermediateHops; n++ {
-		m.keys[n] = randbytes(32)
-		m.ivs[n] = randbytes(12)
+		m.keys[n] = crandom.Randbytes(32)
+		m.ivs[n] = crandom.Randbytes(12)
 	}
 }
 

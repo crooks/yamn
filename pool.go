@@ -11,7 +11,9 @@ import (
 	"path"
 	"strings"
 	"time"
+
 	//"github.com/codahale/blake2"
+	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
 )
@@ -106,7 +108,7 @@ func dynamicMix() []string {
 	}
 	// Shuffle the slice of filenames now as we're going to return a
 	// setset of the overall pool.
-	shuffle(poolFiles)
+	crandom.Shuffle(poolFiles)
 	// Normal pool processing condition
 	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
 	Trace.Printf("Processing %d pool messages.\n", poolSize)
@@ -148,12 +150,12 @@ func binomialMix() (batch []string) {
 	}
 	// Shuffle the slice of filenames now as we're only going to consider a
 	// subset in the following loop.
-	shuffle(poolFiles)
+	crandom.Shuffle(poolFiles)
 	// Multiply probability by 255 as dice() returns 0-255.
 	prob := int((float32(batchSize) / float32(poolSize)) * 255)
 	// Test each pool filename against a biased coin-toss
 	for _, s := range poolFiles[:batchSize] {
-		if prob >= dice() {
+		if prob >= crandom.Dice() {
 			batch = append(batch, s)
 		}
 	}
@@ -295,7 +297,7 @@ func processInpool(prefix string, secret *keymgr.Secring) {
 // be used in all instances where a new pool file is required.
 func randPoolFilename(prefix string) (fqfn string) {
 	for {
-		outfileName := prefix + hex.EncodeToString(randbytes(7))
+		outfileName := prefix + hex.EncodeToString(crandom.Randbytes(7))
 		fqfn = path.Join(cfg.Files.Pooldir, outfileName)
 		_, err := os.Stat(fqfn)
 		if err != nil {
