@@ -3,15 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
-	urand "crypto/rand"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -22,72 +19,6 @@ import (
 	"github.com/dchest/blake2s"
 	//"github.com/codahale/blake2"
 )
-
-// The following section defines crypto/rand as a source for functions in
-// math/rand.  This means we can use many of the math/rand functions with
-// a cryptographically random source.
-
-// CryptoRandSource is an empty struct for creating a new random source in the
-// rand package.
-type CryptoRandSource struct{}
-
-// newCryptoRandSource returns a new instance of CryptoRandSource.
-func newCryptoRandSource() CryptoRandSource {
-	return CryptoRandSource{}
-}
-
-func (_ CryptoRandSource) Int63() int64 {
-	var b [8]byte
-	urand.Read(b[:])
-	return int64(binary.LittleEndian.Uint64(b[:]) & (1<<63 - 1))
-}
-
-func (_ CryptoRandSource) Seed(_ int64) {}
-
-// And so ends the random magic section
-
-// randbytes returns n Bytes of random data
-func randbytes(n int) (b []byte) {
-	b = make([]byte, n)
-	read, err := urand.Read(b)
-	if err != nil {
-		panic(err)
-	}
-	if read != n {
-		err = fmt.Errorf(
-			"Insufficient entropy.  Wanted=%d, Got=%d",
-			n,
-			read,
-		)
-		panic(err)
-	}
-	return
-}
-
-// dice returns a random integer of range 0-255
-func dice() int {
-	var b [1]byte
-	urand.Read(b[:])
-	return int(b[0])
-}
-
-// randomInt returns an integer between 0 and max
-func randomInt(max int) int {
-	r := rand.New(newCryptoRandSource())
-	return r.Intn(max)
-}
-
-// randInts returns a randomly ordered slice of ints
-func randInts(n int) (m []int) {
-	r := rand.New(newCryptoRandSource())
-	m = make([]int, n)
-	for i := 0; i < n; i++ {
-		j := r.Intn(i)
-		m[i] = m[j]
-		m[j] = i
-	}
-	return
-}
 
 // min returns the lower of two integers
 func min(x, y int) int {
@@ -103,16 +34,6 @@ func max(x, y int) int {
 		return x
 	}
 	return y
-}
-
-// shuffle performs an inline Fisher-Yates Shuffle of a string slice
-func shuffle(slice []string) {
-	r := rand.New(newCryptoRandSource())
-	sliceLen := len(slice)
-	for i := range slice {
-		j := r.Intn(sliceLen)
-		slice[i], slice[j] = slice[j], slice[i]
-	}
 }
 
 // daysAgo takes a timestamp and returns an integer of its age in days.
