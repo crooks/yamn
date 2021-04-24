@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/apex/log"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 )
@@ -30,23 +31,19 @@ func makeChain(inChain []string) (outChain []string, err error) {
 		// Try and import the modified stats file
 		err = Pubring.ImportStats()
 		if err != nil {
-			Warn.Printf("Unable to read stats: %s", err)
+			log.WithField("error", err).Warn("Unable to read stats")
 			return
 		}
-		Info.Println("Stats updated and reimported")
+		log.Info("Stats updated and reimported")
 	}
 	// Check generated timestamp from stats file
 	if Pubring.HaveStats() && Pubring.StatsStale(cfg.Stats.StaleHrs) {
-		Warn.Printf(
-			"Stale stats.  Generated age exceeds "+
-				"configured threshold of %d hours",
-			cfg.Stats.StaleHrs,
-		)
+		log.WithField("threshold", cfg.Stats.StaleHrs).Warn("Stale stats.  Generated age exceeds configured threshold.")
 	}
 	// If the chain contains a random remailer, we're going to need stats
 	if !Pubring.HaveStats() && IsMemberStr("*", inChain) {
 		err = errors.New("Cannot use random remailers without stats")
-		Warn.Println(err)
+		log.Warn("No remailer stats available")
 		return
 	}
 	dist := cfg.Stats.Distance
@@ -92,30 +89,24 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				// Apply distance criteria
 				candidates = distanceCriteria(candidates, distance)
 				if len(candidates) == 0 {
-					Warn.Println("Insufficient remailers to comply with distance criteria")
+					log.Warn("Insufficient remailers to comply with distance criteria")
 				}
 			} else {
-				Warn.Println("No candidate remailers match selection criteria")
+				log.Warn("No candidate remailers match selection criteria")
 			}
 
 			if len(candidates) == 0 && flagRemailer {
-				Warn.Println("Relaxing latency and uptime criteria to build chain")
+				log.Warn("Relaxing latency and uptime criteria to build chain")
 				if len(outChain) == 0 {
 					// Construct a list of suitable exit remailers
-					Info.Println("Constructing relaxed list of Exit remailers")
+					log.Info("Constructing relaxed list of Exit remailers")
 					candidates = Pubring.Candidates(0, 480, 0, true)
-					Info.Printf(
-						"Discovered %d Exit Remailers matching relaxed criteria",
-						len(candidates),
-					)
+					log.WithField("remailers", len(candidates)).Info("Discovered Exit Remailers matching relaxed criteria")
 				} else {
 					// Construct a list of all suitable remailers
-					Info.Println("Constructing relaxed list of candidate remailers")
+					log.Info("Constructing relaxed list of candidate remailers")
 					candidates = Pubring.Candidates(0, 480, 0, false)
-					Info.Printf(
-						"Discovered %d candidate Remailers matching relaxed criteria",
-						len(candidates),
-					)
+					log.WithField("candidates", len(candidates)).Info("Discovered candidate Remailers matching relaxed criteria")
 				}
 			} else if len(candidates) == 0 {
 				// Insufficient remailers meet criteria and we're a client, so die.
@@ -123,17 +114,11 @@ func makeChain(inChain []string) (outChain []string, err error) {
 			}
 			if len(candidates) == 0 {
 				err = errors.New(
-					"No remailers available to build " +
-						"random chain link",
-				)
+					"No remailers available to build random chain link")
 				return
 			} else if len(candidates) == 1 {
 				hop = candidates[0]
-				Warn.Printf(
-					"Only one remailer (%s) meets chain "+
-						"criteria",
-					hop,
-				)
+				log.WithField("remailer", hop).Warn("Only one remailer meets chain criteria")
 			} else {
 				hop = candidates[crandom.RandomInt(len(candidates))]
 			}

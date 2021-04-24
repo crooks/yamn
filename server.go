@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apex/log"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -42,12 +43,12 @@ func loopServer() (err error) {
 	createDirs()
 
 	// Open the IDlog
-	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
+	log.WithField("IDlog", cfg.Files.IDlog).Info("Opening ID Log")
 	// NewInstance takes the filename and entry validity in days
 	IDDb = idlog.NewIDLog(cfg.Files.IDlog, cfg.Remailer.IDexp)
 	defer IDDb.Close()
 	// Open the chunk DB
-	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
+	log.WithField("chunkLog", cfg.Files.ChunkDB).Info("Opening the Chunk database")
 	ChunkDb = OpenChunk(cfg.Files.ChunkDB)
 	ChunkDb.SetExpire(cfg.Remailer.ChunkExpire)
 
@@ -73,7 +74,7 @@ func loopServer() (err error) {
 		refreshPubkey(secret)
 	}
 
-	Info.Printf("Secret keyring contains %d keys", secret.Count())
+	log.WithField("secretKeys", secret.Count()).Info("Secret keyring imported")
 
 	// Define triggers for timed events
 	daily := time.Now()
@@ -86,12 +87,11 @@ func loopServer() (err error) {
 
 	// Actually start the server loop
 	if runAsDaemon {
-		Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
-		Info.Printf("Detaching Pool processing")
+		log.WithField("remailer", cfg.Remailer.Name).Info("Starting YAMN server")
+		log.WithField("remailer", cfg.Remailer.Name).Info("Detaching Pool processing")
 		go serverPoolOutboundSend()
 	} else {
-		Info.Printf("Performing routine remailer functions for: %s",
-			cfg.Remailer.Name)
+		log.WithField("remailer", cfg.Remailer.Name).Info("Performing routine remailer functions")
 	}
 	for {
 		// Panic if the pooldir doesn't exist
@@ -103,7 +103,7 @@ func loopServer() (err error) {
 
 		// Midnight events
 		if time.Now().Day() != dayOfMonth {
-			Info.Println("Performing midnight events")
+			log.WithField("remailer", cfg.Remailer.Name).Info("Performing midnight housekeeping")
 			// Remove expired keys from memory and rewrite a
 			// secring file without expired keys.
 			if purgeSecring(secret) == 0 {
@@ -121,7 +121,7 @@ func loopServer() (err error) {
 		}
 		// Daily events
 		if time.Since(daily) > oneDay {
-			Info.Println("Performing daily events")
+			log.WithField("remailer", cfg.Remailer.Name).Info("Performing daily housekeeping")
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next
@@ -130,7 +130,7 @@ func loopServer() (err error) {
 		}
 		// Hourly events
 		if time.Since(hourly) > time.Hour {
-			Trace.Println("Performing hourly events")
+			log.WithField("remailer", cfg.Remailer.Name).Debug("Performing hourly housekeeping")
 			/*
 				The following two conditions try to import new
 				pubring and mlist2 URLs.  If they fail, a
@@ -151,10 +151,10 @@ func loopServer() (err error) {
 			}
 			// Test to see if the pubring.mix file has been updated
 			if Pubring.KeyRefresh() {
-				Trace.Printf(
-					"Reimporting Public Keyring: %s",
-					cfg.Files.Pubring,
-				)
+				log.WithFields(log.Fields{
+					"remailer": cfg.Remailer.Name,
+					"pubRing":  cfg.Files.Pubring,
+				}).Debug("Reimporting remailer public keyring")
 				Pubring.ImportPubring()
 			}
 			// Report throughput
@@ -176,14 +176,20 @@ func loopServer() (err error) {
 // refreshPubkey updates an existing Public key file
 func refreshPubkey(secret *keymgr.Secring) {
 	tmpKey := cfg.Files.Pubkey + ".tmp"
+	log.WithField("file", tmpKey).Debug("Writing current public key")
 	keyidstr := secret.WriteMyKey(tmpKey)
-	Info.Printf("Advertising keyid: %s", keyidstr)
-	Trace.Printf("Writing current public key to %s", tmpKey)
+	log.WithField("keyid", keyidstr).Info("Advertising keyid")
 	// Overwrite the published key with the refreshed version
-	Trace.Printf("Renaming %s to %s", tmpKey, cfg.Files.Pubkey)
+	log.WithFields(log.Fields{
+		"src":  tmpKey,
+		"dest": cfg.Files.Pubkey,
+	}).Debug("Renaming temporary public key file")
 	err := os.Rename(tmpKey, cfg.Files.Pubkey)
 	if err != nil {
-		Warn.Println(err)
+		log.WithError(err).WithFields(log.Fields{
+			"src":  tmpKey,
+			"dest": cfg.Files.Pubkey,
+		}).Warn("Renaming of temporary key file failed")
 	}
 }
 
@@ -191,52 +197,50 @@ func refreshPubkey(secret *keymgr.Secring) {
 // are found, it triggers a generation.
 func purgeSecring(secret *keymgr.Secring) (active int) {
 	active, expiring, expired, purged := secret.Purge()
-	Info.Printf(
-		"Key purge complete. Active=%d, Expiring=%d, Expired=%d, "+
-			"Purged=%d",
-		active,
-		expiring,
-		expired,
-		purged,
-	)
+	log.WithFields(log.Fields{
+		"active":   active,
+		"expiring": expiring,
+		"expired":  expired,
+		"purged":   purged,
+	}).Info("Key purge complete.")
 	return
 }
 
 // generateKeypair creates a new keypair and publishes it
 func generateKeypair(secret *keymgr.Secring) {
-	Info.Println("Generating and advertising a new key pair")
+	log.Info("Generating and advertising a new key pair")
 	pub, sec := eccGenerate()
 	keyidstr := secret.Insert(pub, sec)
-	Info.Printf("Generated new keypair with keyid: %s", keyidstr)
-	Info.Println("Writing new Public Key to disc")
+	log.WithField("keyid", keyidstr).Info("Generated new keypair with keyid")
 	secret.WritePublic(pub, keyidstr)
-	Info.Println("Inserting Secret Key into Secring")
+	log.WithField("keyid", keyidstr).Info("Inserting Secret Key into Secring")
 	secret.WriteSecret(keyidstr)
 }
 
 // idLogExpire deletes old entries in the ID Log
 func idLogExpire() {
 	count, deleted := IDDb.Expire()
-	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)
+	log.WithFields(log.Fields{
+		"purged": deleted,
+		"count":  count,
+	}).Info("ID Log housekeeping completed.")
 }
 
 // chunkClean expires entries from the chunk DB and deletes any stranded files
 func chunkClean() {
 	cret, cexp := ChunkDb.Expire()
 	if cexp > 0 {
-		Info.Printf(
-			"Chunk expiry complete. Retained=%d, Expired=%d\n",
-			cret,
-			cexp,
-		)
+		log.WithFields(log.Fields{
+			"retained": cret,
+			"expired":  cexp,
+		}).Info("Chunk expiry completed")
 	}
 	fret, fdel := ChunkDb.Housekeep()
 	if fdel > 0 {
-		Info.Printf(
-			"Stranded chunk deletion: Retained=%d, Deleted=%d",
-			fret,
-			fdel,
-		)
+		log.WithFields(log.Fields{
+			"retained": fret,
+			"deleted":  fdel,
+		}).Info("Stranded chunk deletion")
 	}
 }
 
@@ -244,28 +248,15 @@ func chunkClean() {
 func nagOperator() {
 	// Complain about excessively small loop values.
 	if cfg.Pool.Loop < 60 {
-		Warn.Printf(
-			"Loop time of %d is excessively low. Will loop "+
-				"every 60 seconds. A higher setting is recommended.",
-			cfg.Pool.Loop,
-		)
+		log.WithField("loop", cfg.Pool.Loop).Warn("Loop time is excessively low. Will loop every 60 seconds. A higher setting is recommended.")
 	}
 	// Complain about high pool rates.
 	if cfg.Pool.Rate > 90 && !flagSend {
-		Warn.Printf(
-			"Your pool rate of %d is excessively high. Unless "+
-				"testing, a lower setting is recommended.",
-			cfg.Pool.Rate,
-		)
+		log.WithField("rate", cfg.Pool.Rate).Warn("Your pool rate of %d is excessively high. Unless testing, a lower setting is recommended.")
 	}
 	// Complain about running a remailer with flag_send
 	if flagSend && flagRemailer {
-		Warn.Printf(
-			"Your remailer will flush the outbound pool every "+
-				"%d seconds. Unless you're testing, this is "+
-				"probably not what you want.",
-			cfg.Pool.Loop,
-		)
+		log.WithField("loop", cfg.Pool.Loop).Warn("Your remailer will flush the outbound pool. Unless you're testing, this is probably not what you want.")
 	}
 }
 

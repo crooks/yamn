@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/apex/log"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 // Chunk holds variables that apply globally to all chunked message content.
@@ -88,7 +90,7 @@ func IsPopulated(items []string) bool {
 func (chunk *Chunk) Housekeep() (ret, del int) {
 	files, err := ioutil.ReadDir(cfg.Files.Pooldir)
 	if err != nil {
-		Warn.Printf("Chunk housekeeping failed: %s", err)
+		log.WithError(err).Warn("Chunk housekeeping failed.")
 		return
 	}
 	expire := time.Now().Add(-chunk.deleteDays)
@@ -120,13 +122,13 @@ func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
 		infile := path.Join(cfg.Files.Pooldir, c)
 		content, err = ioutil.ReadFile(infile)
 		if err != nil {
-			Warn.Printf("Chunk assembler says: %s", err)
+			log.WithError(err).Warn("Chunk assembler error")
 			continue
 		}
 		f.Write(content)
 		err = os.Remove(infile)
 		if err != nil {
-			Warn.Printf("Assembler chunk delete failed: %s", err)
+			log.WithError(err).Warn("Assembler chunk delete failed")
 			continue
 		}
 	}
@@ -137,7 +139,7 @@ func (chunk *Chunk) Assemble(filename string, items []string) (err error) {
 func (chunk *Chunk) Delete(messageid []byte) {
 	err := chunk.db.Delete(messageid, nil)
 	if err != nil {
-		Warn.Printf("Could not delete MsgID: %s. %s", messageid, err)
+		log.WithError(err).WithField("message-id", messageid).Warn("Could not delete MsgID")
 	}
 }
 
@@ -168,7 +170,7 @@ func (chunk *Chunk) Expire() (retained, deleted int) {
 		copy(items, items[1:])
 		expire, err := time.Parse("20060102", stamp)
 		if err != nil {
-			Warn.Printf("Could not parse timestamp: %s", err)
+			log.WithError(err).Warn("Could not parse timestamp")
 			// If the timestamp is invalid, delete the record
 			chunk.DeleteItems(items)
 			chunk.Delete(key)

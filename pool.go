@@ -13,6 +13,7 @@ import (
 	"time"
 
 	//"github.com/codahale/blake2"
+	"github.com/apex/log"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
@@ -22,11 +23,7 @@ import (
 // daemon.  It sends messages from the pool at timed intervals.
 func serverPoolOutboundSend() {
 	if cfg.Pool.Loop < 120 {
-		Warn.Printf(
-			"Pool loop of %d Seconds is too short. "+
-				"Adjusting to minimum of 120 Seconds.",
-			cfg.Pool.Loop,
-		)
+		log.WithField("loop", cfg.Pool.Loop).Warn("Pool loop is too short. Adjusting to minimum of 120 Seconds.")
 		cfg.Pool.Loop = 120
 	}
 	sleepFor := time.Duration(cfg.Pool.Loop) * time.Second
@@ -58,12 +55,12 @@ func poolOutboundSend() {
 	// Read all the pool files
 	filenames, err = readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
-		Warn.Printf("Reading pool failed: %s", err)
+		log.WithError(err).Warn("Reading pool failed")
 		return
 	}
 	if flagRemailer {
 		// During normal operation, the pool shouldn't be flushed.
-		Warn.Println("Flushing outbound remailer pool")
+		log.Warn("Flushing outbound remailer pool")
 	}
 	for _, filename := range filenames {
 		emailPoolFile(filename)
@@ -75,7 +72,7 @@ func poolOutboundSend() {
 func emailPoolFile(filename string) {
 	delFlag, err := mailPoolFile(path.Join(cfg.Files.Pooldir, filename))
 	if err != nil {
-		Warn.Printf("Pool mailing failed: %s", err)
+		log.WithError(err).Warn("Pool mailing failed")
 		if delFlag {
 			// If delFlag is true, we delete the file, even though
 			// mailing failed.
@@ -92,18 +89,16 @@ func dynamicMix() []string {
 	var empty []string
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
-		Warn.Printf("Unable to access pool: %s", err)
+		log.WithError(err).Warn("Unable to access pool")
 		return empty
 	}
 	poolSize := len(poolFiles)
 	if poolSize < cfg.Pool.Size || poolSize == 0 {
 		// Pool isn't sufficiently populated
-		Trace.Println(
-			"Pool insufficiently populated to trigger sending."+
-				"Require=%d, Got=%d",
-			cfg.Pool.Size,
-			poolSize,
-		)
+		log.WithFields(log.Fields{
+			"trigger": cfg.Pool.Size,
+			"size":    poolSize,
+		}).Debug("Pool insufficiently populated to trigger sending.")
 		return empty
 	}
 	// Shuffle the slice of filenames now as we're going to return a
@@ -111,7 +106,7 @@ func dynamicMix() []string {
 	crandom.Shuffle(poolFiles)
 	// Normal pool processing condition
 	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
-	Trace.Printf("Processing %d pool messages.\n", poolSize)
+	log.WithField("processing", poolSize).Debug("Processing %d pool messages.")
 	return poolFiles[:numToSend]
 }
 
@@ -138,13 +133,13 @@ func getBatchSize(poolSize int) int {
 func binomialMix() (batch []string) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
-		Warn.Printf("Unable to access pool: %s", err)
+		log.WithError(err).Warn("Unable to access pool")
 		return
 	}
 	poolSize := len(poolFiles)
 	batchSize := getBatchSize(poolSize)
 	if batchSize == 0 {
-		Trace.Printf("Binomial Mix Pool: Size=%d", poolSize)
+		log.WithField("size", poolSize).Debug("Pool insufficiently populated for Binomial batching")
 		// If the batch is empty, don't bother to process it.
 		return
 	}
@@ -159,13 +154,12 @@ func binomialMix() (batch []string) {
 			batch = append(batch, s)
 		}
 	}
-	Trace.Printf(
-		"Binomial Mix Pool: Size=%d, Batch=%d, Prob=%d/255, Sending=%d",
-		poolSize,
-		batchSize,
-		prob,
-		len(batch),
-	)
+	log.WithFields(log.Fields{
+		"pool":    poolSize,
+		"batch":   batchSize,
+		"prob":    float32(prob / 255),
+		"sending": len(batch),
+	}).Debug("Binomial Mix Pool batching")
 	return
 }
 
@@ -174,9 +168,12 @@ func poolDelete(filename string) {
 	// Delete a pool file
 	err := os.Remove(path.Join(cfg.Files.Pooldir, filename))
 	if err != nil {
-		Error.Printf("Failed to remove %s from %s\n", filename, cfg.Files.Pooldir)
+		log.WithError(err).WithFields(log.Fields{
+			"filename": filename,
+			"dir":      cfg.Files.Pooldir,
+		}).Error("Failed to remove pool file")
 	} else {
-		Trace.Printf("Deleted %s from Pool", filename)
+		log.WithField("filename", filename).Debug("Deleted file from Pool")
 	}
 }
 
@@ -193,11 +190,10 @@ func processMail(secret *keymgr.Secring) (err error) {
 		// Nothing to do, move along!
 		return
 	}
-	Trace.Printf(
-		"Reading %d messages from %s\n",
-		newMsgs,
-		cfg.Files.Maildir,
-	)
+	log.WithFields(log.Fields{
+		"count": newMsgs,
+		"dir":   cfg.Files.Maildir,
+	}).Debug("Reading inbound mail messages")
 	// Increment inbound Email counter
 	stats.inMail += newMsgs
 	// Fetch headers for each Maildir key
@@ -205,7 +201,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 	for _, key := range keys {
 		head, err = dir.Header(key)
 		if err != nil {
-			Warn.Printf("%s: Getting headers failed with: %s", key, err)
+			log.WithError(err).WithField("key", key).Warn("Error getting headers from message")
 			continue
 		}
 		// The Subject determines if the message needs remailer-foo handling
@@ -217,14 +213,11 @@ func processMail(secret *keymgr.Secring) (err error) {
 				// Increments stats counter
 				stats.inRemFoo++
 			} else {
-				Info.Println(err)
+				log.WithError(err).Info("Unable to process remailer-foo request")
 			}
 			err = dir.Purge(key)
 			if err != nil {
-				Warn.Printf(
-					"Cannot delete remailer-foo mail: %s",
-					err,
-				)
+				log.WithError(err).Warn("Cannot delete remailer-foo mail")
 			}
 			// Nothing else to do, move on to the next message
 			continue
@@ -233,31 +226,27 @@ func processMail(secret *keymgr.Secring) (err error) {
 		var mailMsg *mail.Message
 		mailMsg, err := dir.Message(key)
 		if err != nil {
-			Warn.Printf(
-				"%s: Reading message failed with: %s",
-				key,
-				err,
-			)
+			log.WithError(err).WithField("key", key).Warn("Reading inbound message failed")
 			continue
 		}
 		var msg []byte
 		// Convert the armored Yamn message to its byte components
 		msg, err = stripArmor(mailMsg.Body)
 		if err != nil {
-			Info.Println(err)
+			log.WithError(err).Info("Error dearmoring message")
 			continue
 		}
 		if msg == nil {
-			Warn.Println("Dearmor returned zero bytes")
+			log.Warn("Message dearmor returned zero bytes")
 			continue
 		}
 		err = decodeMsg(msg, secret)
 		if err != nil {
-			Info.Println(err)
+			log.WithError(err).Info("Unable to decode message")
 		}
 		err = dir.Purge(key)
 		if err != nil {
-			Warn.Printf("Cannot delete mail: %s", err)
+			log.WithError(err).WithField("key", key).Warn("Cannot delete mail message")
 		}
 	} // Maildir keys loop
 	return
@@ -267,7 +256,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 func processInpool(prefix string, secret *keymgr.Secring) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, prefix)
 	if err != nil {
-		Warn.Printf("Unable to access inbound pool: %s", err)
+		log.WithError(err).Warn("Unable to access inbound pool")
 		return
 	}
 	poolSize := len(poolFiles)
@@ -277,19 +266,21 @@ func processInpool(prefix string, secret *keymgr.Secring) {
 		msg := make([]byte, messageBytes)
 		msg, err = ioutil.ReadFile(filename)
 		if err != nil {
-			Warn.Printf("Failed to read %s from pool: %s", f, err)
+			log.WithError(err).WithField("file", filename).Warn("Failed to read message from pool")
 			continue
 		}
 		err = decodeMsg(msg, secret)
 		if err != nil {
-			Warn.Println(err)
+			log.WithError(err).Warn("Message decoding failed")
 		}
 		poolDelete(f)
 		processed++
 	}
 	if poolSize > 0 {
-		Trace.Printf("Inbound pool processing complete. Read=%d, Decoded=%d",
-			poolSize, processed)
+		log.WithFields(log.Fields{
+			"poolSize":  poolSize,
+			"processed": processed,
+		}).Debug("Inbound pool processing complete.")
 	}
 }
 
