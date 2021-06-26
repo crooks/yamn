@@ -131,6 +131,8 @@ func init() {
 	flag.BoolVar(&flagDebug, "debug", false, "Print detailed config")
 	// Memory usage
 	flag.BoolVar(&flagMemInfo, "meminfo", false, "Print memory info")
+	// Refresh remailer stats files
+	flag.BoolVar(&flagRefresh, "refresh", false, "Refresh remailer stats files")
 
 	// Define our base working directory
 	var cfgDir string
@@ -331,6 +333,7 @@ var flagBasedir string
 var flagDebug bool
 var flagClient bool
 var flagSend bool
+var flagRefresh bool
 var flagRemailer bool
 var flagDaemon bool
 var flagChain string
