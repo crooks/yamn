@@ -120,7 +120,7 @@ func isPath(path string) (bool, error) {
 }
 
 // cfgInHome tries to ascertain the user's homedir and then tests if there's
-// a subdir of /yamn/ with a yamn.cfg file in it.
+// a subdir of /yamn/ with a yamn.yml file in it.
 func cfgInHome() (goodCfg bool, cfgDir string) {
 	home, err := homedir.Dir()
 	if err != nil {
@@ -128,7 +128,7 @@ func cfgInHome() (goodCfg bool, cfgDir string) {
 		return
 	}
 	cfgDir = path.Join(home, "yamn")
-	goodCfg, err = isPath(path.Join(cfgDir, "yamn.cfg"))
+	goodCfg, err = isPath(path.Join(cfgDir, "yamn.yml"))
 	if err != nil {
 		// TODO log message
 		goodCfg = false
@@ -137,7 +137,7 @@ func cfgInHome() (goodCfg bool, cfgDir string) {
 	return
 }
 
-// cfgInPwd figures out the present working directory and tests if yamn.cfg is
+// cfgInPwd figures out the present working directory and tests if yamn.yml is
 // in it.
 func cfgInPwd() (goodCfg bool, pwdcfg string) {
 	pwdcfg, err := os.Getwd()
@@ -145,7 +145,7 @@ func cfgInPwd() (goodCfg bool, pwdcfg string) {
 		//TODO log message
 		return
 	}
-	goodCfg, err = isPath(path.Join(pwdcfg, "yamn.cfg"))
+	goodCfg, err = isPath(path.Join(pwdcfg, "yamn.yml"))
 	if err != nil {
 		//TODO log message
 		goodCfg = false
@@ -154,9 +154,9 @@ func cfgInPwd() (goodCfg bool, pwdcfg string) {
 	return
 }
 
-// cfgInDir tests for the existence of a yamn.cfg file in a given directory.
+// cfgInDir tests for the existence of a yamn.yml file in a given directory.
 func cfgInDir(cfgDir string) bool {
-	exists, err := isPath(path.Join(cfgDir, "yamn.cfg"))
+	exists, err := isPath(path.Join(cfgDir, "yamn.yml"))
 	if err != nil {
 		//TODO log message
 		return false
@@ -237,13 +237,13 @@ func ParseFlags() *Flags {
 		cfgDir = os.Getenv("YAMNDIR")
 		useThisDir = true
 	} else {
-		// Test for a yamn.cfg in the Present Working Directory
+		// Test for a yamn.yml in the Present Working Directory
 		useThisDir, cfgDir = cfgInPwd()
-		// Test for $HOME/yamn/yamn.cfg
+		// Test for $HOME/yamn/yamn.yml
 		if !useThisDir {
 			useThisDir, cfgDir = cfgInHome()
 		}
-		// Test for /etc/yamn/yamn.cfg
+		// Test for /etc/yamn/yamn.yml
 		if !useThisDir {
 			cfgDir = "/etc/yamn"
 			useThisDir = cfgInDir(cfgDir)

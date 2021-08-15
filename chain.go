@@ -45,7 +45,7 @@ func makeChain(inChain []string) (outChain []string, err error) {
 	}
 	// If the chain contains a random remailer, we're going to need stats
 	if !Pubring.HaveStats() && IsMemberStr("*", inChain) {
-		err = errors.New("Cannot use random remailers without stats")
+		err = errors.New("cannot use random remailers without stats")
 		Warn.Println(err)
 		return
 	}
