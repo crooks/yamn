@@ -72,7 +72,7 @@ func logInit(
 func main() {
 	var err error
 	flags = config.ParseFlags()
-	cfg, err = config.ParseConfig(flags.BaseDir)
+	cfg, err = config.ParseConfig(flags.Config)
 	if err != nil {
 		Error.Fatalf("Unable to parse config file: %v", err)
 	}
