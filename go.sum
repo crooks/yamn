@@ -1,5 +1,7 @@
 github.com/crooks/yamn/config v0.0.0-20210815110622-e353d8d2b28a h1:CEt+J28PcgU5/WUiIv7AhMogBvWn3n1x5Bzq9M2szek=
 github.com/crooks/yamn/config v0.0.0-20210815110622-e353d8d2b28a/go.mod h1:zjsxYuRE71GmFy/T7OF6/p4ZBQoADiSl9TsEYdPGto8=
+github.com/crooks/yamn/config v0.0.0-20210815130730-36f3040b421c h1:4P8BaVmnVL1voQHXBmZ3Ptv8bIh+b0+b0gjyzJL0M/k=
+github.com/crooks/yamn/config v0.0.0-20210815130730-36f3040b421c/go.mod h1:QBXJv0WeOWNiR13oh68O8B6bRWxdE5eKsM0DdKUdd9Q=
 github.com/dchest/blake2s v1.0.0 h1:gHCBR8ecSImY/Nwk7X0Q2KJAJcpI/HSkUAQDi8MCP4Q=
 github.com/dchest/blake2s v1.0.0/go.mod h1:GrKn2Lc4hWqAwRrbneYuvZ6kugiJMrjk3HHtcJkEhbs=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
