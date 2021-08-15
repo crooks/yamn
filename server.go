@@ -82,7 +82,7 @@ func loopServer() (err error) {
 	oneDay := time.Duration(dayLength) * time.Second
 
 	// Determine if this is a single run or the start of a Daemon
-	runAsDaemon := cfg.Remailer.Daemon || flagDaemon
+	runAsDaemon := cfg.Remailer.Daemon || flags.Daemon
 
 	// Actually start the server loop
 	if runAsDaemon {
@@ -251,7 +251,7 @@ func nagOperator() {
 		)
 	}
 	// Complain about high pool rates.
-	if cfg.Pool.Rate > 90 && !flagSend {
+	if cfg.Pool.Rate > 90 && !flags.Send {
 		Warn.Printf(
 			"Your pool rate of %d is excessively high. Unless "+
 				"testing, a lower setting is recommended.",
@@ -259,7 +259,7 @@ func nagOperator() {
 		)
 	}
 	// Complain about running a remailer with flag_send
-	if flagSend && flagRemailer {
+	if flags.Send && flags.Remailer {
 		Warn.Printf(
 			"Your remailer will flush the outbound pool every "+
 				"%d seconds. Unless you're testing, this is "+
@@ -420,7 +420,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			writeMessageToPool(inter.getNextHop(), d.getPayload())
 			stats.outYamn++
 			// Decide if we want to inject a dummy
-			if !flagNoDummy && crandom.Dice() < 55 {
+			if !flags.NoDummy && crandom.Dice() < 55 {
 				dummy()
 				stats.outDummy++
 			}

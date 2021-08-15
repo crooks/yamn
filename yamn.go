@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/crooks/yamn/config"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
@@ -25,6 +26,10 @@ const (
 )
 
 var (
+	// flags - Command line flags
+	flags *config.Flags
+	// cfg - Config parameters
+	cfg *config.Config
 	// Trace loglevel
 	Trace *log.Logger
 	// Info loglevel
@@ -66,7 +71,11 @@ func logInit(
 
 func main() {
 	var err error
-	flags()
+	flags = config.ParseFlags()
+	cfg, err = config.ParseConfig(flags.BaseDir)
+	if err != nil {
+		Error.Fatalf("Unable to parse config file: %v", err)
+	}
 	if cfg.General.LogToFile {
 		logfile, err := os.OpenFile(
 			cfg.Files.Logfile,
@@ -156,7 +165,7 @@ func main() {
 	} // End of logging setup
 
 	// If the debug flag is set, print the config in JSON format and then exit.
-	if flagDebug {
+	if flags.Debug {
 		j, err := json.MarshalIndent(cfg, "", "    ")
 		if err != nil {
 			fmt.Printf("Debugging Error: %s\n", err)
@@ -166,9 +175,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	if flagClient {
+	if flags.Client {
 		mixprep()
-	} else if flagStdin {
+	} else if flags.Stdin {
 		dir := maildir.Dir(cfg.Files.Maildir)
 		newmsg, err := dir.NewDelivery()
 		if err != nil {
@@ -182,20 +191,20 @@ func main() {
 		}
 		newmsg.Write(stdin)
 		newmsg.Close()
-	} else if flagRemailer {
+	} else if flags.Remailer {
 		err = loopServer()
 		if err != nil {
 			panic(err)
 		}
-	} else if flagDummy {
+	} else if flags.Dummy {
 		injectDummy()
-	} else if flagRefresh {
+	} else if flags.Refresh {
 		fmt.Printf("Keyring refresh: from=%s, to=%s\n", cfg.Urls.Pubring, cfg.Files.Pubring)
 		httpGet(cfg.Urls.Pubring, cfg.Files.Pubring)
 		fmt.Printf("Stats refresh: from=%s, to=%s\n", cfg.Urls.Mlist2, cfg.Files.Mlist2)
 		httpGet(cfg.Urls.Mlist2, cfg.Files.Mlist2)
 	}
-	if flagSend {
+	if flags.Send {
 		// Flush the outbound pool
 		poolOutboundSend()
 	}
