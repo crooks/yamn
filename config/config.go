@@ -2,12 +2,9 @@ package config
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 
-	"github.com/mitchellh/go-homedir"
 	"gopkg.in/yaml.v2"
 )
 
@@ -85,7 +82,6 @@ type Config struct {
 }
 
 type Flags struct {
-	BaseDir  string
 	Debug    bool
 	Client   bool
 	Send     bool
@@ -104,64 +100,6 @@ type Flags struct {
 	NoDummy  bool
 	Version  bool
 	MemInfo  bool
-}
-
-// isPath returns True if a given file or directory exists
-func isPath(path string) (bool, error) {
-	var err error
-	_, err = os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-// cfgInHome tries to ascertain the user's homedir and then tests if there's
-// a subdir of /yamn/ with a yamn.yml file in it.
-func cfgInHome() (goodCfg bool, cfgDir string) {
-	home, err := homedir.Dir()
-	if err != nil {
-		// TODO log message
-		return
-	}
-	cfgDir = path.Join(home, "yamn")
-	goodCfg, err = isPath(path.Join(cfgDir, "yamn.yml"))
-	if err != nil {
-		// TODO log message
-		goodCfg = false
-		return
-	}
-	return
-}
-
-// cfgInPwd figures out the present working directory and tests if yamn.yml is
-// in it.
-func cfgInPwd() (goodCfg bool, pwdcfg string) {
-	pwdcfg, err := os.Getwd()
-	if err != nil {
-		//TODO log message
-		return
-	}
-	goodCfg, err = isPath(path.Join(pwdcfg, "yamn.yml"))
-	if err != nil {
-		//TODO log message
-		goodCfg = false
-		return
-	}
-	return
-}
-
-// cfgInDir tests for the existence of a yamn.yml file in a given directory.
-func cfgInDir(cfgDir string) bool {
-	exists, err := isPath(path.Join(cfgDir, "yamn.yml"))
-	if err != nil {
-		//TODO log message
-		return false
-	}
-	return exists
 }
 
 func (c *Config) WriteConfig(filename string) error {
@@ -228,35 +166,12 @@ func ParseFlags() *Flags {
 	// Refresh remailer stats files
 	flag.BoolVar(&f.Refresh, "refresh", false, "Refresh remailer stats files")
 
-	// Define our base working directory
-	var cfgDir string
-	var useThisDir bool
-	if os.Getenv("YAMNDIR") != "" {
-		// Use this Dir without further testing, just because we're
-		// explicitly instructed to do so.
-		cfgDir = os.Getenv("YAMNDIR")
-		useThisDir = true
-	} else {
-		// Test for a yamn.yml in the Present Working Directory
-		useThisDir, cfgDir = cfgInPwd()
-		// Test for $HOME/yamn/yamn.yml
-		if !useThisDir {
-			useThisDir, cfgDir = cfgInHome()
-		}
-		// Test for /etc/yamn/yamn.yml
-		if !useThisDir {
-			cfgDir = "/etc/yamn"
-			useThisDir = cfgInDir(cfgDir)
-		}
-	}
-	if !useThisDir {
-		fmt.Println(
-			"Unable to determine Yamn's basedir. ",
-			"Continuing with a slight sense of trepidation.",
-		)
-	}
-	flag.StringVar(&f.BaseDir, "dir", cfgDir, "Base directory")
 	flag.Parse()
+
+	// If a "--config" flag hasn't been provided, try reading a YAMNCFG environment variable.
+	if f.Config == "" && os.Getenv("YAMNCFG") != "" {
+		f.Config = os.Getenv("YAMNCFG")
+	}
 	return f
 }
 
