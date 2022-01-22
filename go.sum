@@ -1,5 +1,3 @@
-github.com/crooks/yamn/config v0.0.0-20210815110622-e353d8d2b28a h1:CEt+J28PcgU5/WUiIv7AhMogBvWn3n1x5Bzq9M2szek=
-github.com/crooks/yamn/config v0.0.0-20210815110622-e353d8d2b28a/go.mod h1:zjsxYuRE71GmFy/T7OF6/p4ZBQoADiSl9TsEYdPGto8=
 github.com/crooks/yamn/config v0.0.0-20210815130730-36f3040b421c h1:4P8BaVmnVL1voQHXBmZ3Ptv8bIh+b0+b0gjyzJL0M/k=
 github.com/crooks/yamn/config v0.0.0-20210815130730-36f3040b421c/go.mod h1:QBXJv0WeOWNiR13oh68O8B6bRWxdE5eKsM0DdKUdd9Q=
 github.com/dchest/blake2s v1.0.0 h1:gHCBR8ecSImY/Nwk7X0Q2KJAJcpI/HSkUAQDi8MCP4Q=
@@ -12,8 +10,6 @@ github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/luksen/maildir v0.0.0-20210101204218-7ed7afdce6bf h1:ThDitDpoyi2QxOgR9FBX7YiFApVWsg7oV/7N4nM+B0A=
 github.com/luksen/maildir v0.0.0-20210101204218-7ed7afdce6bf/go.mod h1:G5H0u6NGJhyvKAmheKsXTuadnQbUZIIpCvOpWDYJIKk=
-github.com/mitchellh/go-homedir v1.1.0 h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y=
-github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrkLzIz1N1q0pr0=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.7.0 h1:WSHQ+IS43OoUrWtD1/bbclrwK8TTH5hzp+umCiuxHgs=
 github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
