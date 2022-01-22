@@ -81,7 +81,7 @@ func (h *encodeHeader) encode(encHead []byte) []byte {
 	var err error
 	// Test a recipient has been defined
 	if !h.gotRecipient {
-		err = errors.New("Header encode without defining recipient")
+		err = errors.New("header encode without defining recipient")
 		panic(err)
 	}
 	// Test passed encHead is the correct length
@@ -148,7 +148,7 @@ func (h *decodeHeader) setRecipientSK(recipientSK []byte) {
 
 func (h *decodeHeader) decode() (data []byte, version int, err error) {
 	if !h.gotRecipient {
-		err = errors.New("Cannot decode header until recipient defined")
+		err = errors.New("cannot decode header until recipient defined")
 		panic(err)
 	}
 	// Length to decode should be lenEndBytes plus the NaCl Box overhead
@@ -164,7 +164,7 @@ func (h *decodeHeader) decode() (data []byte, version int, err error) {
 		&h.recipientSK,
 	)
 	if !auth {
-		err = errors.New("Authentication failed decrypting slot data")
+		err = errors.New("authentication failed decrypting slot data")
 		return
 	}
 	// Version number is the first byte of decrypted data
@@ -316,17 +316,11 @@ func (head *slotData) encode() []byte {
 		panic(err)
 	}
 	if !head.gotPacketInfo {
-		err := errors.New(
-			"Exit/Intermediate not defined before attempt to " +
-				"encode Encrypted Header.",
-		)
+		err := errors.New("exit/intermediate not defined before attempt to encode encrypted header")
 		panic(err)
 	}
 	if !head.gotTagHash {
-		err := errors.New(
-			"Anti-Tag Hash not defined before attempt to " +
-				"encode Encrypted Header.",
-		)
+		err := errors.New("anti-tag hash not defined before attempt to encode encrypted header")
 		panic(err)
 	}
 	buf := new(bytes.Buffer)
@@ -354,10 +348,7 @@ func decodeSlotData(b []byte) *slotData {
 	// Test the correct libary is being employed for the packet version
 	version := int(b[0])
 	if version != 2 {
-		err := fmt.Errorf(
-			"Attempt to decode packet v%d with v2 library",
-			version,
-		)
+		err := fmt.Errorf("attempt to decode packet v%d with v2 library", version)
 		panic(err)
 	}
 	return &slotData{
@@ -414,11 +405,7 @@ func (f *slotFinal) getBodyBytes() int {
 
 func (f *slotFinal) setBodyBytes(length int) {
 	if length > bodyBytes {
-		err := fmt.Errorf(
-			"Body (%d Bytes) exceeds maximum (%d Bytes)",
-			length,
-			bodyBytes,
-		)
+		err := fmt.Errorf("body (%d bytes) exceeds maximum (%d bytes)", length, bodyBytes)
 		panic(err)
 	}
 	f.bodyBytes = length
@@ -462,12 +449,7 @@ func (f *slotFinal) getChunkNum() int {
 
 func (f *slotFinal) setChunkNum(n int) {
 	if uint8(n) > f.numChunks {
-		err := fmt.Errorf(
-			"Attempt to set Chunk Num (%d) greater than defined"+
-				"number of chunks (%d)",
-			n,
-			int(f.numChunks),
-		)
+		err := fmt.Errorf("attempt to set chunk num (%d) greater than defined number of chunks (%d)", n, int(f.numChunks))
 		panic(err)
 	}
 	f.chunkNum = uint8(n)
@@ -475,10 +457,7 @@ func (f *slotFinal) setChunkNum(n int) {
 
 func (f *slotFinal) encode() []byte {
 	if !f.gotBodyBytes {
-		err := errors.New(
-			"Cannot encode Slot Final before Body Length is " +
-				"defined",
-		)
+		err := errors.New("cannot encode slot final before body length is defined")
 		panic(err)
 	}
 	buf := new(bytes.Buffer)
@@ -541,10 +520,7 @@ func newSlotIntermediate() *slotIntermediate {
 
 func (s *slotIntermediate) setPartialIV(partialIV []byte) {
 	if len(partialIV) != 12 {
-		err := fmt.Errorf(
-			"Invalid IV input. Expected 12 Bytes, got %d bytes",
-			len(partialIV),
-		)
+		err := fmt.Errorf("invalid iv input: expected 12 bytes, got %d bytes", len(partialIV))
 		panic(err)
 	}
 	s.gotAesIV12 = true
@@ -570,7 +546,7 @@ func seqIV(partialIV []byte, slot int) (iv []byte) {
 // setNextHop inserts the name of the next hop remailer and pads it.
 func (s *slotIntermediate) setNextHop(nh string) {
 	if len(nh) > 52 {
-		err := fmt.Errorf("Next hop address exceeds 52 chars")
+		err := fmt.Errorf("next hop address exceeds 52 chars")
 		panic(err)
 	}
 	s.nextHop = []byte(nh + strings.Repeat("\x00", 52-len(nh)))
@@ -586,9 +562,7 @@ func (s *slotIntermediate) getNextHop() string {
 // between encrypt and decrypt operations.
 func (s *slotIntermediate) seqIV(counter int) (iv []byte) {
 	if !s.gotAesIV12 {
-		err := errors.New(
-			"Cannot sequence IV until partial IV is defined",
-		)
+		err := errors.New("cannot sequence IV until partial IV is defined")
 		panic(err)
 	}
 	// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
@@ -599,9 +573,7 @@ func (s *slotIntermediate) seqIV(counter int) (iv []byte) {
 
 func (s *slotIntermediate) encode() []byte {
 	if !s.gotAesIV12 {
-		err := errors.New(
-			"Cannot encode until partial IV is defined",
-		)
+		err := errors.New("cannot encode until partial IV is defined")
 		panic(err)
 	}
 	var err error
@@ -663,16 +635,14 @@ func (m *encMessage) getPayload() []byte {
 // predefined as they're required to create deterministic headers.
 func (m *encMessage) setChainLength(chainLength int) {
 	if chainLength > maxChainLength {
-		err := fmt.Errorf(
-			"Specified chain length (%d) exceeds "+
-				"maximum chain length (%d)",
+		err := fmt.Errorf("specified chain length (%d) exceeds maximum chain length (%d)",
 			chainLength,
 			maxChainLength,
 		)
 		panic(err)
 	}
 	if chainLength <= 0 {
-		err := errors.New("Chain length cannot be negative or zero")
+		err := errors.New("chain length cannot be negative or zero")
 		panic(err)
 	}
 	m.chainLength = chainLength
@@ -696,11 +666,7 @@ func (m *encMessage) setChainLength(chainLength int) {
 func (m *encMessage) setPlainText(plain []byte) (plainLength int) {
 	plainLength = len(plain)
 	if m.plainLength > bodyBytes {
-		err := fmt.Errorf(
-			"Payload (%d) exceeds max length (%d)",
-			plainLength,
-			bodyBytes,
-		)
+		err := fmt.Errorf("payload (%d) exceeds max length (%d)", plainLength, bodyBytes)
 		panic(err)
 	}
 	// Insert the plain bytes after the headers
@@ -712,9 +678,7 @@ func (m *encMessage) setPlainText(plain []byte) (plainLength int) {
 // getIntermediateHops returns the number of intermediate hops in the chain.
 func (m *encMessage) getIntermediateHops() int {
 	if m.chainLength == 0 {
-		err := errors.New(
-			"Cannot get hop count. Chain length is not defined",
-		)
+		err := errors.New("cannot get hop count. Chain length is not defined")
 		panic(err)
 	}
 	return m.intermediateHops
@@ -725,9 +689,7 @@ func (m *encMessage) getIntermediateHops() int {
 // between encrypt and decrypt operations.
 func (m *encMessage) getIV(intermediateHop, slot int) (iv []byte) {
 	if m.chainLength == 0 {
-		err := errors.New(
-			"Cannot get an IV until the chain length is defined",
-		)
+		err := errors.New("cannot get an IV until the chain length is defined")
 		panic(err)
 	}
 	// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
@@ -739,15 +701,12 @@ func (m *encMessage) getIV(intermediateHop, slot int) (iv []byte) {
 // getKey returns the predetermined AES key for a specific Hop in the Chain.
 func (m *encMessage) getKey(intermediateHop int) (key []byte) {
 	if m.chainLength == 0 {
-		err := errors.New(
-			"Cannot get a Key until the chain length is defined",
-		)
+		err := errors.New("cannot get a Key until the chain length is defined")
 		panic(err)
 	}
 	if intermediateHop >= m.intermediateHops {
 		err := fmt.Errorf(
-			"Requested key for hop (%d) exceeds array length"+
-				" (%d)",
+			"requested key for hop (%d) exceeds array length (%d)",
 			intermediateHop,
 			m.intermediateHops,
 		)
@@ -766,8 +725,7 @@ func (m *encMessage) getPartialIV(intermediateHop int) (ivPartial []byte) {
 	*/
 	if intermediateHop > m.intermediateHops {
 		err := fmt.Errorf(
-			"Requested IV for hop (%d) exceeds array length"+
-				" (%d)",
+			"requested IV for hop (%d) exceeds array length (%d)",
 			intermediateHop,
 			m.intermediateHops,
 		)
@@ -795,7 +753,7 @@ func (m *encMessage) getAntiTag() []byte {
 func (m *encMessage) encryptBody(key, iv []byte) {
 	var err error
 	if !m.gotPayload {
-		err = errors.New("Cannot encrypt payload until it's defined")
+		err = errors.New("cannot encrypt payload until it's defined")
 		panic(err)
 	}
 	err = lenCheck(len(key), 32)
@@ -871,10 +829,7 @@ func (m *encMessage) insertHeader(header []byte) {
 // the remailer decryption chain.
 func (m *encMessage) deterministic(hop int) {
 	if m.chainLength == 0 {
-		err := errors.New(
-			"Cannot generate deterministic headers until chain " +
-				"length has been specified.",
-		)
+		err := errors.New("cannot generate deterministic headers until chain length has been specified")
 		panic(err)
 	}
 	// The top and bottom slots are the slots we're populating during this

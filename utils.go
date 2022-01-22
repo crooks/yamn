@@ -94,11 +94,7 @@ func messageID() (datestr string) {
 // lenCheck verifies that a slice is of a specified length
 func lenCheck(got, expected int) (err error) {
 	if got != expected {
-		err = fmt.Errorf(
-			"Incorrect length.  Expected=%d, Got=%d",
-			expected,
-			got,
-		)
+		err = fmt.Errorf("incorrect length: Expected=%d, Got=%d", expected, got)
 		Info.Println(err)
 	}
 	return
@@ -107,11 +103,7 @@ func lenCheck(got, expected int) (err error) {
 // bufLenCheck verifies that a given buffer length is of a specified length
 func bufLenCheck(buflen, length int) (err error) {
 	if buflen != length {
-		err = fmt.Errorf(
-			"Incorrect buffer length.  Wanted=%d, Got=%d",
-			length,
-			buflen,
-		)
+		err = fmt.Errorf("incorrect buffer length: Wanted=%d, Got=%d", length, buflen)
 		Info.Println(err)
 	}
 	return
@@ -170,10 +162,7 @@ func assertIsPath(path string) {
 	}
 	if !testPath {
 		// Arghh, the path doesn't exist!
-		err = fmt.Errorf(
-			"Assertion failure.  Path %s does not exist",
-			path,
-		)
+		err = fmt.Errorf("assertion failure: path %s does not exist", path)
 		panic(err)
 	}
 }
@@ -182,11 +171,7 @@ func assertIsPath(path string) {
 func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
 	if len(s) < n {
-		err = fmt.Errorf(
-			"Cannot pop %d bytes from slice of %d",
-			n,
-			len(s),
-		)
+		err = fmt.Errorf("cannot pop %d bytes from slice of %d", n, len(s))
 		return
 	}
 	pop = s[:n]
@@ -199,11 +184,7 @@ func sPopBytes(sp *[]byte, n int) (pop []byte, err error) {
 func ePopBytes(sp *[]byte, n int) (pop []byte, err error) {
 	s := *sp
 	if len(s) < n {
-		err = fmt.Errorf(
-			"Cannot pop %d bytes from slice of %d",
-			n,
-			len(s),
-		)
+		err = fmt.Errorf("cannot pop %d bytes from slice of %d", n, len(s))
 		return
 	}
 	pop = s[len(s)-n:]
@@ -305,26 +286,18 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 			// Expecting size
 			statedLen, err = strconv.Atoi(line)
 			if err != nil {
-				err = fmt.Errorf(
-					"Unable to extract payload size from %s",
-					line,
-				)
+				err = fmt.Errorf("unable to extract payload size from %s", line)
 				return
 			}
 			scanPhase = 3
 		case 3:
 			if len(line) != 64 {
-				err = fmt.Errorf(
-					"Expected 64 digit Hex encoded Hash, got %d bytes",
-					len(line),
-				)
+				err = fmt.Errorf("expected 64 digit Hex encoded Hash, got %d bytes", len(line))
 				return
 			}
 			payloadDigest, err = hex.DecodeString(line)
 			if err != nil {
-				err = errors.New(
-					"Unable to decode Hex hash on payload",
-				)
+				err = errors.New("unable to decode Hex hash on payload")
 				return
 			}
 			scanPhase = 4
@@ -338,13 +311,13 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	} // End of file scan
 	switch scanPhase {
 	case 0:
-		err = errors.New("No :: found on message")
+		err = errors.New("no :: found on message")
 		return
 	case 1:
-		err = errors.New("No Begin cutmarks found on message")
+		err = errors.New("no Begin cutmarks found on message")
 		return
 	case 4:
-		err = errors.New("No End cutmarks found on message")
+		err = errors.New("no End cutmarks found on message")
 		return
 	}
 	payload = make([]byte, base64.StdEncoding.DecodedLen(b64.Len()))
@@ -356,20 +329,12 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	payload = payload[0:payloadLen]
 	// Validate payload length against stated length.
 	if statedLen != payloadLen {
-		err = fmt.Errorf(
-			"Payload size doesn't match stated size. Stated=%d, Got=%d",
-			statedLen,
-			payloadLen,
-		)
+		err = fmt.Errorf("payload size doesn't match stated size. Stated=%d, Got=%d", statedLen, payloadLen)
 		return
 	}
 	// Validate payload length against packet format.
 	if payloadLen != messageBytes {
-		err = fmt.Errorf(
-			"Payload size doesn't match stated size. Wanted=%d, Got=%d",
-			messageBytes,
-			payloadLen,
-		)
+		err = fmt.Errorf("payload size doesn't match stated size. Wanted=%d, Got=%d", messageBytes, payloadLen)
 		return
 	}
 	//digest := blake2.New(&blake2.Config{Size: 16})
@@ -379,7 +344,7 @@ func stripArmor(reader io.Reader) (payload []byte, err error) {
 	}
 	digest.Write(payload)
 	if !bytes.Equal(digest.Sum(nil), payloadDigest) {
-		err = errors.New("Incorrect payload digest during dearmor")
+		err = errors.New("incorrect payload digest during dearmor")
 		return
 	}
 	return

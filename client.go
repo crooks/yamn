@@ -111,7 +111,7 @@ func mixprep() {
 		inChain = strings.Split(flags.Chain, ",")
 	}
 	if len(inChain) == 0 {
-		err = errors.New("Empty input chain")
+		err = errors.New("empty input chain")
 		return
 	}
 	var cnum int // Chunk number
@@ -155,9 +155,7 @@ func mixprep() {
 				os.Exit(0)
 			}
 			if len(chain) != len(inChain) {
-				err = fmt.Errorf(
-					"Chain length mismatch.  In=%d, Out=%d",
-					len(inChain), len(chain))
+				err = fmt.Errorf("chain length mismatch: in=%d, out=%d", len(inChain), len(chain))
 				panic(err)
 			}
 			//fmt.Println(chain)

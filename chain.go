@@ -122,10 +122,7 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				os.Exit(1)
 			}
 			if len(candidates) == 0 {
-				err = errors.New(
-					"No remailers available to build " +
-						"random chain link",
-				)
+				err = errors.New("no remailers available to build random chain link")
 				return
 			} else if len(candidates) == 1 {
 				hop = candidates[0]

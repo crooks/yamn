@@ -358,10 +358,7 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring) (err error) {
 	case 2:
 		err = decodeV2(d, slotDataBytes)
 	default:
-		err = fmt.Errorf(
-			"Cannot decode packet version %d",
-			packetVersion,
-		)
+		err = fmt.Errorf("cannot decode packet version %d", packetVersion)
 	}
 	return
 }
@@ -371,7 +368,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 	slotData := decodeSlotData(slotDataBytes)
 	// Test uniqueness of packet ID
 	if !IDDb.Unique(slotData.getPacketID()) {
-		err = errors.New("Packet ID collision")
+		err = errors.New("packet ID collision")
 		return
 	}
 	if !d.testAntiTag(slotData.getTagHash()) {
@@ -558,7 +555,7 @@ func randhop(plainMsg []byte) {
 	}
 	sendTo := chain[0]
 	if len(chain) != 1 {
-		err = fmt.Errorf("Randhop chain must be single hop.  Got=%d", len(chain))
+		err = fmt.Errorf("randhop chain must be single hop.  Got=%d", len(chain))
 		panic(err)
 	}
 	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
@@ -629,7 +626,7 @@ func remailerFoo(subject, sender string) (err error) {
 			// Truncate long subject headers before logging them
 			subject = subject[:20]
 		}
-		err = fmt.Errorf("Ignoring request for %s", subject)
+		err = fmt.Errorf("ignoring request for %s", subject)
 		return
 	}
 	var msg []byte

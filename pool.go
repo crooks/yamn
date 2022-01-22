@@ -51,7 +51,7 @@ func poolOutboundSend() {
 		// daemon, the serverPoolOutboundSend process is initiated and
 		// runs in an endless loop.  This function would conflict with
 		// it.
-		err = errors.New("Cannot flush pool when running as a Daemon")
+		err = errors.New("cannot flush pool when running as a daemon")
 		panic(err)
 	}
 	var filenames []string
