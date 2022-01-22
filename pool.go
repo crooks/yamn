@@ -98,7 +98,7 @@ func dynamicMix() []string {
 	poolSize := len(poolFiles)
 	if poolSize < cfg.Pool.Size || poolSize == 0 {
 		// Pool isn't sufficiently populated
-		Trace.Println(
+		Trace.Printf(
 			"Pool insufficiently populated to trigger sending."+
 				"Require=%d, Got=%d",
 			cfg.Pool.Size,
