@@ -71,6 +71,10 @@ func logInit(
 func main() {
 	var err error
 	flags = config.ParseFlags()
+	if flags.Version {
+		fmt.Println(version)
+		os.Exit(0)
+	}
 	// Some config defaults are derived from flags so ParseConfig is a flags method
 	cfg, err = flags.ParseConfig()
 	if err != nil {
@@ -78,6 +82,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unable to parse config file: %v", err)
 		os.Exit(1)
 	}
+	// If the debug flag is set, print the config and exit
+	if flags.Debug {
+		y, err := cfg.Debug()
+		if err != nil {
+			fmt.Printf("Debugging Error: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s\n", y)
+		os.Exit(0)
+	}
+
+	// Set up some logging based on loglevel and LogToFile
 	if cfg.General.LogToFile {
 		logfile, err := os.OpenFile(
 			cfg.Files.Logfile,
@@ -171,17 +187,6 @@ func main() {
 		Info.Printf("Using config file: %s", cfg.Files.Config)
 	} else {
 		Warn.Println("No config file was found. Resorting to defaults")
-	}
-
-	// If the debug flag is set, print the config in JSON format and then exit.
-	if flags.Debug {
-		y, err := cfg.Debug()
-		if err != nil {
-			fmt.Printf("Debugging Error: %s\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("%s\n", y)
-		os.Exit(0)
 	}
 
 	if flags.Client {
