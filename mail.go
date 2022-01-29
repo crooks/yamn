@@ -11,13 +11,15 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/log-go"
 )
 
 func assemble(msg mail.Message) []byte {
 	buf := new(bytes.Buffer)
 	for h := range msg.Header {
 		if strings.HasPrefix(h, "Yamn-") {
-			Error.Printf("Ignoring internal mail header in assemble phase: %s", h)
+			log.Errorf("Ignoring internal mail header in assemble phase: %s", h)
 		} else {
 			buf.WriteString(h + ": " + msg.Header.Get(h) + "\n")
 			//fmt.Printf("%s: %s\n", h, msg.Header.Get(h))
@@ -36,7 +38,7 @@ func headToAddy(h mail.Header, header string) (addys []string) {
 	}
 	addyList, err := h.AddressList(header)
 	if err != nil {
-		Warn.Printf("Failed to parse header: %s", header)
+		log.Warnf("Failed to parse header: %s", header)
 	}
 	for _, addy := range addyList {
 		addys = append(addys, addy.Address)
@@ -76,7 +78,7 @@ func mxLookup(email string) (relay string, err error) {
 	mxRecords, err := net.LookupMX(emailParts.domain)
 	if err != nil {
 		relay = emailParts.domain
-		Trace.Printf(
+		log.Tracef(
 			"DNS MX lookup failed for %s.  Using hostname.",
 			emailParts.domain,
 		)
@@ -96,14 +98,14 @@ func mxLookup(email string) (relay string, err error) {
 	}
 	if relay == "" {
 		// No suitable relays found, use the hostname.
-		Info.Printf(
+		log.Infof(
 			"No valid MX records found for %s. Using hostname.",
 			emailParts.domain,
 		)
 		relay = emailParts.domain
 		return
 	}
-	Trace.Printf(
+	log.Tracef(
 		"DNS lookup: Hostname=%s, MX=%s",
 		emailParts.domain,
 		relay,
@@ -162,14 +164,14 @@ func mailPoolFile(filename string) (delFlag bool, err error) {
 
 	f, err := os.Open(filename)
 	if err != nil {
-		Error.Printf("Failed to read file for mailing: %s", err)
+		log.Errorf("Failed to read file for mailing: %s", err)
 		return
 	}
 	defer f.Close()
 
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
-		Error.Printf("Failed to process mail file: %s", err)
+		log.Errorf("Failed to process mail file: %s", err)
 		// If we can't process it, it'll never get sent.  Mark for delete.
 		delFlag = true
 		return
@@ -179,18 +181,18 @@ func mailPoolFile(filename string) (delFlag bool, err error) {
 	pooledHeader := msg.Header.Get("Yamn-Pooled-Date")
 	if pooledHeader == "" {
 		// Legacy condition.  All current versions apply this header.
-		Warn.Println("No Yamn-Pooled-Date header in message")
+		log.Warn("No Yamn-Pooled-Date header in message")
 	} else {
 		var pooledDate time.Time
 		pooledDate, err = time.Parse(shortdate, pooledHeader)
 		if err != nil {
-			Error.Printf("%s: Failed to parse Yamn-Pooled-Date: %s", filename, err)
+			log.Errorf("%s: Failed to parse Yamn-Pooled-Date: %s", filename, err)
 			return
 		}
 		age := daysAgo(pooledDate)
 		if age > cfg.Pool.MaxAge {
 			// The message has expired.  Give up trying to send it.
-			Info.Printf(
+			log.Infof(
 				"%s: Refusing to mail pool file. Exceeds max age of %d days",
 				filename,
 				cfg.Pool.MaxAge,
@@ -201,7 +203,7 @@ func mailPoolFile(filename string) (delFlag bool, err error) {
 			return
 		}
 		if age > 0 {
-			Trace.Printf("Mailing pooled file that's %d days old.", age)
+			log.Tracef("Mailing pooled file that's %d days old.", age)
 		}
 		// Delete the internal header we just tested.
 		delete(msg.Header, "Yamn-Pooled-Date")
@@ -228,38 +230,38 @@ func mailPoolFile(filename string) (delFlag bool, err error) {
 // Mail a byte payload to a given address
 func mailBytes(payload []byte, sendTo []string) (err error) {
 	// Test if the message is destined for the local remailer
-	Trace.Printf("Message recipients are: %s", strings.Join(sendTo, ","))
+	log.Tracef("Message recipients are: %s", strings.Join(sendTo, ","))
 	if cfg.Mail.Outfile {
 		var f *os.File
 		filename := randPoolFilename("outfile-")
-		Trace.Printf("Writing output to %s", filename)
+		log.Tracef("Writing output to %s", filename)
 		f, err = os.Create(filename)
 		if err != nil {
-			Warn.Printf("Pool file creation failed: %s\n", err)
+			log.Warnf("Pool file creation failed: %s\n", err)
 			return
 		}
 		defer f.Close()
 		_, err = f.WriteString(string(payload))
 		if err != nil {
-			Warn.Printf("Outfile write failed: %s\n", err)
+			log.Warnf("Outfile write failed: %s\n", err)
 			return
 		}
 	} else if cfg.Mail.Pipe != "" {
 		err = execSend(payload, cfg.Mail.Pipe)
 		if err != nil {
-			Warn.Println("Email pipe failed")
+			log.Warn("Email pipe failed")
 			return
 		}
 	} else if cfg.Mail.Sendmail {
 		err = sendmail(payload, sendTo)
 		if err != nil {
-			Warn.Println("Sendmail failed")
+			log.Warn("Sendmail failed")
 			return
 		}
 	} else {
 		err = smtpRelay(payload, sendTo)
 		if err != nil {
-			Warn.Println("SMTP relay failed")
+			log.Warn("SMTP relay failed")
 			return
 		}
 	}
@@ -274,7 +276,7 @@ func execSend(payload []byte, execCmd string) (err error) {
 
 	stdin, err := sendmail.StdinPipe()
 	if err != nil {
-		Error.Printf("%s: %s", execCmd, err)
+		log.Errorf("%s: %s", execCmd, err)
 		return
 	}
 	defer stdin.Close()
@@ -282,14 +284,14 @@ func execSend(payload []byte, execCmd string) (err error) {
 	sendmail.Stderr = os.Stderr
 	err = sendmail.Start()
 	if err != nil {
-		Error.Printf("%s: %s", execCmd, err)
+		log.Errorf("%s: %s", execCmd, err)
 		return
 	}
 	stdin.Write(payload)
 	stdin.Close()
 	err = sendmail.Wait()
 	if err != nil {
-		Error.Printf("%s: %s", execCmd, err)
+		log.Errorf("%s: %s", execCmd, err)
 		return
 	}
 	return
@@ -311,10 +313,10 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 		recipient MX.
 	*/
 	if cfg.Mail.MXRelay && len(sendTo) == 1 {
-		Trace.Printf("DNS lookup of MX record for %s.", sendTo[0])
+		log.Tracef("DNS lookup of MX record for %s.", sendTo[0])
 		mx, err := mxLookup(sendTo[0])
 		if err == nil {
-			Trace.Printf(
+			log.Tracef(
 				"Doing direct relay for %s to %s:25.",
 				sendTo[0],
 				mx,
@@ -327,13 +329,13 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
-		Warn.Printf("Dial Error: Server=%s, Error=%s", serverAddr, err)
+		log.Warnf("Dial Error: Server=%s, Error=%s", serverAddr, err)
 		return
 	}
 
 	client, err := smtp.NewClient(conn, relay)
 	if err != nil {
-		Warn.Printf(
+		log.Warnf(
 			"SMTP Connection Error: Server=%s, Error=%s",
 			serverAddr,
 			err,
@@ -344,7 +346,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 	ok, _ := client.Extension("STARTTLS")
 	if ok && cfg.Mail.UseTLS {
 		if err = client.StartTLS(conf); err != nil {
-			Warn.Printf(
+			log.Warnf(
 				"Error performing STARTTLS: Server=%s, Error=%s",
 				serverAddr,
 				err,
@@ -363,7 +365,7 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 			cfg.Mail.SMTPRelay,
 		)
 		if err = client.Auth(auth); err != nil {
-			Warn.Printf("Auth Error:  Server=%s, Error=%s", serverAddr, err)
+			log.Warnf("Auth Error:  Server=%s, Error=%s", serverAddr, err)
 			return
 		}
 	}
@@ -377,33 +379,33 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 		sender = cfg.Remailer.Address
 	}
 	if err = client.Mail(sender); err != nil {
-		Warn.Printf("SMTP Error: Server=%s, Error=%s", serverAddr, err)
+		log.Warnf("SMTP Error: Server=%s, Error=%s", serverAddr, err)
 		return
 	}
 
 	for _, addr := range sendTo {
 		if err = client.Rcpt(addr); err != nil {
-			Warn.Printf("Error: %s\n", err)
+			log.Warnf("Error: %s\n", err)
 			return
 		}
 	}
 
 	w, err := client.Data()
 	if err != nil {
-		Warn.Printf("Error: %s\n", err)
+		log.Warnf("Error: %s\n", err)
 		return
 	}
 
 	_, err = w.Write(payload)
 	if err != nil {
-		Warn.Printf("Error: %s\n", err)
+		log.Warnf("Error: %s\n", err)
 		return
 
 	}
 
 	err = w.Close()
 	if err != nil {
-		Warn.Printf("Error: %s\n", err)
+		log.Warnf("Error: %s\n", err)
 		return
 
 	}
@@ -422,7 +424,7 @@ func sendmail(payload []byte, sendTo []string) (err error) {
 	relay := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
 	err = smtp.SendMail(relay, auth, cfg.Remailer.Address, sendTo, payload)
 	if err != nil {
-		Warn.Println(err)
+		log.Warn(err)
 		return
 	}
 	return

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	//"github.com/codahale/blake2"
+	"github.com/Masterminds/log-go"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 	"github.com/luksen/maildir"
@@ -22,7 +23,7 @@ import (
 // daemon.  It sends messages from the pool at timed intervals.
 func serverPoolOutboundSend() {
 	if cfg.Pool.Loop < 120 {
-		Warn.Printf(
+		log.Warnf(
 			"Pool loop of %d Seconds is too short. "+
 				"Adjusting to minimum of 120 Seconds.",
 			cfg.Pool.Loop,
@@ -58,12 +59,12 @@ func poolOutboundSend() {
 	// Read all the pool files
 	filenames, err = readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
-		Warn.Printf("Reading pool failed: %s", err)
+		log.Warnf("Reading pool failed: %s", err)
 		return
 	}
 	if flags.Remailer {
 		// During normal operation, the pool shouldn't be flushed.
-		Warn.Println("Flushing outbound remailer pool")
+		log.Warn("Flushing outbound remailer pool")
 	}
 	for _, filename := range filenames {
 		emailPoolFile(filename)
@@ -75,7 +76,7 @@ func poolOutboundSend() {
 func emailPoolFile(filename string) {
 	delFlag, err := mailPoolFile(path.Join(cfg.Files.Pooldir, filename))
 	if err != nil {
-		Warn.Printf("Pool mailing failed: %s", err)
+		log.Warnf("Pool mailing failed: %s", err)
 		if delFlag {
 			// If delFlag is true, we delete the file, even though
 			// mailing failed.
@@ -92,13 +93,13 @@ func dynamicMix() []string {
 	var empty []string
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
-		Warn.Printf("Unable to access pool: %s", err)
+		log.Warnf("Unable to access pool: %s", err)
 		return empty
 	}
 	poolSize := len(poolFiles)
 	if poolSize < cfg.Pool.Size || poolSize == 0 {
 		// Pool isn't sufficiently populated
-		Trace.Printf(
+		log.Tracef(
 			"Pool insufficiently populated to trigger sending."+
 				"Require=%d, Got=%d",
 			cfg.Pool.Size,
@@ -111,7 +112,7 @@ func dynamicMix() []string {
 	crandom.Shuffle(poolFiles)
 	// Normal pool processing condition
 	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
-	Trace.Printf("Processing %d pool messages.\n", poolSize)
+	log.Tracef("Processing %d pool messages.\n", poolSize)
 	return poolFiles[:numToSend]
 }
 
@@ -138,13 +139,13 @@ func getBatchSize(poolSize int) int {
 func binomialMix() (batch []string) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
 	if err != nil {
-		Warn.Printf("Unable to access pool: %s", err)
+		log.Warnf("Unable to access pool: %s", err)
 		return
 	}
 	poolSize := len(poolFiles)
 	batchSize := getBatchSize(poolSize)
 	if batchSize == 0 {
-		Trace.Printf("Binomial Mix Pool: Size=%d", poolSize)
+		log.Tracef("Binomial Mix Pool: Size=%d", poolSize)
 		// If the batch is empty, don't bother to process it.
 		return
 	}
@@ -159,7 +160,7 @@ func binomialMix() (batch []string) {
 			batch = append(batch, s)
 		}
 	}
-	Trace.Printf(
+	log.Tracef(
 		"Binomial Mix Pool: Size=%d, Batch=%d, Prob=%d/255, Sending=%d",
 		poolSize,
 		batchSize,
@@ -174,9 +175,9 @@ func poolDelete(filename string) {
 	// Delete a pool file
 	err := os.Remove(path.Join(cfg.Files.Pooldir, filename))
 	if err != nil {
-		Error.Printf("Failed to remove %s from %s\n", filename, cfg.Files.Pooldir)
+		log.Errorf("Failed to remove %s from %s\n", filename, cfg.Files.Pooldir)
 	} else {
-		Trace.Printf("Deleted %s from Pool", filename)
+		log.Tracef("Deleted %s from Pool", filename)
 	}
 }
 
@@ -193,7 +194,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 		// Nothing to do, move along!
 		return
 	}
-	Trace.Printf(
+	log.Tracef(
 		"Reading %d messages from %s\n",
 		newMsgs,
 		cfg.Files.Maildir,
@@ -205,7 +206,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 	for _, key := range keys {
 		head, err = dir.Header(key)
 		if err != nil {
-			Warn.Printf("%s: Getting headers failed with: %s", key, err)
+			log.Warnf("%s: Getting headers failed with: %s", key, err)
 			continue
 		}
 		// The Subject determines if the message needs remailer-foo handling
@@ -217,11 +218,11 @@ func processMail(secret *keymgr.Secring) (err error) {
 				// Increments stats counter
 				stats.inRemFoo++
 			} else {
-				Info.Println(err)
+				log.Info(err)
 			}
 			err = dir.Purge(key)
 			if err != nil {
-				Warn.Printf(
+				log.Warnf(
 					"Cannot delete remailer-foo mail: %s",
 					err,
 				)
@@ -233,7 +234,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 		var mailMsg *mail.Message
 		mailMsg, err := dir.Message(key)
 		if err != nil {
-			Warn.Printf(
+			log.Warnf(
 				"%s: Reading message failed with: %s",
 				key,
 				err,
@@ -244,20 +245,20 @@ func processMail(secret *keymgr.Secring) (err error) {
 		// Convert the armored Yamn message to its byte components
 		msg, err = stripArmor(mailMsg.Body)
 		if err != nil {
-			Info.Println(err)
+			log.Info(err)
 			continue
 		}
 		if msg == nil {
-			Warn.Println("Dearmor returned zero bytes")
+			log.Warn("Dearmor returned zero bytes")
 			continue
 		}
 		err = decodeMsg(msg, secret)
 		if err != nil {
-			Info.Println(err)
+			log.Info(err)
 		}
 		err = dir.Purge(key)
 		if err != nil {
-			Warn.Printf("Cannot delete mail: %s", err)
+			log.Warnf("Cannot delete mail: %s", err)
 		}
 	} // Maildir keys loop
 	return
@@ -267,7 +268,7 @@ func processMail(secret *keymgr.Secring) (err error) {
 func processInpool(prefix string, secret *keymgr.Secring) {
 	poolFiles, err := readDir(cfg.Files.Pooldir, prefix)
 	if err != nil {
-		Warn.Printf("Unable to access inbound pool: %s", err)
+		log.Warnf("Unable to access inbound pool: %s", err)
 		return
 	}
 	poolSize := len(poolFiles)
@@ -277,18 +278,18 @@ func processInpool(prefix string, secret *keymgr.Secring) {
 		msg := make([]byte, messageBytes)
 		msg, err = ioutil.ReadFile(filename)
 		if err != nil {
-			Warn.Printf("Failed to read %s from pool: %s", f, err)
+			log.Warnf("Failed to read %s from pool: %s", f, err)
 			continue
 		}
 		err = decodeMsg(msg, secret)
 		if err != nil {
-			Warn.Println(err)
+			log.Warn(err)
 		}
 		poolDelete(f)
 		processed++
 	}
 	if poolSize > 0 {
-		Trace.Printf("Inbound pool processing complete. Read=%d, Decoded=%d",
+		log.Tracef("Inbound pool processing complete. Read=%d, Decoded=%d",
 			poolSize, processed)
 	}
 }

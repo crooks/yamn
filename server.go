@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/log-go"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -42,12 +43,12 @@ func loopServer() (err error) {
 	createDirs()
 
 	// Open the IDlog
-	Trace.Printf("Opening ID Log: %s", cfg.Files.IDlog)
+	log.Tracef("Opening ID Log: %s", cfg.Files.IDlog)
 	// NewInstance takes the filename and entry validity in days
 	IDDb = idlog.NewIDLog(cfg.Files.IDlog, cfg.Remailer.IDexp)
 	defer IDDb.Close()
 	// Open the chunk DB
-	Trace.Printf("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
+	log.Tracef("Opening the Chunk DB: %s", cfg.Files.ChunkDB)
 	ChunkDb = OpenChunk(cfg.Files.ChunkDB)
 	ChunkDb.SetExpire(cfg.Remailer.ChunkExpire)
 
@@ -73,7 +74,7 @@ func loopServer() (err error) {
 		refreshPubkey(secret)
 	}
 
-	Info.Printf("Secret keyring contains %d keys", secret.Count())
+	log.Infof("Secret keyring contains %d keys", secret.Count())
 
 	// Define triggers for timed events
 	daily := time.Now()
@@ -86,11 +87,11 @@ func loopServer() (err error) {
 
 	// Actually start the server loop
 	if runAsDaemon {
-		Info.Printf("Starting YAMN server: %s", cfg.Remailer.Name)
-		Info.Printf("Detaching Pool processing")
+		log.Infof("Starting YAMN server: %s", cfg.Remailer.Name)
+		log.Infof("Detaching Pool processing")
 		go serverPoolOutboundSend()
 	} else {
-		Info.Printf("Performing routine remailer functions for: %s",
+		log.Infof("Performing routine remailer functions for: %s",
 			cfg.Remailer.Name)
 	}
 	for {
@@ -103,7 +104,7 @@ func loopServer() (err error) {
 
 		// Midnight events
 		if time.Now().Day() != dayOfMonth {
-			Info.Println("Performing midnight events")
+			log.Info("Performing midnight events")
 			// Remove expired keys from memory and rewrite a
 			// secring file without expired keys.
 			if purgeSecring(secret) == 0 {
@@ -121,7 +122,7 @@ func loopServer() (err error) {
 		}
 		// Daily events
 		if time.Since(daily) > oneDay {
-			Info.Println("Performing daily events")
+			log.Info("Performing daily events")
 			// Complain about poor configs
 			nagOperator()
 			// Reset today so we don't do these tasks for the next
@@ -130,7 +131,7 @@ func loopServer() (err error) {
 		}
 		// Hourly events
 		if time.Since(hourly) > time.Hour {
-			Trace.Println("Performing hourly events")
+			log.Trace("Performing hourly events")
 			/*
 				The following two conditions try to import new
 				pubring and mlist2 URLs.  If they fail, a
@@ -151,7 +152,7 @@ func loopServer() (err error) {
 			}
 			// Test to see if the pubring.mix file has been updated
 			if Pubring.KeyRefresh() {
-				Trace.Printf(
+				log.Tracef(
 					"Reimporting Public Keyring: %s",
 					cfg.Files.Pubring,
 				)
@@ -177,13 +178,13 @@ func loopServer() (err error) {
 func refreshPubkey(secret *keymgr.Secring) {
 	tmpKey := cfg.Files.Pubkey + ".tmp"
 	keyidstr := secret.WriteMyKey(tmpKey)
-	Info.Printf("Advertising keyid: %s", keyidstr)
-	Trace.Printf("Writing current public key to %s", tmpKey)
+	log.Infof("Advertising keyid: %s", keyidstr)
+	log.Tracef("Writing current public key to %s", tmpKey)
 	// Overwrite the published key with the refreshed version
-	Trace.Printf("Renaming %s to %s", tmpKey, cfg.Files.Pubkey)
+	log.Tracef("Renaming %s to %s", tmpKey, cfg.Files.Pubkey)
 	err := os.Rename(tmpKey, cfg.Files.Pubkey)
 	if err != nil {
-		Warn.Println(err)
+		log.Warn(err)
 	}
 }
 
@@ -191,7 +192,7 @@ func refreshPubkey(secret *keymgr.Secring) {
 // are found, it triggers a generation.
 func purgeSecring(secret *keymgr.Secring) (active int) {
 	active, expiring, expired, purged := secret.Purge()
-	Info.Printf(
+	log.Infof(
 		"Key purge complete. Active=%d, Expiring=%d, Expired=%d, "+
 			"Purged=%d",
 		active,
@@ -204,27 +205,27 @@ func purgeSecring(secret *keymgr.Secring) (active int) {
 
 // generateKeypair creates a new keypair and publishes it
 func generateKeypair(secret *keymgr.Secring) {
-	Info.Println("Generating and advertising a new key pair")
+	log.Info("Generating and advertising a new key pair")
 	pub, sec := eccGenerate()
 	keyidstr := secret.Insert(pub, sec)
-	Info.Printf("Generated new keypair with keyid: %s", keyidstr)
-	Info.Println("Writing new Public Key to disc")
+	log.Infof("Generated new keypair with keyid: %s", keyidstr)
+	log.Info("Writing new Public Key to disc")
 	secret.WritePublic(pub, keyidstr)
-	Info.Println("Inserting Secret Key into Secring")
+	log.Info("Inserting Secret Key into Secring")
 	secret.WriteSecret(keyidstr)
 }
 
 // idLogExpire deletes old entries in the ID Log
 func idLogExpire() {
 	count, deleted := IDDb.Expire()
-	Info.Printf("ID Log: Expired=%d, Contains=%d", deleted, count)
+	log.Infof("ID Log: Expired=%d, Contains=%d", deleted, count)
 }
 
 // chunkClean expires entries from the chunk DB and deletes any stranded files
 func chunkClean() {
 	cret, cexp := ChunkDb.Expire()
 	if cexp > 0 {
-		Info.Printf(
+		log.Infof(
 			"Chunk expiry complete. Retained=%d, Expired=%d\n",
 			cret,
 			cexp,
@@ -232,7 +233,7 @@ func chunkClean() {
 	}
 	fret, fdel := ChunkDb.Housekeep()
 	if fdel > 0 {
-		Info.Printf(
+		log.Infof(
 			"Stranded chunk deletion: Retained=%d, Deleted=%d",
 			fret,
 			fdel,
@@ -244,7 +245,7 @@ func chunkClean() {
 func nagOperator() {
 	// Complain about excessively small loop values.
 	if cfg.Pool.Loop < 60 {
-		Warn.Printf(
+		log.Warnf(
 			"Loop time of %d is excessively low. Will loop "+
 				"every 60 seconds. A higher setting is recommended.",
 			cfg.Pool.Loop,
@@ -252,7 +253,7 @@ func nagOperator() {
 	}
 	// Complain about high pool rates.
 	if cfg.Pool.Rate > 90 && !flags.Send {
-		Warn.Printf(
+		log.Warnf(
 			"Your pool rate of %d is excessively high. Unless "+
 				"testing, a lower setting is recommended.",
 			cfg.Pool.Rate,
@@ -260,7 +261,7 @@ func nagOperator() {
 	}
 	// Complain about running a remailer with flag_send
 	if flags.Send && flags.Remailer {
-		Warn.Printf(
+		log.Warnf(
 			"Your remailer will flush the outbound pool every "+
 				"%d seconds. Unless you're testing, this is "+
 				"probably not what you want.",
@@ -273,7 +274,7 @@ func createDirs() {
 	var err error
 	err = os.MkdirAll(cfg.Files.IDlog, 0700)
 	if err != nil {
-		Error.Printf(
+		log.Errorf(
 			"Failed to create %s. %s",
 			cfg.Files.IDlog,
 			err,
@@ -282,7 +283,7 @@ func createDirs() {
 	}
 	err = os.MkdirAll(cfg.Files.Pooldir, 0700)
 	if err != nil {
-		Error.Printf(
+		log.Errorf(
 			"Failed to create %s. %s",
 			cfg.Files.Pooldir,
 			err,
@@ -291,7 +292,7 @@ func createDirs() {
 	}
 	err = os.MkdirAll(cfg.Files.ChunkDB, 0700)
 	if err != nil {
-		Error.Printf(
+		log.Errorf(
 			"Failed to create %s. %s",
 			cfg.Files.ChunkDB,
 			err,
@@ -300,7 +301,7 @@ func createDirs() {
 	}
 	err = os.MkdirAll(cfg.Files.Maildir, 0700)
 	if err != nil {
-		Error.Printf(
+		log.Errorf(
 			"Failed to create %s. %s",
 			cfg.Files.Maildir,
 			err,
@@ -310,19 +311,19 @@ func createDirs() {
 	mdirnew := path.Join(cfg.Files.Maildir, "new")
 	err = os.MkdirAll(mdirnew, 0700)
 	if err != nil {
-		Error.Printf("Failed to create %s. %s", mdirnew, err)
+		log.Errorf("Failed to create %s. %s", mdirnew, err)
 		os.Exit(1)
 	}
 	mdircur := path.Join(cfg.Files.Maildir, "cur")
 	err = os.MkdirAll(mdircur, 0700)
 	if err != nil {
-		Error.Printf("Failed to create %s. %s", mdircur, err)
+		log.Errorf("Failed to create %s. %s", mdircur, err)
 		os.Exit(1)
 	}
 	mdirtmp := path.Join(cfg.Files.Maildir, "tmp")
 	err = os.MkdirAll(mdirtmp, 0700)
 	if err != nil {
-		Error.Printf("Failed to create %s. %s", mdirtmp, err)
+		log.Errorf("Failed to create %s. %s", mdirtmp, err)
 		os.Exit(1)
 	}
 }
@@ -334,7 +335,7 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring) (err error) {
 	// At this point, rawMsg should always be messageBytes in length
 	err = lenCheck(len(rawMsg), messageBytes)
 	if err != nil {
-		Error.Println(err)
+		log.Error(err)
 		return
 	}
 
@@ -344,14 +345,14 @@ func decodeMsg(rawMsg []byte, secret *keymgr.Secring) (err error) {
 	recipientKeyID := header.getRecipientKeyID()
 	recipientSK, err := secret.GetSK(recipientKeyID)
 	if err != nil {
-		Warn.Printf("Failed to ascertain Recipient SK: %s", err)
+		log.Warnf("Failed to ascertain Recipient SK: %s", err)
 		return
 	}
 	header.setRecipientSK(recipientSK)
 
 	slotDataBytes, packetVersion, err := header.decode()
 	if err != nil {
-		Warn.Printf("Header decode failed: %s", err)
+		log.Warnf("Header decode failed: %s", err)
 		return
 	}
 	switch packetVersion {
@@ -372,11 +373,11 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 		return
 	}
 	if !d.testAntiTag(slotData.getTagHash()) {
-		Warn.Println("Anti-tag digest mismatch")
+		log.Warn("Anti-tag digest mismatch")
 		return
 	}
 	if slotData.ageTimestamp() > cfg.Remailer.MaxAge {
-		Warn.Printf(
+		log.Warnf(
 			"Max packet age in days exceeded. Age=%d, Max=%d",
 			slotData.ageTimestamp(),
 			cfg.Remailer.MaxAge,
@@ -384,7 +385,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 		return
 	}
 	if slotData.ageTimestamp() < 0 {
-		Warn.Println("Packet timestamp is in the future. Rejecting")
+		log.Warn("Packet timestamp is in the future. Rejecting")
 		return
 	}
 	if slotData.getPacketType() == 0 {
@@ -399,7 +400,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			This prevents it being emailed back to us.
 		*/
 		if inter.getNextHop() == cfg.Remailer.Address {
-			Info.Println(
+			log.Info(
 				"Message loops back to us.",
 				"Storing in pool instead of sending it.")
 			outfileName := randPoolFilename("i")
@@ -409,7 +410,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 				0600,
 			)
 			if err != nil {
-				Warn.Printf("Failed to write to pool: %s", err)
+				log.Warnf("Failed to write to pool: %s", err)
 				return
 			}
 			stats.outLoop++
@@ -426,7 +427,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 		// Decode Exit
 		final := decodeFinal(slotData.packetInfo)
 		if final.getDeliveryMethod() == 255 {
-			Trace.Println("Discarding dummy message")
+			log.Trace("Discarding dummy message")
 			stats.inDummy++
 			return
 		}
@@ -449,7 +450,7 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 					// remailer
 					randhop(plain)
 				} else {
-					Warn.Println(
+					log.Warn(
 						"Randhopping doesn't support " +
 							"multi-chunk messages. As " +
 							"per Mixmaster, this " +
@@ -460,14 +461,14 @@ func decodeV2(d *decMessage, slotDataBytes []byte) (err error) {
 			}
 			smtpMethod(plain, final)
 		default:
-			Warn.Printf(
+			log.Warnf(
 				"Unsupported Delivery Method: %d",
 				final.getDeliveryMethod(),
 			)
 			return
 		}
 	} else {
-		Warn.Printf(
+		log.Warnf(
 			"Unknown Packet Type: %d",
 			slotData.getPacketType(),
 		)
@@ -487,7 +488,7 @@ func smtpMethod(plain []byte, final *slotFinal) {
 	}
 	// We're an exit and this is a multi-chunk message
 	chunkFilename := writePlainToPool(plain, "p")
-	Trace.Printf(
+	log.Tracef(
 		"Pooled partial chunk. MsgID=%x, Num=%d, "+
 			"Parts=%d, Filename=%s",
 		final.getMessageID(),
@@ -501,7 +502,7 @@ func smtpMethod(plain []byte, final *slotFinal) {
 	cslot := final.getChunkNum() - 1
 	// Test that the slot for this chunk is empty
 	if chunks[cslot] != "" {
-		Warn.Printf(
+		log.Warnf(
 			"Duplicate chunk %d in MsgID: %x",
 			final.chunkNum,
 			final.messageID,
@@ -509,20 +510,20 @@ func smtpMethod(plain []byte, final *slotFinal) {
 	}
 	// Insert the new chunk into the slice
 	chunks[cslot] = chunkFilename
-	Trace.Printf(
+	log.Tracef(
 		"Chunk state: %s",
 		strings.Join(chunks, ","),
 	)
 	// Test if all chunk slots are populated
 	if IsPopulated(chunks) {
 		newPoolFile := randPoolFilename("m")
-		Trace.Printf(
+		log.Tracef(
 			"Assembling chunked message into %s",
 			newPoolFile,
 		)
 		err = ChunkDb.Assemble(newPoolFile, chunks)
 		if err != nil {
-			Warn.Printf("Chunk assembly failed: %s", err)
+			log.Warnf("Chunk assembly failed: %s", err)
 			// Don't return here or the bad chunk will remain in
 			// the DB.
 		}
@@ -541,7 +542,7 @@ func smtpMethod(plain []byte, final *slotFinal) {
 func randhop(plainMsg []byte) {
 	var err error
 	if len(plainMsg) == 0 {
-		Info.Println("Zero-byte message during randhop, ignoring it.")
+		log.Info("Zero-byte message during randhop, ignoring it.")
 		return
 	}
 	// Make a single hop chain with a random node
@@ -550,7 +551,7 @@ func randhop(plainMsg []byte) {
 	var chain []string
 	chain, err = makeChain(inChain)
 	if err != nil {
-		Warn.Println(err)
+		log.Warn(err)
 		return
 	}
 	sendTo := chain[0]
@@ -558,7 +559,7 @@ func randhop(plainMsg []byte) {
 		err = fmt.Errorf("randhop chain must be single hop.  Got=%d", len(chain))
 		panic(err)
 	}
-	Trace.Printf("Performing a random hop to Exit Remailer: %s.", chain[0])
+	log.Tracef("Performing a random hop to Exit Remailer: %s.", chain[0])
 	yamnMsg := encodeMsg(plainMsg, chain, *final)
 	writeMessageToPool(sendTo, yamnMsg)
 	stats.outRandhop++
@@ -571,13 +572,13 @@ func remailerFoo(subject, sender string) (err error) {
 	m.Set("To", sender)
 	if strings.HasPrefix(subject, "remailer-key") {
 		// remailer-key
-		Trace.Printf("remailer-key request from %s", sender)
+		log.Tracef("remailer-key request from %s", sender)
 		m.Set("Subject", fmt.Sprintf("Remailer key for %s", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Pubkey
 		m.Prefix = "Here is the Mixmaster key:\n\n=-=-=-=-=-=-=-=-=-=-=-="
 	} else if strings.HasPrefix(subject, "remailer-conf") {
 		// remailer-conf
-		Trace.Printf("remailer-conf request from %s", sender)
+		log.Tracef("remailer-conf request from %s", sender)
 		m.Set(
 			"Subject",
 			fmt.Sprintf("Capabilities of the %s remailer", cfg.Remailer.Name))
@@ -601,20 +602,20 @@ func remailerFoo(subject, sender string) (err error) {
 		var pubList []string
 		pubList, err := keymgr.Headers(cfg.Files.Pubring)
 		if err != nil {
-			Info.Printf("Could not read %s", cfg.Files.Pubring)
+			log.Infof("Could not read %s", cfg.Files.Pubring)
 		} else {
 			m.List(pubList)
 		}
 	} else if strings.HasPrefix(subject, "remailer-adminkey") {
 		// remailer-adminkey
-		Trace.Printf("remailer-adminkey request from %s", sender)
+		log.Tracef("remailer-adminkey request from %s", sender)
 		m.Set(
 			"Subject",
 			fmt.Sprintf("Admin key for the %s remailer", cfg.Remailer.Name))
 		m.Filename = cfg.Files.Adminkey
 	} else if strings.HasPrefix(subject, "remailer-help") {
 		// remailer-help
-		Trace.Printf("remailer-help request from %s", sender)
+		log.Tracef("remailer-help request from %s", sender)
 		m.Set(
 			"Subject",
 			fmt.Sprintf("Your help request for the %s Anonymous Remailer",
@@ -631,12 +632,12 @@ func remailerFoo(subject, sender string) (err error) {
 	var msg []byte
 	msg, err = m.Compile()
 	if err != nil {
-		Info.Printf("Unable to send %s", subject)
+		log.Infof("Unable to send %s", subject)
 		return
 	}
 	err = mailBytes(msg, []string{sender})
 	if err != nil {
-		Warn.Printf("Failed to send %s to %s", subject, sender)
+		log.Warnf("Failed to send %s to %s", subject, sender)
 		return
 	}
 	return

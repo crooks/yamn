@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"os"
-	"strings"
 
+	"github.com/Masterminds/log-go"
 	"github.com/crooks/yamn/config"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -45,29 +43,6 @@ var (
 	ChunkDb *Chunk
 )
 
-func logInit(
-	traceHandle io.Writer,
-	infoHandle io.Writer,
-	warnHandle io.Writer,
-	errorHandle io.Writer) {
-
-	Trace = log.New(traceHandle,
-		"Trace: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Info = log.New(infoHandle,
-		"Info: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Warn = log.New(warnHandle,
-		"Warn: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-
-	Error = log.New(errorHandle,
-		"Error: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
-}
-
 func main() {
 	var err error
 	flags = config.ParseFlags()
@@ -93,102 +68,22 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Set up some logging based on loglevel and LogToFile
-	if cfg.General.LogToFile {
-		logfile, err := os.OpenFile(
-			cfg.Files.Logfile,
-			os.O_RDWR|os.O_CREATE|os.O_APPEND,
-			0640,
-		)
-		if err != nil {
-			fmt.Fprintf(
-				os.Stderr,
-				"Error opening logfile: %s.\n",
-				err,
-			)
-			os.Exit(1)
-		}
-		switch strings.ToLower(cfg.General.Loglevel) {
-		case "trace":
-			logInit(logfile,
-				logfile,
-				logfile,
-				logfile,
-			)
-		case "info":
-			logInit(ioutil.Discard,
-				logfile,
-				logfile,
-				logfile,
-			)
-		case "warn":
-			logInit(ioutil.Discard,
-				ioutil.Discard,
-				logfile,
-				logfile,
-			)
-		case "error":
-			logInit(ioutil.Discard,
-				ioutil.Discard,
-				ioutil.Discard,
-				logfile,
-			)
-		default:
-			fmt.Fprintf(
-				os.Stderr,
-				"Unknown loglevel: %s.  Assuming \"Info\".\n",
-				cfg.General.Loglevel,
-			)
-			logInit(ioutil.Discard,
-				logfile,
-				logfile,
-				logfile,
-			)
-		}
-	} else {
-		switch strings.ToLower(cfg.General.Loglevel) {
-		case "trace":
-			logInit(os.Stdout,
-				os.Stdout,
-				os.Stdout,
-				os.Stderr,
-			)
-		case "info":
-			logInit(ioutil.Discard,
-				os.Stdout,
-				os.Stdout,
-				os.Stderr,
-			)
-		case "warn":
-			logInit(ioutil.Discard,
-				ioutil.Discard,
-				os.Stdout,
-				os.Stderr,
-			)
-		case "error":
-			logInit(
-				ioutil.Discard,
-				ioutil.Discard,
-				ioutil.Discard,
-				os.Stderr,
-			)
-		default:
-			fmt.Fprintf(
-				os.Stderr,
-				"Unknown loglevel: %s.  Assuming \"Info\".\n",
-				cfg.General.Loglevel,
-			)
-			logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-		} // End of stdout/stderr logging setup
-	} // End of logging setup
+	// Set up logging
+	loglevel, err := log.Atoi(cfg.General.Loglevel)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: Unknown loglevel", cfg.General.Loglevel)
+		os.Exit(1)
+	}
+	log.Current = log.StdLogger{Level: loglevel}
 
 	// Inform the user which (if any) config file was used.
 	if cfg.Files.Config != "" {
-		Info.Printf("Using config file: %s", cfg.Files.Config)
+		log.Infof("Using config file: %s", cfg.Files.Config)
 	} else {
-		Warn.Println("No config file was found. Resorting to defaults")
+		log.Warn("No config file was found. Resorting to defaults")
 	}
 
+	// Setup complete, time to do some work
 	if flags.Client {
 		mixprep()
 	} else if flags.Stdin {

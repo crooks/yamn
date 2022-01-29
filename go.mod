@@ -3,6 +3,7 @@ module github.com/crooks/yamn
 go 1.16
 
 require (
+	github.com/Masterminds/log-go v0.4.0
 	github.com/dchest/blake2s v1.0.0
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/luksen/maildir v0.0.0-20210101204218-7ed7afdce6bf
@@ -11,3 +12,5 @@ require (
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
+
+replace github.com/Masterminds/log-go v0.4.0 => github.com/crooks/log-go v0.4.1

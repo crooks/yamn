@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/log-go"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/keymgr"
 	//"github.com/codahale/blake2"
@@ -100,7 +101,7 @@ func mixprep() {
 	}
 	err = Pubring.ImportPubring()
 	if err != nil {
-		Warn.Printf("Pubring import failed: %s", cfg.Files.Pubring)
+		log.Warnf("Pubring import failed: %s", cfg.Files.Pubring)
 		return
 	}
 	// Read the chain from flag or config
@@ -153,7 +154,7 @@ func mixprep() {
 			inChainFunc = append(inChain[:0:0], inChain...)
 			chain, err = makeChain(inChainFunc)
 			if err != nil {
-				Error.Println(err)
+				log.Error(err)
 				os.Exit(0)
 			}
 			if len(chain) != len(inChain) {
@@ -169,7 +170,7 @@ func mixprep() {
 			sendTo := chain[0]
 			// Report the chain if we're running as a client.
 			if flags.Client {
-				Info.Printf("Chain: %s\n", strings.Join(chain, ","))
+				log.Infof("Chain: %s\n", strings.Join(chain, ","))
 			}
 			yamnMsg := encodeMsg(
 				plain[firstByte:lastByte],
@@ -215,7 +216,7 @@ func encodeMsg(
 	// Get KeyID and NaCl PK for the remailer we're enrypting to.
 	remailer, err := Pubring.Get(hop)
 	if err != nil {
-		Error.Printf(
+		log.Errorf(
 			"%s: Remailer unknown in public keyring\n",
 			hop,
 		)
@@ -225,7 +226,7 @@ func encodeMsg(
 	header := newEncodeHeader()
 	// Tell the header function what KeyID and PK to NaCl encrypt with.
 	header.setRecipient(remailer.Keyid, remailer.PK)
-	Trace.Printf(
+	log.Tracef(
 		"Encrypting Final Hop: Hop=%s, KeyID=%x",
 		hop,
 		remailer.Keyid,
@@ -271,14 +272,14 @@ func encodeMsg(
 		header = newEncodeHeader()
 		remailer, err := Pubring.Get(hop)
 		if err != nil {
-			Error.Printf(
+			log.Errorf(
 				"%s: Remailer unknown in public keyring\n",
 				hop,
 			)
 			os.Exit(1)
 		}
 		header.setRecipient(remailer.Keyid, remailer.PK)
-		Trace.Printf(
+		log.Tracef(
 			"Encrypting: Hop=%s, KeyID=%x",
 			hop,
 			remailer.Keyid,
@@ -317,10 +318,10 @@ func timedURLFetch(url, filename string) {
 			doFetch = false
 		}
 		if doFetch {
-			Info.Printf("Fetching %s and storing in %s", url, filename)
+			log.Infof("Fetching %s and storing in %s", url, filename)
 			err = httpGet(url, filename)
 			if err != nil {
-				Warn.Println(err)
+				log.Warn(err)
 			}
 		}
 	}
@@ -344,10 +345,10 @@ func dummy() {
 	chain, err = makeChain(inChain)
 	sendTo := chain[0]
 	if err != nil {
-		Warn.Printf("Dummy creation failed: %s", err)
+		log.Warnf("Dummy creation failed: %s", err)
 		return
 	}
-	Trace.Printf("Sending dummy through: %s.", strings.Join(chain, ","))
+	log.Tracef("Sending dummy through: %s.", strings.Join(chain, ","))
 	yamnMsg := encodeMsg(plainMsg, chain, *final)
 	writeMessageToPool(sendTo, yamnMsg)
 	return

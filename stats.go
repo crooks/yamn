@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/Masterminds/log-go"
 )
 
 type statistics struct {
@@ -28,11 +30,11 @@ func (s *statistics) reset() {
 	s.outLoop = 0
 	s.outRandhop = 0
 	s.outPlain = 0
-	Info.Println("Daily stats reset")
+	log.Info("Daily stats reset")
 }
 
 func (s *statistics) report() {
-	Info.Printf(
+	log.Infof(
 		"MailIn=%d, RemFoo=%d, YamnIn=%d, DummyIn=%d",
 		s.inMail,
 		s.inRemFoo,
@@ -51,7 +53,7 @@ func (s *statistics) report() {
 		s.outPlain,
 		s.outDummy,
 	)
-	Info.Printf(line1 + line2)
+	log.Infof(line1 + line2)
 }
 
 var stats = new(statistics)

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/log-go"
 	"github.com/crooks/yamn/crandom"
 	"github.com/crooks/yamn/linebreaker"
 	"github.com/dchest/blake2s"
@@ -95,7 +96,7 @@ func messageID() (datestr string) {
 func lenCheck(got, expected int) (err error) {
 	if got != expected {
 		err = fmt.Errorf("incorrect length: Expected=%d, Got=%d", expected, got)
-		Info.Println(err)
+		log.Info(err)
 	}
 	return
 }
@@ -104,7 +105,7 @@ func lenCheck(got, expected int) (err error) {
 func bufLenCheck(buflen, length int) (err error) {
 	if buflen != length {
 		err = fmt.Errorf("incorrect buffer length: Wanted=%d, Got=%d", length, buflen)
-		Info.Println(err)
+		log.Info(err)
 	}
 	return
 }
