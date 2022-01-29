@@ -562,7 +562,6 @@ func randhop(plainMsg []byte) {
 	yamnMsg := encodeMsg(plainMsg, chain, *final)
 	writeMessageToPool(sendTo, yamnMsg)
 	stats.outRandhop++
-	return
 }
 
 // remailerFoo responds to requests for remailer-* info
