@@ -105,6 +105,7 @@ func mixprep() {
 	}
 	// Read the chain from flag or config
 	var inChain []string
+	var inChainFunc []string
 	if flags.Chain == "" {
 		inChain = strings.Split(cfg.Stats.Chain, ",")
 	} else {
@@ -149,7 +150,8 @@ func mixprep() {
 				inChain[len(inChain)-1] = exitnode
 			}
 			var chain []string
-			chain, err = makeChain(inChain)
+			inChainFunc = append(inChain[:0:0], inChain...)
+			chain, err = makeChain(inChainFunc)
 			if err != nil {
 				Error.Println(err)
 				os.Exit(0)
