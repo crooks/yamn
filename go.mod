@@ -7,7 +7,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/luksen/maildir v0.0.0-20210101204218-7ed7afdce6bf
 	github.com/syndtr/goleveldb v1.0.0
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
-	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1 // indirect
-	gopkg.in/yaml.v2 v2.2.1
+	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
+	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
