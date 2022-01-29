@@ -183,11 +183,6 @@ func ParseFlags() *Flags {
 	flag.BoolVar(&f.Refresh, "refresh", false, "Refresh remailer stats files")
 
 	flag.Parse()
-
-	// If a "--config" flag hasn't been provided, try reading a YAMNCFG environment variable.
-	if f.Config == "" && os.Getenv("YAMNCFG") != "" {
-		f.Config = os.Getenv("YAMNCFG")
-	}
 	return f
 }
 
