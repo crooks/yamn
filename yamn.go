@@ -72,7 +72,8 @@ func logInit(
 func main() {
 	var err error
 	flags = config.ParseFlags()
-	cfg, err = config.ParseConfig(flags.Config)
+	// Some config defaults are derived from flags so ParseConfig is a flags method
+	cfg, err = flags.ParseConfig()
 	if err != nil {
 		Error.Fatalf("Unable to parse config file: %v", err)
 	}

@@ -30,20 +30,44 @@ func TestConfig(t *testing.T) {
 		t.Fatalf("Unable to create TempFile: %v", err)
 	}
 	defer os.Remove(testFile.Name())
-	fakeCfg := new(Config)
-	fakeCfg.General.LogToFile = true
-	fakeCfg.General.Loglevel = "info"
-	fakeCfg.WriteConfig(testFile.Name())
-
-	cfg, err := ParseConfig(testFile.Name())
+	fakeCfg := `---
+general:
+  logtofile: true
+  loglevel: info
+files:
+  pubkey: /fake/dir/pubkey
+`
+	testFile.WriteString(fakeCfg)
+	testFile.Close()
+	f := new(Flags)
+	// Populate the Config flag with the new testFile name
+	f.Config = testFile.Name()
+	// act as if we've been called with --dir=/fakedir
+	f.Dir = "/fakedir"
+	cfg, err := f.ParseConfig()
 	if err != nil {
 		t.Fatalf("ParseConfig returned: %v", err)
 	}
 
-	if cfg.General.LogToFile != fakeCfg.General.LogToFile {
-		t.Fatalf("Expected cfg.General.Loglevel to contain \"%v\" but got \"%v\".", fakeCfg.General.LogToFile, cfg.General.LogToFile)
+	// These settings are defined in the fake config
+	if !cfg.General.LogToFile {
+		t.Errorf("expected cfg.General.Loglevel to be true but got %v", cfg.General.LogToFile)
 	}
-	if cfg.General.Loglevel != fakeCfg.General.Loglevel {
-		t.Fatalf("Expected cfg.General.Loglevel to contain \"%s\" but got \"%s\".", fakeCfg.General.Loglevel, cfg.General.Loglevel)
+	if cfg.General.Loglevel != "info" {
+		t.Errorf("expected cfg.General.Loglevel to contain \"info\" but got \"%s\"", cfg.General.Loglevel)
+	}
+	if cfg.Files.Pubkey != "/fake/dir/pubkey" {
+		t.Errorf("expected cfg.Files.Pubkey to contain \"/fake/dir/pubkey\" but got \"%s\"", cfg.Files.Pubkey)
+	}
+	// These settings are undefined and should return defaults
+	if !cfg.Urls.Fetch {
+		t.Errorf("expected cfg.Urls.Fetch to default to true but got %v", cfg.Urls.Fetch)
+	}
+	if !cfg.Mail.UseTLS {
+		t.Errorf("expected cfg.Mail.UseTLS to default to true but got %v", cfg.Mail.UseTLS)
+	}
+	// These settings inherit defaults from flags
+	if cfg.Files.IDlog != "/fakedir/idlog" {
+		t.Errorf("Expected cfg.Files.IDlog to default to \"/fakedir/idlog\" but got \"%s\".", cfg.Files.IDlog)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"path"
 
 	"gopkg.in/yaml.v2"
 )
@@ -11,77 +12,78 @@ import (
 // Config contains all the configuration settings for Yamn.
 type Config struct {
 	General struct {
-		Loglevel  string
-		LogToFile bool
-	}
+		Loglevel  string `yaml:"loglevel"`
+		LogToFile bool   `yaml:"logtofile"`
+	} `yaml:"general"`
 	Files struct {
-		Pubring  string
-		Mlist2   string
-		Pubkey   string
-		Secring  string
-		Adminkey string
-		Help     string
-		Pooldir  string
-		Maildir  string
-		IDlog    string
-		ChunkDB  string
-		Logfile  string
-	}
+		Pubring  string `yaml:"pubring"`
+		Mlist2   string `yaml:"mlist2"`
+		Pubkey   string `yaml:"pubkey"`
+		Secring  string `yaml:"secring"`
+		Adminkey string `yaml:"adminkey"`
+		Help     string `yaml:"help"`
+		Pooldir  string `yaml:"pooldir"`
+		Maildir  string `yaml:"maildir"`
+		IDlog    string `yaml:"idlog"`
+		ChunkDB  string `yaml:"chunkdb"`
+		Logfile  string `yaml:"logfile"`
+	} `yaml:"files"`
 	Urls struct {
-		Fetch   bool
-		Pubring string
-		Mlist2  string
-	}
+		Fetch   bool   `yaml:"fetch"`
+		Pubring string `yaml:"pubring"`
+		Mlist2  string `yaml:"mlist2"`
+	} `yaml:"urls"`
 	Mail struct {
-		Sendmail     bool
-		Pipe         string
-		Outfile      bool
-		UseTLS       bool
-		SMTPRelay    string
-		SMTPPort     int
-		MXRelay      bool
-		OnionRelay   bool
-		Sender       string
-		Username     string
-		Password     string
-		OutboundName string
-		OutboundAddy string
-		CustomFrom   bool
-	}
+		Sendmail     bool   `yaml:"sendmail"`
+		Pipe         string `yaml:"pipe"`
+		Outfile      bool   `yaml:"outfile"`
+		UseTLS       bool   `yaml:"usetls"`
+		SMTPRelay    string `yaml:"smtp_relay"`
+		SMTPPort     int    `yaml:"smtp_port"`
+		MXRelay      bool   `yaml:"mx_relay"`
+		OnionRelay   bool   `yaml:"onion_relay"`
+		Sender       string `yaml:"sender"`
+		Username     string `yaml:"username"`
+		Password     string `yaml:"password"`
+		OutboundName string `yaml:"outbound_name"`
+		OutboundAddy string `yaml:"outbound_addy"`
+		CustomFrom   bool   `yaml:"custom_from"`
+	} `yaml:"mail"`
 	Stats struct {
-		Minlat     int
-		Maxlat     int
-		Minrel     float32
-		Relfinal   float32
-		Chain      string
-		Numcopies  int
-		Distance   int
-		StaleHrs   int
-		UseExpired bool
-	}
+		Minlat     int     `yaml:"minlat"`
+		Maxlat     int     `yaml:"maxlat"`
+		Minrel     float32 `yaml:"minrel"`
+		Relfinal   float32 `yaml:"rel_final"`
+		Chain      string  `yaml:"chain"`
+		Numcopies  int     `yaml:"num_copies"`
+		Distance   int     `yaml:"distance"`
+		StaleHrs   int     `yaml:"stale_hours"`
+		UseExpired bool    `yaml:"use_expired"`
+	} `yaml:"stats"`
 	Pool struct {
-		Size    int
-		Rate    int
-		MinSend int
-		Loop    int
+		Size    int `yaml:"size"`
+		Rate    int `yaml:"rate"`
+		MinSend int `yaml:"min_send"`
+		Loop    int `yaml:"loop"`
 		// Delete excessively old messages from the outbound pool
-		MaxAge int
-	}
+		MaxAge int `yaml:"max_age"`
+	} `yaml:"pool"`
 	Remailer struct {
-		Name        string
-		Address     string
-		Exit        bool
-		MaxSize     int
-		IDexp       int
-		ChunkExpire int
-		MaxAge      int
-		Keylife     int
-		Keygrace    int
-		Daemon      bool
-	}
+		Name        string `yaml:"name"`
+		Address     string `yaml:"address"`
+		Exit        bool   `yaml:"exit"`
+		MaxSize     int    `yaml:"max_size"`
+		IDexp       int    `yaml:"id_expire"`
+		ChunkExpire int    `yaml:"chunk_expire"`
+		MaxAge      int    `yaml:"max_age"`
+		Keylife     int    `yaml:"key_life"`
+		Keygrace    int    `yaml:"key_grace"`
+		Daemon      bool   `yaml:"daemon"`
+	} `yaml:"remailer"`
 }
 
 type Flags struct {
+	Dir      string
 	Debug    bool
 	Client   bool
 	Send     bool
@@ -116,6 +118,8 @@ func (c *Config) WriteConfig(filename string) error {
 
 func ParseFlags() *Flags {
 	f := new(Flags)
+	// Base DIR for easy setting of some default file paths
+	flag.StringVar(&f.Dir, "dir", "", "Base DIR for YAMN files")
 	// Function as a client
 	flag.BoolVar(&f.Client, "mail", false, "Function as a client")
 	flag.BoolVar(&f.Client, "m", false, "Function as a client")
@@ -175,17 +179,81 @@ func ParseFlags() *Flags {
 	return f
 }
 
-func ParseConfig(filename string) (*Config, error) {
-	file, err := os.Open(filename)
+// newConfig returns a new instance of Config with some predefined defaults
+func (flags *Flags) newConfig() *Config {
+	cfg := new(Config)
+	// Default values defined here will be overridden by unmarshaling a config file
+	cfg.General.Loglevel = "warn"
+	cfg.General.LogToFile = false // By default, log to stdout/stderr
+	// Config items in the Files section default to a path defined by the --dir flag
+	cfg.Files.Pubkey = path.Join(flags.Dir, "key.txt")
+	cfg.Files.Pubring = path.Join(flags.Dir, "pubring.mix")
+	cfg.Files.Secring = path.Join(flags.Dir, "secring.mix")
+	cfg.Files.Mlist2 = path.Join(flags.Dir, "mlist2.txt")
+	cfg.Files.Adminkey = path.Join(flags.Dir, "adminkey.txt")
+	cfg.Files.Help = path.Join(flags.Dir, "help.txt")
+	cfg.Files.Pooldir = path.Join(flags.Dir, "pool")
+	cfg.Files.Maildir = path.Join(flags.Dir, "Maildir")
+	cfg.Files.IDlog = path.Join(flags.Dir, "idlog")
+	cfg.Files.ChunkDB = path.Join(flags.Dir, "chunkdb")
+	cfg.Files.Logfile = path.Join(flags.Dir, "yamn.log")
+	cfg.Urls.Fetch = true
+	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
+	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
+	cfg.Mail.Sendmail = false
+	cfg.Mail.Outfile = false
+	cfg.Mail.SMTPRelay = "fleegle.mixmin.net"
+	cfg.Mail.SMTPPort = 587
+	cfg.Mail.UseTLS = true
+	cfg.Mail.MXRelay = true
+	cfg.Mail.OnionRelay = false // Allow .onion addresses as MX relays
+	cfg.Mail.Sender = ""
+	cfg.Mail.Username = ""
+	cfg.Mail.Password = ""
+	cfg.Mail.OutboundName = "Anonymous Remailer"
+	cfg.Mail.OutboundAddy = "remailer@domain.invalid"
+	cfg.Mail.CustomFrom = false
+	cfg.Stats.Minrel = 98.0
+	cfg.Stats.Relfinal = 99.0
+	cfg.Stats.Minlat = 2
+	cfg.Stats.Maxlat = 60
+	cfg.Stats.Chain = "*,*,*"
+	cfg.Stats.Numcopies = 1
+	cfg.Stats.Distance = 2
+	cfg.Stats.StaleHrs = 24
+	cfg.Stats.UseExpired = false
+	cfg.Pool.Size = 5 // Good for startups, too small for established
+	cfg.Pool.Rate = 65
+	cfg.Pool.MinSend = 5 // Only used in Binomial Mix Pools
+	cfg.Pool.Loop = 300
+	cfg.Pool.MaxAge = 28
+	cfg.Remailer.Name = "anon"
+	cfg.Remailer.Address = "mix@nowhere.invalid"
+	cfg.Remailer.Exit = false
+	cfg.Remailer.MaxSize = 12
+	cfg.Remailer.IDexp = 14
+	cfg.Remailer.ChunkExpire = 60
+	// Discard messages if packet timestamp exceeds this age in days
+	cfg.Remailer.MaxAge = 14
+	cfg.Remailer.Keylife = 14
+	cfg.Remailer.Keygrace = 28
+	cfg.Remailer.Daemon = false
+	return cfg
+}
+
+// ParseConfig returns an instance of Config with defaults overridden by the content of a config file
+func (flags *Flags) ParseConfig() (*Config, error) {
+	// Fetch an instance of Config with defaults predefined
+	c := flags.newConfig()
+	// Read a YAML config file
+	yamlBytes, err := os.ReadFile(flags.Config)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-
-	y := yaml.NewDecoder(file)
-	config := new(Config)
-	if err := y.Decode(&config); err != nil {
+	// Unmarshal the content of the YAML config file over the existing struct instance
+	err = yaml.Unmarshal(yamlBytes, &c)
+	if err != nil {
 		return nil, err
 	}
-	return config, nil
+	return c, nil
 }
