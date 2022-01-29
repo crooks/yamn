@@ -220,7 +220,7 @@ func (flags *Flags) findConfig() (string, error) {
 		}
 	}
 	// Last gasp: Try /etc/yamn.yml.
-	cfgFile = "/etc/yaml.yml"
+	cfgFile = "/etc/yamn.yml"
 	if _, err = os.Stat(cfgFile); err == nil {
 		return cfgFile, nil
 	}
