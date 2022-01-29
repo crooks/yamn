@@ -16,6 +16,9 @@ type Config struct {
 		LogToFile bool   `yaml:"logtofile"`
 	} `yaml:"general"`
 	Files struct {
+		// Config is a special variable that returns the name of the active config file.
+		// If it's set in the config file, it will be ignored.
+		Config   string
 		Pubring  string `yaml:"pubring"`
 		Mlist2   string `yaml:"mlist2"`
 		Pubkey   string `yaml:"pubkey"`
@@ -104,6 +107,7 @@ type Flags struct {
 	MemInfo  bool
 }
 
+// WriteConfig will write the current config to a given filename
 func (c *Config) WriteConfig(filename string) error {
 	data, err := yaml.Marshal(c)
 	if err != nil {
@@ -114,6 +118,14 @@ func (c *Config) WriteConfig(filename string) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Config) Debug() ([]byte, error) {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	return data, err
 }
 
 func ParseFlags() *Flags {
@@ -177,6 +189,48 @@ func ParseFlags() *Flags {
 		f.Config = os.Getenv("YAMNCFG")
 	}
 	return f
+}
+
+// findConfig attempts to locate a yamn config file
+func (flags *Flags) findConfig() (string, error) {
+	var err error
+	var cfgFile string
+	// if a --config flag was passed, try that as the highest priority
+	if _, err = os.Stat(flags.Config); err == nil {
+		return flags.Config, nil
+	}
+	// Does the environment variable YAMNCFG point to a valid file?
+	if _, err = os.Stat(os.Getenv("YAMNCFG")); err == nil {
+		return os.Getenv("YAMNCFG"), nil
+	}
+	// Is there a yamn.yml in the PWD?
+	pwd, err := os.Getwd()
+	if err == nil {
+		cfgFile = path.Join(pwd, "yamn.yml")
+		if _, err = os.Stat(cfgFile); err == nil {
+			return cfgFile, nil
+		}
+	}
+	// Is there a yamn.yml file in the dir flag directory
+	cfgFile = path.Join(flags.Dir, "yamn.yml")
+	if _, err = os.Stat(cfgFile); err == nil {
+		return cfgFile, nil
+	}
+	// Look for a yamn.yml in the user's homedir
+	home, err := os.UserHomeDir()
+	if err == nil {
+		cfgFile = path.Join(home, "yamn.yml")
+		if _, err = os.Stat(cfgFile); err == nil {
+			return cfgFile, nil
+		}
+	}
+	// Last gasp: Try /etc/yamn.yml.
+	cfgFile = "/etc/yaml.yml"
+	if _, err = os.Stat(cfgFile); err == nil {
+		return cfgFile, nil
+	}
+	// Return an error to indicate no config file has been found
+	return "", os.ErrNotExist
 }
 
 // newConfig returns a new instance of Config with some predefined defaults
@@ -244,16 +298,21 @@ func (flags *Flags) newConfig() *Config {
 // ParseConfig returns an instance of Config with defaults overridden by the content of a config file
 func (flags *Flags) ParseConfig() (*Config, error) {
 	// Fetch an instance of Config with defaults predefined
-	c := flags.newConfig()
-	// Read a YAML config file
-	yamlBytes, err := os.ReadFile(flags.Config)
-	if err != nil {
-		return nil, err
+	config := flags.newConfig()
+	// Try (really hard) to locate a yamn config file
+	cfgFile, err := flags.findConfig()
+	if err == nil {
+		// Useful for informing the user what config file is being read
+		config.Files.Config = cfgFile
+		yamlBytes, err := os.ReadFile(cfgFile)
+		if err != nil {
+			return nil, err
+		}
+		// Unmarshal the content of the YAML config file over the existing struct instance
+		err = yaml.Unmarshal(yamlBytes, &config)
+		if err != nil {
+			return nil, err
+		}
 	}
-	// Unmarshal the content of the YAML config file over the existing struct instance
-	err = yaml.Unmarshal(yamlBytes, &c)
-	if err != nil {
-		return nil, err
-	}
-	return c, nil
+	return config, nil
 }

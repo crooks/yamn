@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -75,7 +74,9 @@ func main() {
 	// Some config defaults are derived from flags so ParseConfig is a flags method
 	cfg, err = flags.ParseConfig()
 	if err != nil {
-		Error.Fatalf("Unable to parse config file: %v", err)
+		// No logging is defined at this point so log the error to stderr
+		fmt.Fprintf(os.Stderr, "Unable to parse config file: %v", err)
+		os.Exit(1)
 	}
 	if cfg.General.LogToFile {
 		logfile, err := os.OpenFile(
@@ -165,14 +166,21 @@ func main() {
 		} // End of stdout/stderr logging setup
 	} // End of logging setup
 
+	// Inform the user which (if any) config file was used.
+	if cfg.Files.Config != "" {
+		Info.Printf("Using config file: %s", cfg.Files.Config)
+	} else {
+		Warn.Println("No config file was found. Resorting to defaults")
+	}
+
 	// If the debug flag is set, print the config in JSON format and then exit.
 	if flags.Debug {
-		j, err := json.MarshalIndent(cfg, "", "    ")
+		y, err := cfg.Debug()
 		if err != nil {
 			fmt.Printf("Debugging Error: %s\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("%s\n", j)
+		fmt.Printf("%s\n", y)
 		os.Exit(0)
 	}
 

@@ -40,7 +40,8 @@ files:
 	testFile.WriteString(fakeCfg)
 	testFile.Close()
 	f := new(Flags)
-	// Populate the Config flag with the new testFile name
+	// Populate the Config flag with the new testFile name.  This will override any other yamn config files that might
+	// be lurking.
 	f.Config = testFile.Name()
 	// act as if we've been called with --dir=/fakedir
 	f.Dir = "/fakedir"
