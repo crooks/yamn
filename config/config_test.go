@@ -9,8 +9,6 @@ import (
 func TestFlags(t *testing.T) {
 	expectedClient := false
 	expectedCopies := 0
-
-	// This needs to be set prior to doing ParseFlags()
 	f := ParseFlags()
 	if f.Client != expectedClient {
 		t.Errorf("Expected Client to contain \"%v\" but got \"%v\".", expectedClient, f.Client)

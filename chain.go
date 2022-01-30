@@ -99,7 +99,7 @@ func makeChain(inChain []string) (outChain []string, err error) {
 				log.Warn("No candidate remailers match selection criteria")
 			}
 
-			if len(candidates) == 0 && flags.Remailer {
+			if len(candidates) == 0 && flag.Remailer {
 				log.Warn("Relaxing latency and uptime criteria to build chain")
 				if len(outChain) == 0 {
 					// Construct a list of suitable exit remailers

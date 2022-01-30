@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -107,6 +108,22 @@ type Flags struct {
 	MemInfo  bool
 }
 
+// GetCfg parses the command line flags and config file if they haven't been previously parsed.
+// This should be an init function but tests fail if flags are parsed in init.
+//  See: https://github.com/golang/go/issues/46869
+func GetCfg() (*Flags, *Config) {
+	var err error
+	f := ParseFlags()
+	// Some config defaults are derived from flags so ParseConfig is a flags method
+	c, err := f.ParseConfig()
+	if err != nil {
+		// No logging is defined at this point so log the error to stderr
+		fmt.Fprintf(os.Stderr, "Unable to parse config file: %v", err)
+		os.Exit(1)
+	}
+	return f, c
+}
+
 // WriteConfig will write the current config to a given filename
 func (c *Config) WriteConfig(filename string) error {
 	data, err := yaml.Marshal(c)
@@ -139,15 +156,11 @@ func ParseFlags() *Flags {
 	flag.BoolVar(&f.Send, "send", false, "Force pool send")
 	flag.BoolVar(&f.Send, "S", false, "Force pool send")
 	// Perform remailer actions
-	flag.BoolVar(&f.Remailer, "remailer", false,
-		"Perform routine remailer actions")
-	flag.BoolVar(&f.Remailer, "M", false,
-		"Perform routine remailer actions")
+	flag.BoolVar(&f.Remailer, "remailer", false, "Perform routine remailer actions")
+	flag.BoolVar(&f.Remailer, "M", false, "Perform routine remailer actions")
 	// Start remailer as a daemon
-	flag.BoolVar(&f.Daemon, "daemon", false,
-		"Start remailer as a daemon. (Requires -M")
-	flag.BoolVar(&f.Daemon, "D", false,
-		"Start remailer as a daemon. (Requires -M")
+	flag.BoolVar(&f.Daemon, "daemon", false, "Start remailer as a daemon. (Requires -M)")
+	flag.BoolVar(&f.Daemon, "D", false, "Start remailer as a daemon. (Requires -M)")
 	// Remailer chain
 	flag.StringVar(&f.Chain, "chain", "", "Remailer chain")
 	flag.StringVar(&f.Chain, "l", "", "Remailer chain")
@@ -158,8 +171,8 @@ func ParseFlags() *Flags {
 	flag.StringVar(&f.Subject, "subject", "", "Subject header")
 	flag.StringVar(&f.Subject, "s", "", "Subject header")
 	// Number of copies
-	flag.IntVar(&f.Copies, "copies", 0, "Number of copies")
-	flag.IntVar(&f.Copies, "c", 0, "Number of copies")
+	flag.IntVar(&f.Copies, "copies", 2, "Number of copies")
+	flag.IntVar(&f.Copies, "c", 2, "Number of copies")
 	// Config file
 	flag.StringVar(&f.Config, "config", "", "Config file")
 	// Read STDIN

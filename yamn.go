@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	stdlog "log"
 	"os"
 
 	"github.com/Masterminds/log-go"
@@ -24,17 +25,9 @@ const (
 
 var (
 	// flags - Command line flags
-	flags *config.Flags
+	flag *config.Flags
 	// cfg - Config parameters
 	cfg *config.Config
-	// Trace loglevel
-	Trace *log.Logger
-	// Info loglevel
-	Info *log.Logger
-	// Warn loglevel
-	Warn *log.Logger
-	// Error loglevel
-	Error *log.Logger
 	// Pubring - Public Keyring
 	Pubring *keymgr.Pubring
 	// IDDb - Message ID log (replay protection)
@@ -45,20 +38,13 @@ var (
 
 func main() {
 	var err error
-	flags = config.ParseFlags()
-	if flags.Version {
+	flag, cfg = config.GetCfg()
+	if flag.Version {
 		fmt.Println(version)
 		os.Exit(0)
 	}
-	// Some config defaults are derived from flags so ParseConfig is a flags method
-	cfg, err = flags.ParseConfig()
-	if err != nil {
-		// No logging is defined at this point so log the error to stderr
-		fmt.Fprintf(os.Stderr, "Unable to parse config file: %v", err)
-		os.Exit(1)
-	}
 	// If the debug flag is set, print the config and exit
-	if flags.Debug {
+	if flag.Debug {
 		y, err := cfg.Debug()
 		if err != nil {
 			fmt.Printf("Debugging Error: %s\n", err)
@@ -74,6 +60,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s: Unknown loglevel", cfg.General.Loglevel)
 		os.Exit(1)
 	}
+	// If we're logging to a file, open the file and redirect output to it
+	if cfg.General.LogToFile {
+		logfile, err := os.OpenFile(cfg.Files.Logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: Error opening logfile: %v", cfg.Files.Logfile, err)
+			os.Exit(1)
+		}
+		stdlog.SetOutput(logfile)
+	}
 	log.Current = log.StdLogger{Level: loglevel}
 
 	// Inform the user which (if any) config file was used.
@@ -84,9 +79,9 @@ func main() {
 	}
 
 	// Setup complete, time to do some work
-	if flags.Client {
+	if flag.Client {
 		mixprep()
-	} else if flags.Stdin {
+	} else if flag.Stdin {
 		dir := maildir.Dir(cfg.Files.Maildir)
 		newmsg, err := dir.NewDelivery()
 		if err != nil {
@@ -100,20 +95,20 @@ func main() {
 		}
 		newmsg.Write(stdin)
 		newmsg.Close()
-	} else if flags.Remailer {
+	} else if flag.Remailer {
 		err = loopServer()
 		if err != nil {
 			panic(err)
 		}
-	} else if flags.Dummy {
+	} else if flag.Dummy {
 		injectDummy()
-	} else if flags.Refresh {
+	} else if flag.Refresh {
 		fmt.Printf("Keyring refresh: from=%s, to=%s\n", cfg.Urls.Pubring, cfg.Files.Pubring)
 		httpGet(cfg.Urls.Pubring, cfg.Files.Pubring)
 		fmt.Printf("Stats refresh: from=%s, to=%s\n", cfg.Urls.Mlist2, cfg.Files.Mlist2)
 		httpGet(cfg.Urls.Mlist2, cfg.Files.Mlist2)
 	}
-	if flags.Send {
+	if flag.Send {
 		// Flush the outbound pool
 		poolOutboundSend()
 	}
