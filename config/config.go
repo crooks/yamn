@@ -187,12 +187,12 @@ func ParseFlags() *Flags {
 }
 
 // findConfig attempts to locate a yamn config file
-func (flags *Flags) findConfig() (string, error) {
+func (f *Flags) findConfig() (string, error) {
 	var err error
 	var cfgFile string
 	// if a --config flag was passed, try that as the highest priority
-	if _, err = os.Stat(flags.Config); err == nil {
-		return flags.Config, nil
+	if _, err = os.Stat(f.Config); err == nil {
+		return f.Config, nil
 	}
 	// Does the environment variable YAMNCFG point to a valid file?
 	if _, err = os.Stat(os.Getenv("YAMNCFG")); err == nil {
@@ -207,7 +207,7 @@ func (flags *Flags) findConfig() (string, error) {
 		}
 	}
 	// Is there a yamn.yml file in the dir flag directory
-	cfgFile = path.Join(flags.Dir, "yamn.yml")
+	cfgFile = path.Join(f.Dir, "yamn.yml")
 	if _, err = os.Stat(cfgFile); err == nil {
 		return cfgFile, nil
 	}
@@ -229,85 +229,85 @@ func (flags *Flags) findConfig() (string, error) {
 }
 
 // newConfig returns a new instance of Config with some predefined defaults
-func (flags *Flags) newConfig() *Config {
-	cfg := new(Config)
+func (f *Flags) newConfig() *Config {
+	c := new(Config)
 	// Default values defined here will be overridden by unmarshaling a config file
-	cfg.General.Loglevel = "warn"
-	cfg.General.LogToFile = false // By default, log to stdout/stderr
+	c.General.Loglevel = "warn"
+	c.General.LogToFile = false // By default, log to stdout/stderr
 	// Config items in the Files section default to a path defined by the --dir flag
-	cfg.Files.Pubkey = path.Join(flags.Dir, "key.txt")
-	cfg.Files.Pubring = path.Join(flags.Dir, "pubring.mix")
-	cfg.Files.Secring = path.Join(flags.Dir, "secring.mix")
-	cfg.Files.Mlist2 = path.Join(flags.Dir, "mlist2.txt")
-	cfg.Files.Adminkey = path.Join(flags.Dir, "adminkey.txt")
-	cfg.Files.Help = path.Join(flags.Dir, "help.txt")
-	cfg.Files.Pooldir = path.Join(flags.Dir, "pool")
-	cfg.Files.Maildir = path.Join(flags.Dir, "Maildir")
-	cfg.Files.IDlog = path.Join(flags.Dir, "idlog")
-	cfg.Files.ChunkDB = path.Join(flags.Dir, "chunkdb")
-	cfg.Files.Logfile = path.Join(flags.Dir, "yamn.log")
-	cfg.Urls.Fetch = true
-	cfg.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
-	cfg.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
-	cfg.Mail.Sendmail = false
-	cfg.Mail.Outfile = false
-	cfg.Mail.SMTPRelay = "fleegle.mixmin.net"
-	cfg.Mail.SMTPPort = 587
-	cfg.Mail.UseTLS = true
-	cfg.Mail.MXRelay = true
-	cfg.Mail.OnionRelay = false // Allow .onion addresses as MX relays
-	cfg.Mail.Sender = ""
-	cfg.Mail.Username = ""
-	cfg.Mail.Password = ""
-	cfg.Mail.OutboundName = "Anonymous Remailer"
-	cfg.Mail.OutboundAddy = "remailer@domain.invalid"
-	cfg.Mail.CustomFrom = false
-	cfg.Stats.Minrel = 98.0
-	cfg.Stats.Relfinal = 99.0
-	cfg.Stats.Minlat = 2
-	cfg.Stats.Maxlat = 60
-	cfg.Stats.Chain = "*,*,*"
-	cfg.Stats.Numcopies = 1
-	cfg.Stats.Distance = 2
-	cfg.Stats.StaleHrs = 24
-	cfg.Stats.UseExpired = false
-	cfg.Pool.Size = 5 // Good for startups, too small for established
-	cfg.Pool.Rate = 65
-	cfg.Pool.MinSend = 5 // Only used in Binomial Mix Pools
-	cfg.Pool.Loop = 300
-	cfg.Pool.MaxAge = 28
-	cfg.Remailer.Name = "anon"
-	cfg.Remailer.Address = "mix@nowhere.invalid"
-	cfg.Remailer.Exit = false
-	cfg.Remailer.MaxSize = 12
-	cfg.Remailer.IDexp = 14
-	cfg.Remailer.ChunkExpire = 60
+	c.Files.Pubkey = path.Join(f.Dir, "key.txt")
+	c.Files.Pubring = path.Join(f.Dir, "pubring.mix")
+	c.Files.Secring = path.Join(f.Dir, "secring.mix")
+	c.Files.Mlist2 = path.Join(f.Dir, "mlist2.txt")
+	c.Files.Adminkey = path.Join(f.Dir, "adminkey.txt")
+	c.Files.Help = path.Join(f.Dir, "help.txt")
+	c.Files.Pooldir = path.Join(f.Dir, "pool")
+	c.Files.Maildir = path.Join(f.Dir, "Maildir")
+	c.Files.IDlog = path.Join(f.Dir, "idlog")
+	c.Files.ChunkDB = path.Join(f.Dir, "chunkdb")
+	c.Files.Logfile = path.Join(f.Dir, "yamn.log")
+	c.Urls.Fetch = true
+	c.Urls.Pubring = "http://www.mixmin.net/yamn/pubring.mix"
+	c.Urls.Mlist2 = "http://www.mixmin.net/yamn/mlist2.txt"
+	c.Mail.Sendmail = false
+	c.Mail.Outfile = false
+	c.Mail.SMTPRelay = "fleegle.mixmin.net"
+	c.Mail.SMTPPort = 587
+	c.Mail.UseTLS = true
+	c.Mail.MXRelay = true
+	c.Mail.OnionRelay = false // Allow .onion addresses as MX relays
+	c.Mail.Sender = ""
+	c.Mail.Username = ""
+	c.Mail.Password = ""
+	c.Mail.OutboundName = "Anonymous Remailer"
+	c.Mail.OutboundAddy = "remailer@domain.invalid"
+	c.Mail.CustomFrom = false
+	c.Stats.Minrel = 98.0
+	c.Stats.Relfinal = 99.0
+	c.Stats.Minlat = 2
+	c.Stats.Maxlat = 60
+	c.Stats.Chain = "*,*,*"
+	c.Stats.Numcopies = 1
+	c.Stats.Distance = 2
+	c.Stats.StaleHrs = 24
+	c.Stats.UseExpired = false
+	c.Pool.Size = 5 // Good for startups, too small for established
+	c.Pool.Rate = 65
+	c.Pool.MinSend = 5 // Only used in Binomial Mix Pools
+	c.Pool.Loop = 300
+	c.Pool.MaxAge = 28
+	c.Remailer.Name = "anon"
+	c.Remailer.Address = "mix@nowhere.invalid"
+	c.Remailer.Exit = false
+	c.Remailer.MaxSize = 12
+	c.Remailer.IDexp = 14
+	c.Remailer.ChunkExpire = 60
 	// Discard messages if packet timestamp exceeds this age in days
-	cfg.Remailer.MaxAge = 14
-	cfg.Remailer.Keylife = 14
-	cfg.Remailer.Keygrace = 28
-	cfg.Remailer.Daemon = false
-	return cfg
+	c.Remailer.MaxAge = 14
+	c.Remailer.Keylife = 14
+	c.Remailer.Keygrace = 28
+	c.Remailer.Daemon = false
+	return c
 }
 
 // ParseConfig returns an instance of Config with defaults overridden by the content of a config file
-func (flags *Flags) ParseConfig() (*Config, error) {
+func (f *Flags) ParseConfig() (*Config, error) {
 	// Fetch an instance of Config with defaults predefined
-	config := flags.newConfig()
+	c := f.newConfig()
 	// Try (really hard) to locate a yamn config file
-	cfgFile, err := flags.findConfig()
+	cfgFile, err := f.findConfig()
 	if err == nil {
 		// Useful for informing the user what config file is being read
-		config.Files.Config = cfgFile
+		c.Files.Config = cfgFile
 		yamlBytes, err := os.ReadFile(cfgFile)
 		if err != nil {
 			return nil, err
 		}
 		// Unmarshal the content of the YAML config file over the existing struct instance
-		err = yaml.Unmarshal(yamlBytes, &config)
+		err = yaml.Unmarshal(yamlBytes, &c)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return config, nil
+	return c, nil
 }

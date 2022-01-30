@@ -9,18 +9,14 @@ import (
 func TestFlags(t *testing.T) {
 	expectedClient := false
 	expectedCopies := 0
-	expectedConfig := "/etc/yamn/fake.yml"
+
 	// This needs to be set prior to doing ParseFlags()
-	os.Setenv("YAMNCFG", expectedConfig)
 	f := ParseFlags()
 	if f.Client != expectedClient {
-		t.Fatalf("Expected Client to contain \"%v\" but got \"%v\".", expectedClient, f.Client)
+		t.Errorf("Expected Client to contain \"%v\" but got \"%v\".", expectedClient, f.Client)
 	}
 	if f.Copies != expectedCopies {
-		t.Fatalf("Expected Client to contain \"%v\" but got \"%v\".", expectedCopies, f.Copies)
-	}
-	if f.Config != expectedConfig {
-		t.Fatalf("Expected Client to contain \"%v\" but got \"%v\".", expectedConfig, f.Config)
+		t.Errorf("Expected Client to contain \"%v\" but got \"%v\".", expectedCopies, f.Copies)
 	}
 }
 
@@ -45,30 +41,33 @@ files:
 	f.Config = testFile.Name()
 	// act as if we've been called with --dir=/fakedir
 	f.Dir = "/fakedir"
-	cfg, err := f.ParseConfig()
+	c, err := f.ParseConfig()
 	if err != nil {
 		t.Fatalf("ParseConfig returned: %v", err)
 	}
-
+	// c.Files.Config is special, it returns the name of the processed YAML file
+	if c.Files.Config != testFile.Name() {
+		t.Errorf("expected c.Files.Config to contain \"%s\" but got \"%s\"", testFile.Name(), c.Files.Config)
+	}
 	// These settings are defined in the fake config
-	if !cfg.General.LogToFile {
-		t.Errorf("expected cfg.General.Loglevel to be true but got %v", cfg.General.LogToFile)
+	if !c.General.LogToFile {
+		t.Errorf("expected c.General.Loglevel to be true but got %v", c.General.LogToFile)
 	}
-	if cfg.General.Loglevel != "info" {
-		t.Errorf("expected cfg.General.Loglevel to contain \"info\" but got \"%s\"", cfg.General.Loglevel)
+	if c.General.Loglevel != "info" {
+		t.Errorf("expected c.General.Loglevel to contain \"info\" but got \"%s\"", c.General.Loglevel)
 	}
-	if cfg.Files.Pubkey != "/fake/dir/pubkey" {
-		t.Errorf("expected cfg.Files.Pubkey to contain \"/fake/dir/pubkey\" but got \"%s\"", cfg.Files.Pubkey)
+	if c.Files.Pubkey != "/fake/dir/pubkey" {
+		t.Errorf("expected c.Files.Pubkey to contain \"/fake/dir/pubkey\" but got \"%s\"", c.Files.Pubkey)
 	}
 	// These settings are undefined and should return defaults
-	if !cfg.Urls.Fetch {
-		t.Errorf("expected cfg.Urls.Fetch to default to true but got %v", cfg.Urls.Fetch)
+	if !c.Urls.Fetch {
+		t.Errorf("expected c.Urls.Fetch to default to true but got %v", c.Urls.Fetch)
 	}
-	if !cfg.Mail.UseTLS {
-		t.Errorf("expected cfg.Mail.UseTLS to default to true but got %v", cfg.Mail.UseTLS)
+	if !c.Mail.UseTLS {
+		t.Errorf("expected c.Mail.UseTLS to default to true but got %v", c.Mail.UseTLS)
 	}
 	// These settings inherit defaults from flags
-	if cfg.Files.IDlog != "/fakedir/idlog" {
-		t.Errorf("Expected cfg.Files.IDlog to default to \"/fakedir/idlog\" but got \"%s\".", cfg.Files.IDlog)
+	if c.Files.IDlog != "/fakedir/idlog" {
+		t.Errorf("Expected c.Files.IDlog to default to \"/fakedir/idlog\" but got \"%s\".", c.Files.IDlog)
 	}
 }
