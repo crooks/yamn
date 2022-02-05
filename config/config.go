@@ -13,8 +13,9 @@ import (
 // Config contains all the configuration settings for Yamn.
 type Config struct {
 	General struct {
-		Loglevel  string `yaml:"loglevel"`
-		LogToFile bool   `yaml:"logtofile"`
+		Loglevel     string `yaml:"loglevel"`
+		LogToFile    bool   `yaml:"logtofile"`
+		LogToJournal bool   `yaml:"logtojournal"`
 	} `yaml:"general"`
 	Files struct {
 		// Config is a special variable that returns the name of the active config file.
@@ -246,7 +247,8 @@ func (f *Flags) newConfig() *Config {
 	c := new(Config)
 	// Default values defined here will be overridden by unmarshaling a config file
 	c.General.Loglevel = "warn"
-	c.General.LogToFile = false // By default, log to stdout/stderr
+	c.General.LogToFile = false    // By default, log to stdout/stderr
+	c.General.LogToJournal = false // Don't log to journal by default
 	// Config items in the Files section default to a path defined by the --dir flag
 	c.Files.Pubkey = path.Join(f.Dir, "key.txt")
 	c.Files.Pubring = path.Join(f.Dir, "pubring.mix")

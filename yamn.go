@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/Masterminds/log-go"
+	"github.com/crooks/jlog"
 	"github.com/crooks/yamn/config"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -61,15 +62,22 @@ func main() {
 		os.Exit(1)
 	}
 	// If we're logging to a file, open the file and redirect output to it
-	if cfg.General.LogToFile {
+	if cfg.General.LogToFile && cfg.General.LogToJournal {
+		fmt.Fprintln(os.Stderr, "Cannot log to file and journal")
+		os.Exit(1)
+	} else if cfg.General.LogToFile {
 		logfile, err := os.OpenFile(cfg.Files.Logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s: Error opening logfile: %v", cfg.Files.Logfile, err)
 			os.Exit(1)
 		}
 		stdlog.SetOutput(logfile)
+		log.Current = log.StdLogger{Level: loglevel}
+	} else if cfg.General.LogToJournal {
+		log.Current = jlog.NewJournal(loglevel)
+	} else {
+		log.Current = log.StdLogger{Level: loglevel}
 	}
-	log.Current = log.StdLogger{Level: loglevel}
 
 	// Inform the user which (if any) config file was used.
 	if cfg.Files.Config != "" {

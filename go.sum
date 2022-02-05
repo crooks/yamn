@@ -1,4 +1,8 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf h1:iW4rZ826su+pqaw19uhpSCzhj44qo35pNgKFGqzDKkU=
+github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
+github.com/crooks/jlog v0.0.0-20211114164956-865f9c8ec45f h1:V6BMEgw7qb/up7WJ3Fh4hO0CtKDHdW0sABPtGCiij3Q=
+github.com/crooks/jlog v0.0.0-20211114164956-865f9c8ec45f/go.mod h1:TOBH+z8pAjVypNzmyOq62anS1p898fxdZr0PSWyHfDw=
 github.com/crooks/log-go v0.4.1 h1:YVUpOxLAwCW0DWcxE6g4xEeMhODljWyNmGG09a/aGlw=
 github.com/crooks/log-go v0.4.1/go.mod h1:xPgU2yZAUbQCkvzB2I8OaqV5OFqOmq907g++YvJDL5Y=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
