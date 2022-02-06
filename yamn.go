@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version        string = "0.2.5"
+	version        string = "0.2.6"
 	dayLength      int    = 24 * 60 * 60 // Day in seconds
 	maxFragLength         = 17910
 	maxCopies             = 5
