@@ -88,34 +88,6 @@ func emailPoolFile(filename string) {
 	}
 }
 
-// dynamicMix returns a dynamic Mix of filenames from the outbound pool.
-func dynamicMix() []string {
-	var empty []string
-	poolFiles, err := readDir(cfg.Files.Pooldir, "m")
-	if err != nil {
-		log.Warnf("Unable to access pool: %s", err)
-		return empty
-	}
-	poolSize := len(poolFiles)
-	if poolSize < cfg.Pool.Size || poolSize == 0 {
-		// Pool isn't sufficiently populated
-		log.Tracef(
-			"Pool insufficiently populated to trigger sending."+
-				"Require=%d, Got=%d",
-			cfg.Pool.Size,
-			poolSize,
-		)
-		return empty
-	}
-	// Shuffle the slice of filenames now as we're going to return a
-	// setset of the overall pool.
-	crandom.Shuffle(poolFiles)
-	// Normal pool processing condition
-	numToSend := int((float32(poolSize) / 100.0) * float32(cfg.Pool.Rate))
-	log.Tracef("Processing %d pool messages.\n", poolSize)
-	return poolFiles[:numToSend]
-}
-
 // getBatchSize takes a Pool size and returns a corresponding batch size.  This
 // is intended for use with Binomial Mix Pools.
 func getBatchSize(poolSize int) int {

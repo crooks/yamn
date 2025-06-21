@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/crooks/yamn/crandom"
-	"github.com/dchest/blake2s"
+	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/nacl/box"
 	//"code.google.com/p/go.crypto/nacl/box"
 )
@@ -293,7 +293,6 @@ func (head *slotData) setPacketInfo(ei []byte) {
 func (head *slotData) setTimestamp() {
 	d := uint16(time.Now().UTC().Unix() / 86400)
 	binary.LittleEndian.PutUint16(head.timestamp, d)
-	return
 }
 
 // ageTimestamp returns an integer of the timestamp's age in days.
@@ -527,8 +526,8 @@ func (s *slotIntermediate) setPartialIV(partialIV []byte) {
 	copy(s.aesIV12, partialIV)
 }
 
-//seqIV constructs a complete 16 Byte IV from a partial 12 Byte IV + a 4 Byte
-//counter.
+// seqIV constructs a complete 16 Byte IV from a partial 12 Byte IV + a 4 Byte
+// counter.
 func seqIV(partialIV []byte, slot int) (iv []byte) {
 	err := lenCheck(len(partialIV), 12)
 	if err != nil {
@@ -552,23 +551,9 @@ func (s *slotIntermediate) setNextHop(nh string) {
 	s.nextHop = []byte(nh + strings.Repeat("\x00", 52-len(nh)))
 }
 
-//getNextHop returns the next hop remailer name after stripping any padding.
+// getNextHop returns the next hop remailer name after stripping any padding.
 func (s *slotIntermediate) getNextHop() string {
 	return strings.TrimRight(string(s.nextHop), "\x00")
-}
-
-// AES_IV constructs a 16 Byte IV from an input of 12 random Bytes and a uint32
-// counter.  The format is arbitrary but needs to be predictable and consistent
-// between encrypt and decrypt operations.
-func (s *slotIntermediate) seqIV(counter int) (iv []byte) {
-	if !s.gotAesIV12 {
-		err := errors.New("cannot sequence IV until partial IV is defined")
-		panic(err)
-	}
-	// IV format is: RRRRCCCCRRRRRRRR. Where R=Random and C=Counter
-	iv = make([]byte, 16)
-	copy(iv, seqIV(s.aesIV12, counter))
-	return
 }
 
 func (s *slotIntermediate) encode() []byte {
@@ -739,7 +724,7 @@ func (m *encMessage) getPartialIV(intermediateHop int) (ivPartial []byte) {
 // before a new header is inserted but after deterministic headers are appended
 // to the bottom of the header stack.
 func (m *encMessage) getAntiTag() []byte {
-	digest, err := blake2s.New(nil)
+	digest, err := blake2s.New256(nil)
 	if err != nil {
 		panic(err)
 	}
@@ -919,15 +904,12 @@ func (m *decMessage) shiftHeaders() {
 // headerBytes) and compares it with the provided hash.  If the two collide, it
 // returns True.
 func (m *decMessage) testAntiTag(tag []byte) bool {
-	digest, err := blake2s.New(nil)
+	digest, err := blake2s.New256(nil)
 	if err != nil {
 		panic(err)
 	}
 	digest.Write(m.payload[headerBytes:])
-	if bytes.Compare(tag, digest.Sum(nil)) == 0 {
-		return true
-	}
-	return false
+	return bytes.Compare(tag, digest.Sum(nil)) == 0
 }
 
 // Decrypt the body with the provided key and IV.  This function should only be
@@ -971,18 +953,12 @@ func (m *decMessage) decryptAll(key, partialIV []byte) {
 		sbyte := slot * headerBytes
 		ebyte := (slot + 1) * headerBytes
 		iv = seqIV(partialIV, slot)
-		copy(
-			m.payload[sbyte:ebyte],
-			aesCtr(m.payload[sbyte:ebyte], key, iv),
-		)
+		copy(m.payload[sbyte:ebyte], aesCtr(m.payload[sbyte:ebyte], key, iv))
 	}
 	// IVs from 0 to maxChainLength-1 have been used for the headers.  The
 	// next IV in sequence (maxChainLength) is used to decrypt the body.
 	iv = seqIV(partialIV, maxChainLength)
-	copy(
-		m.payload[headersBytes:],
-		aesCtr(m.payload[headersBytes:], key, iv),
-	)
+	copy(m.payload[headersBytes:], aesCtr(m.payload[headersBytes:], key, iv))
 }
 
 // debugPacket is only used for debugging purposes.  It outputs the first 20

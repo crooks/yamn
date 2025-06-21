@@ -3,7 +3,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -113,12 +112,10 @@ func mixprep() {
 		inChain = strings.Split(flag.Chain, ",")
 	}
 	if len(inChain) == 0 {
-		err = errors.New("empty input chain")
-		return
+		log.Fatal("empty input chain")
 	}
 	var cnum int // Chunk number
-	var numc int // Number of chunks
-	numc = int(math.Ceil(float64(plainLen) / float64(maxFragLength)))
+	numc := int(math.Ceil(float64(plainLen) / float64(maxFragLength)))
 	final.setNumChunks(numc)
 	var exitnode string // Address of exit node (for multiple copy chains)
 	var gotExit bool    // Flag to indicate an exit node has been selected
@@ -351,5 +348,4 @@ func dummy() {
 	log.Tracef("Sending dummy through: %s.", strings.Join(chain, ","))
 	yamnMsg := encodeMsg(plainMsg, chain, *final)
 	writeMessageToPool(sendTo, yamnMsg)
-	return
 }

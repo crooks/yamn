@@ -64,8 +64,8 @@ func makeChain(inChain []string) (outChain []string, err error) {
 		dist = len(inChain)
 	}
 	var distance []string
-	inDist := make([]string, 0, dist)  // n distance elements of input chain
-	outDist := make([]string, 0, dist) // n distance elements of output chain
+	var inDist []string  // n distance elements of input chain
+	var outDist []string // n distance elements of output chain
 	outChain = make([]string, 0, len(inChain))
 	// Loop until inChain contains no more remailers
 	numHops := len(inChain)

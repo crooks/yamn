@@ -8,6 +8,7 @@ import (
 
 	"github.com/Masterminds/log-go"
 	"github.com/crooks/jlog"
+	loglevel "github.com/crooks/log-go-level"
 	"github.com/crooks/yamn/config"
 	"github.com/crooks/yamn/idlog"
 	"github.com/crooks/yamn/keymgr"
@@ -15,7 +16,7 @@ import (
 )
 
 const (
-	version        string = "0.2.6"
+	version        string = "0.2.7"
 	dayLength      int    = 24 * 60 * 60 // Day in seconds
 	maxFragLength         = 17910
 	maxCopies             = 5
@@ -56,7 +57,7 @@ func main() {
 	}
 
 	// Set up logging
-	loglevel, err := log.Atoi(cfg.General.Loglevel)
+	loglevel, err := loglevel.ParseLevel(cfg.General.Loglevel)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: Unknown loglevel", cfg.General.Loglevel)
 		os.Exit(1)
