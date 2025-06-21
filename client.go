@@ -340,6 +340,10 @@ func dummy() {
 	final.setDeliveryMethod(255)
 	var chain []string
 	chain, err = makeChain(inChain)
+	if len(chain) == 0 {
+		log.Warn("There are no known remailers. Unable to send dummy.")
+		return
+	}
 	sendTo := chain[0]
 	if err != nil {
 		log.Warnf("Dummy creation failed: %s", err)
