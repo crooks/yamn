@@ -44,7 +44,7 @@ type Config struct {
 		Outfile      bool   `yaml:"outfile"`
 		UseTLS       bool   `yaml:"usetls"`
 		SMTPRelay    string `yaml:"smtp_relay"`
-		SMTPPort     int    `yaml:"smtp_port"`
+		SMTPPort     string `yaml:"smtp_port"`
 		MXRelay      bool   `yaml:"mx_relay"`
 		OnionRelay   bool   `yaml:"onion_relay"`
 		Sender       string `yaml:"sender"`
@@ -111,7 +111,8 @@ type Flags struct {
 
 // GetCfg parses the command line flags and config file if they haven't been previously parsed.
 // This should be an init function but tests fail if flags are parsed in init.
-//  See: https://github.com/golang/go/issues/46869
+//
+//	See: https://github.com/golang/go/issues/46869
 func GetCfg() (*Flags, *Config) {
 	var err error
 	f := ParseFlags()
@@ -267,7 +268,7 @@ func (f *Flags) newConfig() *Config {
 	c.Mail.Sendmail = false
 	c.Mail.Outfile = false
 	c.Mail.SMTPRelay = "fleegle.mixmin.net"
-	c.Mail.SMTPPort = 587
+	c.Mail.SMTPPort = "587"
 	c.Mail.UseTLS = true
 	c.Mail.MXRelay = true
 	c.Mail.OnionRelay = false // Allow .onion addresses as MX relays

@@ -322,10 +322,10 @@ func smtpRelay(payload []byte, sendTo []string) (err error) {
 				mx,
 			)
 			relay = mx
-			port = 25
+			port = "25"
 		}
 	}
-	serverAddr := fmt.Sprintf("%s:%d", relay, port)
+	serverAddr := net.JoinHostPort(relay, port)
 
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
@@ -421,7 +421,7 @@ func sendmail(payload []byte, sendTo []string) (err error) {
 		cfg.Mail.Username,
 		cfg.Mail.Password,
 		cfg.Mail.SMTPRelay)
-	relay := fmt.Sprintf("%s:%d", cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
+	relay := net.JoinHostPort(cfg.Mail.SMTPRelay, cfg.Mail.SMTPPort)
 	err = smtp.SendMail(relay, auth, cfg.Remailer.Address, sendTo, payload)
 	if err != nil {
 		log.Warn(err)
