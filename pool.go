@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"net/mail"
 	"os"
 	"path"
@@ -248,7 +247,7 @@ func processInpool(prefix string, secret *keymgr.Secring) {
 	for _, f := range poolFiles {
 		filename := path.Join(cfg.Files.Pooldir, f)
 		msg := make([]byte, messageBytes)
-		msg, err = ioutil.ReadFile(filename)
+		msg, err = os.ReadFile(filename)
 		if err != nil {
 			log.Warnf("Failed to read %s from pool: %s", f, err)
 			continue
