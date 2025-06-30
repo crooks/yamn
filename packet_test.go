@@ -29,7 +29,7 @@ func TestIntermediate(t *testing.T) {
 	inInter.setPartialIV(inputAesIV12)
 	inInter.setNextHop(inputNextHop)
 	outInter := decodeIntermediate(inInter.encode())
-	if bytes.Compare(outInter.aesIV12, inputAesIV12) != 0 {
+	if !bytes.Equal(outInter.aesIV12, inputAesIV12) {
 		t.Fatalf("Intermediate AES IV mismatch: %x", outInter.aesIV12)
 	}
 	if outInter.getNextHop() != inputNextHop {
@@ -47,7 +47,7 @@ func TestSlotData(t *testing.T) {
 	inSlotData.setAesKey(crandom.Randbytes(32))
 	inSlotData.setTagHash(make([]byte, 32))
 	outSlotData := decodeSlotData(inSlotData.encode())
-	if bytes.Compare(inSlotData.packetID, outSlotData.packetID) != 0 {
+	if !bytes.Equal(inSlotData.packetID, outSlotData.packetID) {
 		t.Fatal("PacketID Mismatch")
 	}
 }
@@ -78,10 +78,10 @@ func TestPacket(t *testing.T) {
 	inHead := decodeSlotData(outHead.encode())
 
 	inExitHead := decodeFinal(inHead.packetInfo)
-	if bytes.Compare(outHead.aesKey, inHead.aesKey) != 0 {
+	if !bytes.Equal(outHead.aesKey, inHead.aesKey) {
 		t.Fatal("AES Key mismatch")
 	}
-	if bytes.Compare(outExitHead.aesIV, inExitHead.aesIV) != 0 {
+	if !bytes.Equal(outExitHead.aesIV, inExitHead.aesIV) {
 		t.Fatal("AES IV mismatch")
 	}
 	copy(payload, aesCtr(payload, inHead.aesKey, inExitHead.aesIV))
@@ -89,7 +89,7 @@ func TestPacket(t *testing.T) {
 	if outText != plainText {
 		t.Fatal("Body encrypt/decrypt mismatch")
 	}
-	if bytes.Compare(outExitHead.messageID, inExitHead.messageID) != 0 {
+	if !bytes.Equal(outExitHead.messageID, inExitHead.messageID) {
 		t.Fatal("MessageID mismatch")
 	}
 }
@@ -145,7 +145,7 @@ func TestOneHop(t *testing.T) {
 		)
 	}
 	// Test if the decoded raw Slot Data bytes match the input Slot Data
-	if bytes.Compare(encSlotDataBytes, decSlotDataBytes) != 0 {
+	if !bytes.Equal(encSlotDataBytes, decSlotDataBytes) {
 		t.Fatal("Encoded/Decoded Slot Data mismatch")
 	}
 	// Convert the raw Slot Data Bytes to meaningful slotData.
@@ -161,7 +161,7 @@ func TestOneHop(t *testing.T) {
 	decBody := make([]byte, bodyBytes)
 	copy(decBody, aesCtr(encBody, decSlotData.aesKey, decSlotFinal.aesIV))
 	decPlain := decBody[:decSlotFinal.bodyBytes]
-	if bytes.Compare(encPlain, decPlain) != 0 {
+	if !bytes.Equal(encPlain, decPlain) {
 		t.Fatalf(
 			"Body decode mismatch. In=%s, Out=%s",
 			encPlain,
@@ -276,7 +276,7 @@ func TestMultiHop(t *testing.T) {
 				decFinal.aesIV,
 				decFinal.bodyBytes,
 			)
-			if bytes.Compare(encPlain, decPlain) != 0 {
+			if !bytes.Equal(encPlain, decPlain) {
 				t.Fatalf(
 					"Body decode mismatch. In=%s, Out=%s",
 					encPlain,

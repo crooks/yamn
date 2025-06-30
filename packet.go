@@ -909,7 +909,7 @@ func (m *decMessage) testAntiTag(tag []byte) bool {
 		panic(err)
 	}
 	digest.Write(m.payload[headerBytes:])
-	return bytes.Compare(tag, digest.Sum(nil)) == 0
+	return bytes.Equal(tag, digest.Sum(nil))
 }
 
 // Decrypt the body with the provided key and IV.  This function should only be
